@@ -3,41 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoGestão X - Assistente Pro</title>
+    <title>AutoGestão X - Full Assistant</title>
     <style>
         :root {
             --bg: #050810; --card: #101625; --accent: #00f2ff; 
             --neon: #00f2ff; --danger: #ff0055; --success: #00ffaa;
             --warning: #ffaa00; --text: #e2e8f0; --eco: #00ffaa;
         }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow-x: hidden; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; }
         .container { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
         
-        /* Dashboard & Telemetria */
-        .telemetry-header { padding: 30px 20px; text-align: center; background: radial-gradient(circle at top, #16213e, #050810); position: relative; }
-        .alert-triangle { position: absolute; top: 20px; right: 20px; color: var(--danger); font-size: 24px; animation: blink 1s infinite; display: none; }
-        .odometer { font-size: 2.8rem; font-weight: 900; letter-spacing: -2px; color: #fff; text-shadow: 0 0 15px var(--accent); }
-        .eco-bar { height: 4px; width: 150px; background: #334155; margin: 10px auto; border-radius: 2px; overflow: hidden; }
-        .eco-fill { height: 100%; width: 50%; background: var(--eco); transition: 0.3s; box-shadow: 0 0 10px var(--eco); }
-
-        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; }
-        .gauge-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 15px; padding: 15px; text-align: center; }
-        .gauge-val { font-size: 1.5rem; font-weight: bold; color: var(--accent); display: block; }
-        .gauge-lab { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
-
-        /* Sacola & Comparativo */
-        .offer-card { background: #1e293b; border-radius: 12px; padding: 12px; margin-top: 10px; border-left: 3px solid var(--accent); }
-        .badge-full { background: #ffee00; color: #000; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 3px; }
+        /* Dashboard Principal */
+        .telemetry-header { padding: 25px; text-align: center; background: radial-gradient(circle at top, #16213e, #050810); position: relative; }
+        .odometer { font-size: 2.5rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px var(--accent); margin-bottom: 10px; }
         
-        /* Navegação */
-        .bottom-dock { background: rgba(10, 15, 25, 0.95); backdrop-filter: blur(20px); display: flex; justify-content: space-around; padding: 18px; position: sticky; bottom: 0; border-top: 1px solid rgba(0, 242, 255, 0.3); }
-        .dock-item { color: #475569; font-size: 1.5rem; cursor: pointer; transition: 0.3s; position: relative; }
-        .dock-item.active { color: var(--neon); transform: translateY(-3px); }
-        .dock-item .notif-dot { position: absolute; top: -5px; right: -5px; width: 8px; height: 8px; background: var(--danger); border-radius: 50%; display: none; }
+        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 15px 15px 15px; }
+        .gauge-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 15px; padding: 12px; text-align: center; }
+        .gauge-wide { grid-column: span 2; border-top: 2px solid var(--accent); }
+        .gauge-val { font-size: 1.4rem; font-weight: bold; color: var(--accent); display: block; }
+        .gauge-lab { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
 
-        .btn-main { background: var(--accent); color: #000; border: none; padding: 15px; border-radius: 12px; font-weight: 800; width: 100%; cursor: pointer; }
+        /* Estilo de Inputs e Botões */
+        input, select { background: #1e293b; border: 1px solid #334155; color: white; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; font-size: 14px; }
+        input::placeholder { color: #64748b; }
+        .btn-main { background: var(--accent); color: #000; border: none; padding: 12px; border-radius: 10px; font-weight: 800; width: 100%; cursor: pointer; text-transform: uppercase; transition: 0.2s; }
+        .btn-outline { background: none; border: 1px solid var(--accent); color: var(--accent); }
+        .btn-tab { background: #1e293b; color: #94a3b8; border: none; padding: 10px; flex: 1; border-radius: 8px; cursor: pointer; }
+        .btn-tab.active { background: var(--accent); color: #000; font-weight: bold; }
+
+        /* Cartões de Peças e Ofertas */
+        .glass-card { background: var(--card); padding: 15px; border-radius: 15px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05); }
+        .offer-card { background: #1e293b; border-radius: 10px; padding: 10px; margin-top: 8px; border: 2px solid transparent; cursor: pointer; }
+        .offer-card.selected { border-color: var(--accent); background: rgba(0, 242, 255, 0.05); }
+        .badge-full { background: #ffee00; color: #000; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 3px; }
+
+        /* Navegação Inferior */
+        .bottom-dock { background: rgba(5, 8, 16, 0.95); backdrop-filter: blur(15px); display: flex; justify-content: space-around; padding: 18px; position: sticky; bottom: 0; border-top: 1px solid rgba(0,242,255,0.2); }
+        .dock-item { color: #475569; font-size: 1.4rem; cursor: pointer; transition: 0.3s; }
+        .dock-item.active { color: var(--neon); transform: translateY(-3px); }
+
         .hidden { display: none; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -47,169 +52,184 @@
     
     <div id="scr-dash">
         <div class="telemetry-header">
-            <i class="fas fa-exclamation-triangle alert-triangle" id="main-alert"></i>
-            <small style="color:var(--accent)">SISTEMAS DO VEÍCULO</small>
-            <div class="odometer" id="odometer-val">136.670</div>
-            <div class="eco-bar"><div class="eco-fill" id="eco-indicator"></div></div>
-            <small style="font-size: 10px; color: var(--eco)">MODO ECO-DRIVE ATIVO</small>
+            <div id="display-car-info" style="font-size: 11px; color: var(--accent); margin-bottom: 5px;">AGUARDANDO VEÍCULO...</div>
+            <div class="odometer" id="main-odometer">0</div>
+            <div style="font-size: 10px; letter-spacing: 2px; color: #64748b;">QUILOMETRAGEM TOTAL</div>
         </div>
 
         <div class="dash-grid">
-            <div class="gauge-card"><span class="gauge-val" id="val-rpm">0</span><span class="gauge-lab">RPM</span></div>
+            <div class="gauge-card"><span class="gauge-val" id="val-rpm">850</span><span class="gauge-lab">RPM</span></div>
             <div class="gauge-card"><span class="gauge-val" id="val-bat">13.8V</span><span class="gauge-lab">Bateria</span></div>
-            <div class="gauge-card"><span class="gauge-val" id="val-fuel">75%</span><span class="gauge-lab">Nível Combustível</span></div>
-            <div class="gauge-card"><span class="gauge-val" id="val-cons">12.5</span><span class="gauge-lab">KM / Litro</span></div>
-        </div>
-
-        <div id="fault-diagnose" class="hidden" style="padding: 15px;">
-            <div style="background: rgba(255,0,85,0.1); border: 1px solid var(--danger); padding: 15px; border-radius: 15px;">
-                <h4 style="color:var(--danger); margin:0"><i class="fas fa-bug"></i> Falha Detectada: P0301</h4>
-                <p style="font-size:13px">Falha de ignição no cilindro 1. Pode causar perda de potência e alto consumo.</p>
-                <button class="btn-main" style="background:none; border:1px solid #fff; color:#fff; padding:8px" onclick="resetDTC()">Reconhecer/Resetar</button>
+            <div class="gauge-card gauge-wide">
+                <span class="gauge-val" id="val-range">-- km disponíveis</span>
+                <span class="gauge-lab">Autonomia Estimada</span>
             </div>
+            <div class="gauge-card"><span class="gauge-val" id="val-fuel">0%</span><span class="gauge-lab">Tanque</span></div>
+            <div class="gauge-card"><span class="gauge-val" id="val-cons">0.0</span><span class="gauge-lab">KM / Litro</span></div>
         </div>
     </div>
 
-    <div id="scr-history" class="hidden" style="padding:20px">
-        <h3>Linha do Tempo</h3>
-        <div id="history-list">
-            <div style="border-left: 2px solid var(--accent); padding-left: 15px; margin-bottom: 20px;">
-                <small style="color:var(--accent)">Hoje, 19:45</small>
-                <div style="font-weight:bold">Posto Shell Tatuí</div>
-                <div style="font-size:12px; color:var(--success)">Rendimento: 14.2km/L (Excelente)</div>
+    <div id="scr-parts" class="hidden" style="padding: 20px;">
+        <div style="display:flex; gap:10px; margin-bottom:15px">
+            <button id="tab-btn-cat" class="btn-tab active" onclick="setPartTab('catalog')">Peças</button>
+            <button id="tab-btn-prev" class="btn-tab" onclick="setPartTab('preventive')">Preventiva</button>
+        </div>
+
+        <div id="catalog-ui">
+            <input type="text" id="part-search" placeholder="Buscar no catálogo técnico..." onkeyup="searchParts()">
+            <div id="parts-list"></div>
+        </div>
+        <div id="preventive-ui" class="hidden">
+            <h4 style="margin-top:0">Manutenção por KM/Tempo</h4>
+            <div id="preventive-list"></div>
+        </div>
+    </div>
+
+    <div id="scr-cart" class="hidden" style="padding: 20px;">
+        <h3>Sacola Inteligente</h3>
+        <div id="cart-content"></div>
+        <div id="cart-footer" class="glass-card" style="margin-top:20px; border-top: 2px solid var(--success)">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px">
+                <span>Total:</span>
+                <b id="cart-total-val">R$ 0,00</b>
             </div>
+            <button class="btn-main" style="background:var(--success)">Finalizar Compra</button>
         </div>
     </div>
 
-    <div id="scr-parts" class="hidden" style="padding:20px">
-        <div style="display:flex; gap:10px; margin-bottom:20px">
-            <button onclick="togglePartTab('catalog')" class="btn-main" style="background:#1e293b; color:#fff">Peças</button>
-            <button onclick="togglePartTab('preventive')" class="btn-main">Preventiva</button>
+    <div id="scr-settings" class="hidden" style="padding: 20px;">
+        <div class="glass-card">
+            <h4>Veículo Ativo</h4>
+            <input type="text" id="vin-input" placeholder="Digite o Chassi (VIN)" oninput="decodeVIN()">
+            <select id="sel-marca"><option value="">Marca</option><option>Volkswagen</option><option>Fiat</option></select>
+            <input type="text" id="inp-modelo" placeholder="Modelo do Carro">
+            <button class="btn-main btn-outline" style="margin-top:10px" onclick="saveCar()">Salvar Manualmente</button>
         </div>
-        
-        <input type="text" id="part-search" placeholder="Pesquisar peça (Ex: Sonda Lambda)">
-        <div id="parts-content"></div>
-    </div>
 
-    <div id="scr-cart" class="hidden" style="padding:20px">
-        <h3>Minha Sacola</h3>
-        <div id="cart-list"></div>
-        <div id="cart-total-box" class="gauge-card" style="margin-top:20px; border:1px solid var(--success)">
-            <small>ORÇAMENTO ESTIMADO</small>
-            <div class="gauge-val" style="color:var(--success)" id="total-price">R$ 0,00</div>
-            <button class="btn-main" style="background:var(--success); margin-top:10px">Comprar Agora</button>
+        <div class="glass-card">
+            <h4>Hardware</h4>
+            <button class="btn-main" style="background:#6200ea" onclick="alert('Buscando OBD2...')"><i class="fab fa-bluetooth"></i> Conectar OBD2</button>
+            <button class="btn-main" style="margin-top:10px; background:var(--danger)" onclick="simulateFault()">Simular Falha (Debug)</button>
         </div>
-    </div>
-
-    <div id="scr-settings" class="hidden" style="padding:20px">
-        <h3>Ajustes</h3>
-        <button class="btn-main" style="background:#4285F4; margin-bottom:15px"><i class="fab fa-google"></i> Fazer Backup no Google</button>
-        <button class="btn-main" onclick="simulateFault()">Simular Falha OBD2</button>
     </div>
 
     <nav class="bottom-dock">
-        <div class="dock-item active" onclick="showTab('dash', this)"><i class="fas fa-tachometer-alt"></i><div class="notif-dot" id="dot-dash"></div></div>
-        <div class="dock-item" onclick="showTab('history', this)"><i class="fas fa-history"></i></div>
-        <div class="dock-item" onclick="showTab('parts', this)"><i class="fas fa-tools"></i></div>
-        <div class="dock-item" onclick="showTab('cart', this)"><i class="fas fa-shopping-basket"></i></div>
-        <div class="dock-item" onclick="showTab('settings', this)"><i class="fas fa-cog"></i></div>
+        <div class="dock-item active" onclick="nav('dash', this)"><i class="fas fa-tachometer-alt"></i></div>
+        <div class="dock-item" onclick="nav('history', this)"><i class="fas fa-history"></i></div>
+        <div class="dock-item" onclick="nav('parts', this)"><i class="fas fa-tools"></i></div>
+        <div class="dock-item" onclick="nav('cart', this)"><i class="fas fa-shopping-basket"></i></div>
+        <div class="dock-item" onclick="nav('settings', this)"><i class="fas fa-cog"></i></div>
     </nav>
 </div>
 
 <script>
-// Base de Dados de Peças com Opções de Mercado Livre
-const catalogDB = [
-    {id:'p1', name:'Velas de Ignição Iridium', code:'BKR6EIX', price:189.90, category:'Motor',
-     offers:[
-         {seller:'Oficina Brasil', price:189.90, shipping:0, time:'Full (Amanhã)', sales:5000, rep:'Verde'},
-         {seller:'Pecas Auto', price:175.00, shipping:15, time:'3 dias', sales:1200, rep:'Verde'}
+// Dados técnicos de exemplo
+const techDB = [
+    {id:'v1', name:'Velas Iridium', code:'NGK-BKR6', price:180, cat:'Motor', prev:false,
+     offers: [
+         {id:'o1', seller:'ML Express', price:180, time:'Full (Amanhã)', sales:5000},
+         {id:'o2', seller:'AutoPeças SP', price:165, time:'3 dias', sales:800}
      ]},
-    {id:'p2', name:'Óleo 5W40 VW508', code:'G052502', price:245.00, category:'Motor',
-     offers:[
-         {seller:'VW Parts', price:245.00, shipping:0, time:'Full (Amanhã)', sales:10000, rep:'Verde'}
-     ]}
+    {id:'o1', name:'Óleo 5W40 Sintético', code:'VW-508', price:240, cat:'Motor', prev:true,
+     offers: [{id:'o3', seller:'Distribuidora', price:240, time:'Full', sales:1000}]}
 ];
 
-let cart = [];
+let appState = { car: {marca:'', modelo:'', km:136670}, cart: [] };
 
-function showTab(tab, el) {
+function nav(scr, el) {
     document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
-    document.getElementById('scr-'+tab).classList.remove('hidden');
+    document.getElementById('scr-'+scr).classList.remove('hidden');
     document.querySelectorAll('.dock-item').forEach(i => i.classList.remove('active'));
     el.classList.add('active');
-    if(tab === 'parts') renderParts();
-    if(tab === 'cart') renderCart();
 }
 
-function renderParts() {
-    const list = document.getElementById('parts-content');
-    list.innerHTML = '';
-    catalogDB.forEach(p => {
-        list.innerHTML += `
-            <div class="gauge-card" style="text-align:left; margin-bottom:10px">
-                <div style="display:flex; justify-content:space-between">
-                    <b>${p.name}</b>
-                    <input type="checkbox" onchange="toggleCart('${p.id}')">
-                </div>
-                <small style="color:var(--accent)">COD: ${p.code}</small>
-            </div>`;
+function setPartTab(tab) {
+    document.getElementById('catalog-ui').classList.toggle('hidden', tab !== 'catalog');
+    document.getElementById('preventive-ui').classList.toggle('hidden', tab !== 'preventive');
+    document.getElementById('tab-btn-cat').classList.toggle('active', tab === 'catalog');
+    document.getElementById('tab-btn-prev').classList.toggle('active', tab === 'preventive');
+    renderPartsList();
+}
+
+function renderPartsList() {
+    const list = document.getElementById('parts-list');
+    const prevList = document.getElementById('preventive-list');
+    list.innerHTML = ''; prevList.innerHTML = '';
+
+    techDB.forEach(p => {
+        const html = `<div class="glass-card" style="display:flex; justify-content:space-between">
+            <div><b>${p.name}</b><br><small>${p.code}</small></div>
+            <input type="checkbox" style="width:20px" onchange="addToCart('${p.id}')">
+        </div>`;
+        if(p.prev) prevList.innerHTML += html;
+        list.innerHTML += html;
     });
 }
 
-function toggleCart(id) {
-    const item = catalogDB.find(p => p.id === id);
-    const idx = cart.findIndex(c => c.id === id);
-    if(idx > -1) cart.splice(idx, 1); else cart.push(item);
+function addToCart(id) {
+    const item = techDB.find(p => p.id === id);
+    if(!appState.cart.find(i => i.id === id)) {
+        appState.cart.push({ ...item, selectedOffer: 0 });
+    } else {
+        appState.cart = appState.cart.filter(i => i.id !== id);
+    }
+    renderCart();
 }
 
 function renderCart() {
-    const list = document.getElementById('cart-list');
-    list.innerHTML = '';
-    let total = 0;
-    cart.forEach(item => {
-        total += item.price;
-        let offersHtml = item.offers.map(o => `
-            <div class="offer-card">
-                <div style="display:flex; justify-content:space-between; font-size:11px">
-                    <span>${o.seller} | ⭐ ${o.rep}</span>
-                    <span class="badge-full">${o.time}</span>
-                </div>
-                <div style="font-weight:bold; color:var(--success)">R$ ${o.price.toFixed(2)} <small style="font-size:9px; color:#94a3b8">+ R$ ${o.shipping} frete</small></div>
-            </div>
-        `).join('');
-        
-        list.innerHTML += `
-            <div style="margin-bottom:20px">
-                <b>${item.name}</b>
-                ${offersHtml}
-            </div>`;
+    const cont = document.getElementById('cart-content');
+    cont.innerHTML = ''; let total = 0;
+
+    appState.cart.forEach((item, itemIdx) => {
+        cont.innerHTML += `<h4>${item.name}</h4>`;
+        item.offers.forEach((off, offIdx) => {
+            const isSelected = item.selectedOffer === offIdx;
+            if(isSelected) total += off.price;
+            cont.innerHTML += `
+                <div class="offer-card ${isSelected ? 'selected' : ''}" onclick="selectOffer(${itemIdx}, ${offIdx})">
+                    <div style="display:flex; justify-content:space-between">
+                        <span>${off.seller}</span>
+                        <span class="badge-full">${off.time}</span>
+                    </div>
+                    <b>R$ ${off.price.toFixed(2)}</b>
+                </div>`;
+        });
     });
-    document.getElementById('total-price').innerText = "R$ " + total.toFixed(2);
+    document.getElementById('cart-total-val').innerText = "R$ " + total.toFixed(2);
 }
 
-function simulateFault() {
-    document.getElementById('main-alert').style.display = 'block';
-    document.getElementById('dot-dash').style.display = 'block';
-    document.getElementById('fault-diagnose').classList.remove('hidden');
-    showTab('dash', document.querySelector('.dock-item'));
-    alert("Simulando Alerta OBD2: P0301 Detectado!");
+function selectOffer(itemIdx, offIdx) {
+    appState.cart[itemIdx].selectedOffer = offIdx;
+    renderCart();
 }
 
-function resetDTC() {
-    if(confirm("Deseja apagar os códigos de erro do veículo?")) {
-        document.getElementById('main-alert').style.display = 'none';
-        document.getElementById('dot-dash').style.display = 'none';
-        document.getElementById('fault-diagnose').classList.add('hidden');
+function decodeVIN() {
+    const vin = document.getElementById('vin-input').value.toUpperCase();
+    if(vin.startsWith("9BW")) { 
+        document.getElementById('sel-marca').value = "Volkswagen";
+        document.getElementById('inp-modelo').value = "GOL 1.6 MSI";
     }
 }
 
-// Simulação de Eco-Drive (Oscilação do pé no acelerador)
+function saveCar() {
+    appState.car.marca = document.getElementById('sel-marca').value;
+    appState.car.modelo = document.getElementById('inp-modelo').value;
+    document.getElementById('display-car-info').innerText = `${appState.car.marca} ${appState.car.modelo}`.toUpperCase();
+    document.getElementById('main-odometer').innerText = appState.car.km.toLocaleString();
+    alert("Veículo configurado!");
+}
+
+// Simulação Telemetria
 setInterval(() => {
-    const fill = document.getElementById('eco-indicator');
-    const randomVal = Math.floor(Math.random() * (90 - 40) + 40);
-    fill.style.width = randomVal + "%";
-    fill.style.background = randomVal > 70 ? 'var(--success)' : (randomVal > 40 ? 'var(--warning)' : 'var(--danger)');
-}, 2000);
+    if(!document.getElementById('scr-dash').classList.contains('hidden')) {
+        const fuel = 45; // Simulado
+        document.getElementById('val-fuel').innerText = fuel + "%";
+        document.getElementById('val-range').innerText = (fuel * 8.5).toFixed(0) + " km disponíveis";
+        document.getElementById('val-cons').innerText = (Math.random() * (13 - 11) + 11).toFixed(1);
+    }
+}, 3000);
+
+renderPartsList();
 </script>
 </body>
 </html>
