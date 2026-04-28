@@ -3,243 +3,242 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoGestão Pro - Market Ready</title>
+    <title>AutoGestão X - Futurista</title>
     <style>
         :root {
-            --primary: #1e293b; --accent: #3b82f6; --danger: #ef4444;
-            --success: #10b981; --warning: #f59e0b; --bg: #f8fafc;
-            --card-bg: #ffffff;
+            --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; 
+            --neon: #22d3ee; --danger: #f43f5e; --success: #10b981;
+            --text: #f1f5f9;
         }
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; color: var(--primary); }
-        .container { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow-x: hidden; }
+        .container { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
         
-        .top-nav { background: var(--primary); color: white; padding: 20px; border-radius: 0 0 25px 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .km-display-main { font-size: 2rem; font-weight: 800; margin: 10px 0; letter-spacing: -1px; }
+        /* Layout Futurista */
+        .glass-card { background: var(--card); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 20px; margin-bottom: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        .neon-border { border-left: 4px solid var(--neon); }
+        .btn-futuristic { background: linear-gradient(135deg, var(--accent), #1d4ed8); color: white; border: none; padding: 15px; border-radius: 15px; font-weight: 800; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4); }
         
-        .content { padding: 20px; flex: 1; }
-        .health-card { background: var(--card-bg); padding: 16px; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        .progress-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin: 12px 0; overflow: hidden; }
-        .progress-fill { height: 100%; transition: width 0.5s ease; }
+        /* KM e Header */
+        .header-main { padding: 30px 20px; background: linear-gradient(to bottom, #1e293b, #0f172a); text-align: center; border-radius: 0 0 30px 30px; }
+        .km-badge-large { font-size: 2.5rem; font-weight: 900; text-shadow: 0 0 20px var(--neon); margin: 10px 0; }
 
-        .bottom-nav { background: white; display: flex; justify-content: space-around; padding: 15px; border-top: 1px solid #e2e8f0; position: sticky; bottom: 0; }
-        .nav-item { border: none; background: none; color: #64748b; font-size: 11px; font-weight: 600; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-        .nav-item.active { color: var(--accent); }
-        .nav-item i { font-size: 20px; margin-bottom: 4px; }
+        /* Navegação Estilo Dock */
+        .bottom-dock { background: rgba(30, 41, 59, 0.8); backdrop-filter: blur(10px); display: flex; justify-content: space-around; padding: 15px; position: sticky; bottom: 0; border-top: 1px solid rgba(255,255,255,0.1); }
+        .dock-item { color: #94a3b8; font-size: 1.5rem; cursor: pointer; transition: 0.3s; }
+        .dock-item.active { color: var(--neon); transform: translateY(-5px); }
 
-        .btn-primary { background: var(--accent); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 700; width: 100%; cursor: pointer; margin-top: 10px; }
-        .badge { font-size: 10px; padding: 4px 8px; border-radius: 20px; font-weight: bold; text-transform: uppercase; }
+        /* Peças e Catálogo */
+        .progress-container { height: 6px; background: #334155; border-radius: 10px; margin: 10px 0; }
+        .progress-fill { height: 100%; border-radius: 10px; box-shadow: 0 0 10px var(--neon); }
+        
+        select, input { background: #334155; border: 1px solid #475569; color: white; padding: 12px; border-radius: 12px; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
         .hidden { display: none; }
-        
-        input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 12px; font-size: 16px; background: white; }
-        label { font-size: 12px; font-weight: bold; color: #64748b; margin-left: 5px; }
     </style>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
 <div class="container">
-    <div id="setup-screen" class="content hidden">
-        <h2 style="text-align:center">Configure seu App 🚗</h2>
-        <p style="text-align:center; color: #64748b; font-size: 14px;">Identifique seu veículo para monitorar a manutenção.</p>
-        
-        <label>Número do Chassi (Opcional)</label>
-        <input type="text" id="vin-input" placeholder="Digite o VIN" oninput="decodificarVIN()">
-        
-        <label>Fabricante</label>
-        <select id="marca" onchange="popularModelos()">
-            <option value="">Selecione a Marca</option>
+    
+    <div id="screen-selector" class="content p-20">
+        <h1 style="text-align:center">Garagem <span style="color:var(--neon)">X</span></h1>
+        <div id="car-list">
+            </div>
+        <button class="btn-futuristic" onclick="showScreen('screen-setup')">+ Novo Veículo</button>
+    </div>
+
+    <div id="screen-setup" class="hidden p-20">
+        <button onclick="showScreen('screen-selector')" style="color:var(--accent); background:none; border:none; cursor:pointer"><i class="fas fa-arrow-left"></i> Voltar</button>
+        <h2>Configurar Veículo</h2>
+        <select id="marca" onchange="loadModels()">
+            <option value="">Marca</option>
             <option value="volkswagen">Volkswagen</option>
             <option value="fiat">Fiat</option>
             <option value="chevrolet">Chevrolet</option>
-            <option value="hyundai">Hyundai</option>
-            <option value="toyota">Toyota</option>
-            <option value="honda">Honda</option>
-            <option value="renault">Renault</option>
-            <option value="jeep">Jeep</option>
-            <option value="nissan">Nissan</option>
-            <option value="caoa-chery">Caoa Chery</option>
         </select>
-        
-        <label>Modelo do Veículo</label>
-        <select id="modelo"><option value="">Selecione a marca primeiro</option></select>
-        
-        <label>Quilometragem Atual</label>
-        <input type="number" id="km-inicial" placeholder="Ex: 50000">
-        
-        <button class="btn-primary" onclick="iniciarApp()">Começar Agora</button>
+        <select id="modelo"><option value="">Modelo</option></select>
+        <input type="number" id="km-atual" placeholder="KM Atual do Painel">
+        <p style="font-size: 12px; color: #94a3b8">Sugeriremos as manutenções principais. Você poderá ajustar as datas a seguir.</p>
+        <button class="btn-futuristic" onclick="addCar()">Ativar Veículo</button>
     </div>
 
-    <div id="main-app" class="hidden">
-        <div class="top-nav">
-            <div style="font-size: 14px; opacity: 0.8;" id="car-title">Meu Veículo</div>
-            <div class="km-display-main" id="km-display">0 KM</div>
-            <div style="display: flex; gap: 8px;">
-                <input type="number" id="new-km" placeholder="Atualizar KM..." style="margin-bottom:0; background: rgba(255,255,255,0.1); color: white; border: none;">
-                <button onclick="atualizarKM()" style="width: auto; padding: 0 20px; margin: 0; background: var(--success); color: white; border-radius: 12px; border: none; font-weight: bold;">OK</button>
-            </div>
+    <div id="screen-main" class="hidden">
+        <div class="header-main">
+            <small id="display-car-name" style="text-transform: uppercase; letter-spacing: 2px; color: var(--accent)"></small>
+            <div class="km-badge-large" id="display-km">0 KM</div>
+            <div style="color: var(--success); font-size: 12px;"><i class="fas fa-check-circle"></i> Sistemas Normais</div>
         </div>
 
-        <div class="content">
+        <div class="content p-20" style="padding: 20px;">
             <div id="tab-dash" class="tab-content">
-                <h3 style="margin-top:0">Saúde das Peças</h3>
-                <div id="lista-saude"></div>
+                <h3>Resumo de Saúde</h3>
+                <div id="dash-alerts"></div>
             </div>
 
-            <div id="tab-pecas" class="tab-content hidden">
-                <h3>Catálogo de Peças</h3>
-                <div id="lista-pecas"></div>
+            <div id="tab-fuel" class="tab-content hidden">
+                <h3>Abastecimento</h3>
+                <div class="glass-card">
+                    <input type="text" id="posto-nome" placeholder="Nome do Posto/Endereço">
+                    <input type="number" id="posto-preco" placeholder="Preço por Litro">
+                    <button class="btn-futuristic" style="padding:10px" onclick="saveFuel()">Registrar</button>
+                </div>
+                <div id="fuel-history"></div>
+            </div>
+
+            <div id="tab-parts" class="tab-content hidden">
+                <h3>Catálogo Técnico</h3>
+                <select id="filter-parts" onchange="renderCatalog()">
+                    <option value="Todos">Todos os Sistemas</option>
+                    <option value="Motor">Motor</option>
+                    <option value="Suspensão">Suspensão</option>
+                    <option value="Freios">Freios</option>
+                </select>
+                <div id="catalog-list"></div>
+            </div>
+
+            <div id="tab-shop" class="tab-content hidden">
+                <h3>Próximas Compras</h3>
+                <div id="shopping-list"></div>
             </div>
 
             <div id="tab-config" class="tab-content hidden">
-                <h3>Ajustes do Aplicativo</h3>
-                <button class="btn-primary" id="btn-scan" style="background:#6200ea; margin-bottom: 20px;">🔍 Scan OBD2 (Bluetooth)</button>
-                <div id="status-bluetooth" style="text-align:center; font-size:12px; margin-bottom:20px"></div>
-                <button onclick="resetar()" style="background:#fee2e2; color:#ef4444;" class="btn-primary">Apagar Todos os Dados</button>
+                <h3>Hardware & Cloud</h3>
+                <button class="btn-futuristic" style="background:#6200ea" onclick="connectOBD()"><i class="fab fa-bluetooth"></i> Linkar ELM327 OBD2</button>
+                <button class="btn-futuristic" style="background:var(--danger); margin-top:10px" onclick="deleteCurrentCar()">Remover Este Veículo</button>
             </div>
         </div>
 
-        <nav class="bottom-nav">
-            <button class="nav-item active" onclick="switchTab('dash', this)"><i class="fas fa-chart-line"></i>Painel</button>
-            <button class="nav-item" onclick="switchTab('pecas', this)"><i class="fas fa-box"></i>Peças</button>
-            <button class="nav-item" onclick="switchTab('config', this)"><i class="fas fa-cog"></i>Ajustes</button>
+        <nav class="bottom-dock">
+            <div class="dock-item active" onclick="switchTab('dash', this)"><i class="fas fa-th-large"></i></div>
+            <div class="dock-item" onclick="switchTab('fuel', this)"><i class="fas fa-gas-pump"></i></div>
+            <div class="dock-item" onclick="switchTab('parts', this)"><i class="fas fa-tools"></i></div>
+            <div class="dock-item" onclick="switchTab('shop', this)"><i class="fas fa-shopping-cart"></i></div>
+            <div class="dock-item" onclick="switchTab('config', this)"><i class="fas fa-microchip"></i></div>
         </nav>
     </div>
 </div>
 
 <script>
-const db = {
-    "volkswagen": {
-        "Gol 1.6 MSI": [{id:'oleo', cat:"Motor", item:"Óleo 5W40", km:10000}, {id:'correia', cat:"Motor", item:"Correia Dentada", km:60000}, {id:'pneu', cat:"Rodagem", item:"Rodízio Pneus", km:10000}],
-        "Polo TSI": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}],
-        "T-Cross": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}],
-        "Virtus": [{id:'oleo', cat:"Motor", item:"Óleo TSI", km:10000}],
-        "Saveiro": [{id:'oleo', cat:"Motor", item:"Óleo 5W40", km:10000}]
-    },
-    "fiat": {
-        "Strada": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}],
-        "Argo": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}],
-        "Mobi": [{id:'oleo', cat:"Motor", item:"Óleo 5W30", km:10000}],
-        "Toro": [{id:'oleo', cat:"Motor", item:"Filtro Diesel/Flex", km:10000}],
-        "Cronos": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}]
-    },
-    "chevrolet": {
-        "Onix": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}],
-        "Onix Plus": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}],
-        "Tracker": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}],
-        "S10": [{id:'oleo', cat:"Motor", item:"Filtro de Óleo Diesel", km:10000}],
-        "Spin": [{id:'oleo', cat:"Motor", item:"Óleo 5W30", km:10000}]
-    },
-    "hyundai": {
-        "HB20": [{id:'oleo', cat:"Motor", item:"Óleo 5W30", km:10000}],
-        "Creta": [{id:'oleo', cat:"Motor", item:"Óleo 5W30", km:10000}]
-    },
-    "toyota": {
-        "Corolla": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}],
-        "Hilux": [{id:'oleo', cat:"Motor", item:"Filtro Óleo", km:10000}],
-        "Yaris": [{id:'oleo', cat:"Motor", item:"Óleo 0W20", km:10000}]
-    }
+// BANCO DE DADOS DE PEÇAS E MODELOS
+const vehicleDB = {
+    "volkswagen": { "Gol 1.6 MSI": [
+        {id:'ol1', cat:'Motor', item:'Óleo 5W40', km:10000, cod:'VW508', ml:'oleo 5w40 gol msi'},
+        {id:'cd1', cat:'Motor', item:'Correia Dentada', km:60000, cod:'04E109', ml:'kit correia msi'}
+    ]}
 };
 
-let appData = JSON.parse(localStorage.getItem('autopro_v2')) || null;
+let garage = JSON.parse(localStorage.getItem('garage_v3')) || [];
+let currentCarIndex = null;
 
-function popularModelos() {
-    const marca = document.getElementById('marca').value;
-    const comboModelo = document.getElementById('modelo');
-    comboModelo.innerHTML = '<option value="">Selecione o Modelo</option>';
-    
-    if (db[marca]) {
-        Object.keys(db[marca]).forEach(m => {
-            comboModelo.innerHTML += `<option value="${m}">${m}</option>`;
-        });
-    }
+function showScreen(id) {
+    document.querySelectorAll('.container > div').forEach(s => s.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+    if(id === 'screen-selector') renderGarage();
 }
 
-function decodificarVIN() {
-    const vin = document.getElementById('vin-input').value.toUpperCase();
-    if(vin.startsWith("9BW")) { document.getElementById('marca').value = "volkswagen"; popularModelos(); }
-    if(vin.startsWith("9BD")) { document.getElementById('marca').value = "fiat"; popularModelos(); }
-    if(vin.startsWith("9BG")) { document.getElementById('marca').value = "chevrolet"; popularModelos(); }
+function loadModels() {
+    const m = document.getElementById('marca').value;
+    const s = document.getElementById('modelo');
+    s.innerHTML = '';
+    if(vehicleDB[m]) Object.keys(vehicleDB[m]).forEach(mod => s.innerHTML += `<option value="${mod}">${mod}</option>`);
 }
 
-function iniciarApp() {
+function addCar() {
     const m = document.getElementById('marca').value;
     const mod = document.getElementById('modelo').value;
-    const km = parseInt(document.getElementById('km-inicial').value);
+    const km = parseInt(document.getElementById('km-atual').value);
     
-    if(!m || !mod || isNaN(km)) return alert("Por favor, preencha Marca, Modelo e KM.");
+    if(!m || !mod || isNaN(km)) return alert("Dados incompletos");
 
-    const hist = db[m][mod].map(p => ({ id: p.id, km: km }));
-    appData = { marca: m, modelo: mod, kmAtual: km, historico: hist };
-    salvar();
-    renderApp();
+    const newCar = {
+        marca: m, modelo: mod, km: km, 
+        pecas: vehicleDB[m][mod].map(p => ({...p, ultimaTroca: km})),
+        abastecimentos: []
+    };
+    
+    garage.push(newCar);
+    localStorage.setItem('garage_v3', JSON.stringify(garage));
+    showScreen('screen-selector');
 }
 
-function renderApp() {
-    if(!appData) { document.getElementById('setup-screen').classList.remove('hidden'); return; }
-    document.getElementById('setup-screen').classList.add('hidden');
-    document.getElementById('main-app').classList.remove('hidden');
-    document.getElementById('car-title').innerText = appData.modelo;
-    document.getElementById('km-display').innerText = appData.kmAtual.toLocaleString() + " KM";
-
-    const lista = document.getElementById('lista-saude');
-    lista.innerHTML = '';
-
-    db[appData.marca][appData.modelo].forEach(peca => {
-        const ult = appData.historico.find(h => h.id === peca.id) || {km: appData.kmAtual};
-        const percorrido = appData.kmAtual - ult.km;
-        const porcentagem = Math.max(0, Math.min(100, 100 - (percorrido / peca.km * 100)));
-        let cor = "#10b981";
-        if(porcentagem < 25) cor = "#ef4444"; else if(porcentagem < 50) cor = "#f59e0b";
-
-        lista.innerHTML += `
-            <div class="health-card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-weight:700">${peca.item}</span>
-                    <span class="badge" style="background:${cor}22; color:${cor}">${porcentagem.toFixed(0)}%</span>
-                </div>
-                <div class="progress-bar"><div class="progress-fill" style="width:${porcentagem}%; background:${cor}"></div></div>
-                <div style="display:flex; justify-content:space-between; font-size:11px; color:#64748b;">
-                    <span>Troca: ${ult.km.toLocaleString()} KM</span>
-                    <span>Próxima: ${(ult.km + peca.km).toLocaleString()} KM</span>
-                </div>
-                <button onclick="registrarTroca('${peca.id}')" style="background:none; color:var(--accent); border:none; margin-top:10px; font-size:12px; font-weight:700; cursor:pointer;">RENOVAR</button>
+function renderGarage() {
+    const list = document.getElementById('car-list');
+    list.innerHTML = '';
+    garage.forEach((car, index) => {
+        list.innerHTML += `
+            <div class="glass-card neon-border" onclick="enterCar(${index})">
+                <div style="font-size:12px; color:var(--accent)">${car.marca}</div>
+                <div style="font-size:18px; font-weight:bold">${car.modelo}</div>
+                <div style="color:#94a3b8">${car.km.toLocaleString()} KM</div>
             </div>`;
     });
 }
 
-function atualizarKM() {
-    const n = parseInt(document.getElementById('new-km').value);
-    if(n >= appData.kmAtual) { appData.kmAtual = n; salvar(); renderApp(); document.getElementById('new-km').value = ''; }
+function enterCar(index) {
+    currentCarIndex = index;
+    const car = garage[index];
+    document.getElementById('display-car-name').innerText = car.modelo;
+    document.getElementById('display-km').innerText = car.km.toLocaleString() + " KM";
+    showScreen('screen-main');
+    renderDash();
 }
 
-function registrarTroca(id) {
-    if(confirm("Confirmar renovação deste item?")) {
-        const index = appData.historico.findIndex(h => h.id === id);
-        appData.historico[index].km = appData.kmAtual;
-        salvar(); renderApp();
+function renderCatalog() {
+    const car = garage[currentCarIndex];
+    const catFiltro = document.getElementById('filter-parts').value;
+    const list = document.getElementById('catalog-list');
+    list.innerHTML = '';
+
+    car.pecas.filter(p => catFiltro === "Todos" || p.cat === catFiltro).forEach(p => {
+        const perc = Math.max(0, 100 - ((car.km - p.ultimaTroca) / p.km * 100));
+        list.innerHTML += `
+            <div class="glass-card">
+                <div style="display:flex; justify-content:space-between">
+                    <b>${p.item}</b>
+                    <small style="color:var(--neon)">${p.cod}</small>
+                </div>
+                <div class="progress-container"><div class="progress-fill" style="width:${perc}%; background:var(--neon)"></div></div>
+                <a href="https://lista.mercadolivre.com.br/${p.ml}" target="_blank" style="color:var(--accent); font-size:12px; text-decoration:none">Ver no Mercado Livre →</a>
+            </div>`;
+    });
+}
+
+function switchTab(tab, el) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+    document.querySelectorAll('.dock-item').forEach(i => i.classList.remove('active'));
+    document.getElementById('tab-'+tab).classList.remove('hidden');
+    el.classList.add('active');
+    if(tab === 'parts') renderCatalog();
+    if(tab === 'shop') renderShop();
+}
+
+function renderShop() {
+    const car = garage[currentCarIndex];
+    const list = document.getElementById('shopping-list');
+    list.innerHTML = '<h4>Combos Recomendados</h4>';
+    
+    // Simulação de lógica de combo
+    list.innerHTML += `
+        <div class="glass-card" style="border: 1px solid var(--success)">
+            <div class="badge" style="background:var(--success); color:white; padding:2px 8px; border-radius:10px; font-size:10px">COMBO REVISÃO</div>
+            <p>Kit Óleo 5W40 + Filtros</p>
+            <div style="font-size:20px; font-weight:bold; color:var(--success)">R$ 289,90</div>
+            <small>12x de R$ 24,15 s/ juros</small>
+            <button class="btn-futuristic" style="margin-top:10px; padding:10px">Comprar no Mercado Livre</button>
+        </div>`;
+}
+
+// Inicialização
+if(garage.length > 0) showScreen('screen-selector');
+else showScreen('screen-setup');
+
+function deleteCurrentCar() {
+    if(confirm("Excluir este veículo?")) {
+        garage.splice(currentCarIndex, 1);
+        localStorage.setItem('garage_v3', JSON.stringify(garage));
+        location.reload();
     }
 }
-
-function switchTab(tab, btn) {
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-    document.getElementById('tab-' + tab).classList.remove('hidden');
-    btn.classList.add('active');
-}
-
-function salvar() { localStorage.setItem('autopro_v2', JSON.stringify(appData)); }
-function resetar() { if(confirm("Deseja apagar tudo?")) { localStorage.clear(); location.reload(); } }
-
-document.getElementById('btn-scan').addEventListener('click', async () => {
-    const status = document.getElementById('status-bluetooth');
-    try {
-        status.innerText = "Buscando OBD2...";
-        const device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true });
-        status.innerText = "Conectado: " + device.name;
-    } catch (e) { status.innerText = "Erro: " + e.message; }
-});
-
-renderApp();
 </script>
 </body>
 </html>
