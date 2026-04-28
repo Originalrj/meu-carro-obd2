@@ -1,30 +1,324 @@
-<div id="scr-history" class="hidden" style="padding: 20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-            <h3 style="margin:0">Histórico de Vida</h3>
-            <button class="btn-main" style="width:auto; padding:8px 15px; font-size:12px" onclick="openHistoryModal()">+ Adicionar</button>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoGestão X - Full Assistant</title>
+    <style>
+        :root {
+            --bg: #050810; --card: #101625; --accent: #00f2ff; 
+            --neon: #00f2ff; --danger: #ff0055; --success: #00ffaa;
+            --warning: #ffaa00; --text: #e2e8f0; --eco: #00ffaa;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow-x: hidden; }
+        .container { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+        
+        /* Dashboard Principal */
+        .telemetry-header { padding: 25px; text-align: center; background: radial-gradient(circle at top, #16213e, #050810); position: relative; }
+        .odometer { font-size: 2.5rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px var(--accent); margin-bottom: 10px; }
+        .alert-triangle { position: absolute; top: 20px; right: 20px; color: var(--danger); font-size: 24px; animation: blink 1s infinite; display: none; }
+        
+        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 15px 15px 15px; }
+        .gauge-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 15px; padding: 12px; text-align: center; }
+        .gauge-wide { grid-column: span 2; border-top: 2px solid var(--accent); background: rgba(0, 242, 255, 0.05); }
+        .gauge-val { font-size: 1.4rem; font-weight: bold; color: var(--accent); display: block; }
+        .gauge-lab { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Formulários e Inputs Cyber */
+        input, select { background: #1e293b; border: 1px solid #334155; color: white; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; font-size: 14px; }
+        input:focus { border-color: var(--accent); outline: none; }
+        .btn-main { background: var(--accent); color: #000; border: none; padding: 12px; border-radius: 10px; font-weight: 800; width: 100%; cursor: pointer; text-transform: uppercase; }
+        .btn-outline { background: none; border: 1px solid var(--accent); color: var(--accent); }
+        .btn-tab { background: #1e293b; color: #94a3b8; border: none; padding: 10px; flex: 1; border-radius: 8px; cursor: pointer; }
+        .btn-tab.active { background: var(--accent); color: #000; font-weight: bold; }
+
+        /* Cards e Listas */
+        .glass-card { background: var(--card); padding: 15px; border-radius: 15px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.05); }
+        .offer-card { background: #1e293b; border-radius: 10px; padding: 10px; margin-top: 8px; border: 2px solid transparent; cursor: pointer; }
+        .offer-card.selected { border-color: var(--accent); background: rgba(0, 242, 255, 0.1); }
+        .badge-full { background: #ffee00; color: #000; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 3px; margin-left: 5px; }
+
+        /* Navegação */
+        .bottom-dock { background: rgba(5, 8, 16, 0.98); backdrop-filter: blur(15px); display: flex; justify-content: space-around; padding: 18px; position: sticky; bottom: 0; border-top: 1px solid rgba(0,242,255,0.2); }
+        .dock-item { color: #475569; font-size: 1.4rem; cursor: pointer; transition: 0.3s; position: relative; }
+        .dock-item.active { color: var(--neon); transform: translateY(-3px); }
+        .notif-dot { position: absolute; top: -5px; right: -5px; width: 8px; height: 8px; background: var(--danger); border-radius: 50%; display: none; }
+
+        .hidden { display: none; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+<div class="container">
+    
+    <div id="scr-dash">
+        <div class="telemetry-header">
+            <i class="fas fa-exclamation-triangle alert-triangle" id="main-alert"></i>
+            <div id="display-car-info" style="font-size: 11px; color: var(--accent); margin-bottom: 5px; text-transform: uppercase;">Aguardando Configuração</div>
+            <div class="odometer" id="main-odometer">136.670</div>
+            <div style="font-size: 10px; letter-spacing: 2px; color: #64748b;">QUILOMETRAGEM ATUAL</div>
         </div>
 
-        <div id="history-form" class="glass-card hidden" style="border:1px solid var(--accent); margin-bottom:20px">
-            <h4 style="margin-top:0">Nova Manutenção</h4>
-            <select id="hist-part-name">
-                <option value="Óleo e Filtro">Óleo e Filtro</option>
-                <option value="Correia Dentada">Correia Dentada</option>
-                <option value="Pastilhas de Freio">Pastilhas de Freio</option>
-                <option value="Pneus">Pneus</option>
-                <option value="Outro">Outro (Geral)</option>
-            </select>
-            <input type="number" id="hist-km" placeholder="KM que foi trocado">
-            <input type="date" id="hist-date">
-            <div style="display:flex; gap:10px">
-                <button class="btn-main" onclick="saveHistory()">Salvar</button>
-                <button class="btn-main btn-outline" onclick="openHistoryModal()">Cancelar</button>
+        <div class="dash-grid">
+            <div class="gauge-card"><span class="gauge-val" id="val-rpm">850</span><span class="gauge-lab">RPM</span></div>
+            <div class="gauge-card"><span class="gauge-val" id="val-bat">13.8V</span><span class="gauge-lab">Bateria</span></div>
+            <div class="gauge-card gauge-wide">
+                <span class="gauge-val" id="val-range">380 km disponíveis</span>
+                <span class="gauge-lab">Autonomia Estimada</span>
             </div>
+            <div class="gauge-card"><span class="gauge-val" id="val-fuel">45%</span><span class="gauge-lab">Combustível</span></div>
+            <div class="gauge-card"><span class="gauge-val" id="val-cons">12.8</span><span class="gauge-lab">KM / Litro</span></div>
         </div>
 
-        <div id="history-timeline">
-            <div id="empty-history" style="text-align:center; color:#64748b; margin-top:40px">
-                <i class="fas fa-tools" style="font-size:3rem; margin-bottom:10px"></i>
-                <p>Nenhuma manutenção registrada.<br>Adicione o que você já fez no carro!</p>
+        <div id="fault-diagnose" class="hidden" style="padding: 15px;">
+            <div style="background: rgba(255,0,85,0.1); border: 1px solid var(--danger); padding: 15px; border-radius: 15px;">
+                <h4 style="color:var(--danger); margin:0"><i class="fas fa-bug"></i> Falha: P0301</h4>
+                <p style="font-size:12px">Falha de ignição no cilindro 1. Verifique velas e bobinas.</p>
+                <button class="btn-main btn-outline" style="color:#fff; border-color:#fff; padding:5px" onclick="resetDTC()">Apagar Erro</button>
             </div>
         </div>
     </div>
+
+    <div id="scr-history" class="hidden" style="padding: 20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+            <h3 style="margin:0">Histórico de Vida</h3>
+            <button class="btn-main" style="width:auto; padding:8px 15px; font-size:12px" onclick="toggleHistoryForm()">+ Adicionar</button>
+        </div>
+
+        <div id="history-form" class="glass-card hidden">
+            <h4 style="margin-top:0">Novo Registro</h4>
+            <select id="hist-part">
+                <option>Óleo e Filtro</option>
+                <option>Correia Dentada</option>
+                <option>Pastilhas de Freio</option>
+                <option>Pneus</option>
+                <option>Suspensão</option>
+            </select>
+            <input type="number" id="hist-km" placeholder="KM da manutenção">
+            <input type="date" id="hist-date">
+            <button class="btn-main" onclick="saveHistory()">Salvar Registro</button>
+        </div>
+
+        <div id="history-timeline"></div>
+    </div>
+
+    <div id="scr-parts" class="hidden" style="padding: 20px;">
+        <div style="display:flex; gap:10px; margin-bottom:15px">
+            <button id="tab-btn-cat" class="btn-tab active" onclick="setPartTab('catalog')">Peças</button>
+            <button id="tab-btn-prev" class="btn-tab" onclick="setPartTab('preventive')">Preventiva</button>
+        </div>
+
+        <div id="catalog-ui">
+            <input type="text" id="part-search" placeholder="Buscar no catálogo técnico..." onkeyup="renderPartsList()">
+            <div id="parts-list"></div>
+        </div>
+        <div id="preventive-ui" class="hidden">
+            <div id="preventive-list"></div>
+        </div>
+    </div>
+
+    <div id="scr-cart" class="hidden" style="padding: 20px;">
+        <h3>Minha Sacola</h3>
+        <div id="cart-content"></div>
+        <div id="cart-footer" class="glass-card" style="margin-top:20px; border-top: 2px solid var(--success)">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px">
+                <span>Total Orçado:</span>
+                <b id="cart-total-val" style="color:var(--success)">R$ 0,00</b>
+            </div>
+            <button class="btn-main" style="background:var(--success)">Finalizar no Mercado Livre</button>
+        </div>
+    </div>
+
+    <div id="scr-settings" class="hidden" style="padding: 20px;">
+        <div class="glass-card">
+            <h4>Configuração do Carro</h4>
+            <input type="text" id="vin-input" placeholder="Chassi (VIN) para Auto-Detect" oninput="autoDetect()">
+            <input type="text" id="inp-modelo" placeholder="Modelo do Veículo">
+            <button class="btn-main btn-outline" onclick="saveCarSettings()">Salvar Manual</button>
+        </div>
+
+        <div class="glass-card">
+            <h4>Conectividade</h4>
+            <button class="btn-main" style="background:#6200ea" onclick="alert('Conectando ao adaptador ELM327...')"><i class="fab fa-bluetooth"></i> Conectar OBD2</button>
+            <button class="btn-main" style="margin-top:10px; background:var(--danger)" onclick="simulateFault()">Simular Falha (Debug)</button>
+        </div>
+    </div>
+
+    <nav class="bottom-dock">
+        <div class="dock-item active" onclick="nav('dash', this)"><i class="fas fa-tachometer-alt"></i><div class="notif-dot" id="dot-dash"></div></div>
+        <div class="dock-item" onclick="nav('history', this)"><i class="fas fa-history"></i></div>
+        <div class="dock-item" onclick="nav('parts', this)"><i class="fas fa-tools"></i></div>
+        <div class="dock-item" onclick="nav('cart', this)"><i class="fas fa-shopping-basket"></i></div>
+        <div class="dock-item" onclick="nav('settings', this)"><i class="fas fa-cog"></i></div>
+    </nav>
+</div>
+
+<script>
+// BANCO DE DADOS TÉCNICO (SIMULADO)
+const techDB = [
+    {id:'p1', name:'Velas Iridium GOL 1.6', code:'NGK-BKR6', cat:'Motor', prev:true,
+     offers: [
+         {seller:'ML Oficial', price:185.90, time:'Full (Amanhã)', sales:12500, rep:'Verde'},
+         {seller:'AutoPeças Tatuí', price:169.00, time:'2 dias', sales:450, rep:'Amarelo'}
+     ]},
+    {id:'p2', name:'Óleo 5W40 Sintético', code:'VW-508.88', cat:'Motor', prev:true,
+     offers: [{seller:'Posto Local', price:240.00, time:'Imediato', sales:100, rep:'Verde'}]},
+    {id:'p3', name:'Pastilha de Freio Diant.', code:'SYL-123', cat:'Freios', prev:false,
+     offers: [{seller:'Freios Pro', price:120.00, time:'3 dias', sales:2100, rep:'Verde'}]}
+];
+
+let appData = {
+    car: { modelo: 'GOL 1.6 MSI', km: 136670 },
+    cart: [],
+    history: JSON.parse(localStorage.getItem('car_history')) || []
+};
+
+// NAVEGAÇÃO
+function nav(scr, el) {
+    document.querySelectorAll('.container > div').forEach(d => d.classList.add('hidden'));
+    document.getElementById('scr-'+scr).classList.remove('hidden');
+    document.querySelectorAll('.dock-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    if(scr === 'history') renderHistory();
+}
+
+// LÓGICA DO HISTÓRICO
+function toggleHistoryForm() { document.getElementById('history-form').classList.toggle('hidden'); }
+
+function saveHistory() {
+    const part = document.getElementById('hist-part').value;
+    const km = document.getElementById('hist-km').value;
+    const date = document.getElementById('hist-date').value;
+    if(!km || !date) return alert("Preencha KM e Data");
+
+    appData.history.unshift({ id: Date.now(), part, km, date });
+    localStorage.setItem('car_history', JSON.stringify(appData.history));
+    toggleHistoryForm();
+    renderHistory();
+}
+
+function renderHistory() {
+    const cont = document.getElementById('history-timeline');
+    if(appData.history.length === 0) {
+        cont.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:30px">Nenhum registro encontrado.</p>';
+        return;
+    }
+    cont.innerHTML = appData.history.map(h => `
+        <div class="glass-card" style="border-left: 4px solid var(--accent)">
+            <div style="display:flex; justify-content:space-between">
+                <small>${new Date(h.date).toLocaleDateString()}</small>
+                <i class="fas fa-trash" onclick="deleteHistory(${h.id})" style="font-size:10px; opacity:0.5"></i>
+            </div>
+            <b>${h.part}</b><br><small>${parseInt(h.km).toLocaleString()} KM</small>
+        </div>
+    `).join('');
+}
+
+function deleteHistory(id) {
+    appData.history = appData.history.filter(h => h.id !== id);
+    localStorage.setItem('car_history', JSON.stringify(appData.history));
+    renderHistory();
+}
+
+// CATALOGO E PREVENTIVA
+let currentTab = 'catalog';
+function setPartTab(tab) {
+    currentTab = tab;
+    document.getElementById('catalog-ui').classList.toggle('hidden', tab !== 'catalog');
+    document.getElementById('preventive-ui').classList.toggle('hidden', tab !== 'preventive');
+    document.getElementById('tab-btn-cat').classList.toggle('active', tab === 'catalog');
+    document.getElementById('tab-btn-prev').classList.toggle('active', tab === 'preventive');
+    renderPartsList();
+}
+
+function renderPartsList() {
+    const term = document.getElementById('part-search').value.toLowerCase();
+    const target = currentTab === 'catalog' ? document.getElementById('parts-list') : document.getElementById('preventive-list');
+    target.innerHTML = '';
+
+    techDB.forEach(p => {
+        if(currentTab === 'preventive' && !p.prev) return;
+        if(term && !p.name.toLowerCase().includes(term)) return;
+
+        const inCart = appData.cart.find(c => c.id === p.id);
+        target.innerHTML += `
+            <div class="glass-card" style="display:flex; justify-content:space-between; align-items:center">
+                <div><b>${p.name}</b><br><small>${p.code}</small></div>
+                <input type="checkbox" ${inCart ? 'checked' : ''} onchange="toggleCart('${p.id}')" style="width:22px; height:22px">
+            </div>`;
+    });
+}
+
+// SACOLA INTELIGENTE
+function toggleCart(id) {
+    const idx = appData.cart.findIndex(c => c.id === id);
+    if(idx > -1) { appData.cart.splice(idx, 1); } 
+    else { 
+        const item = techDB.find(p => p.id === id);
+        appData.cart.push({ ...item, selectedOfferIdx: 0 }); 
+    }
+    renderCart();
+}
+
+function renderCart() {
+    const cont = document.getElementById('cart-content');
+    let total = 0;
+    if(appData.cart.length === 0) { cont.innerHTML = 'Vazia'; return; }
+
+    cont.innerHTML = appData.cart.map((item, iIdx) => {
+        const off = item.offers[item.selectedOfferIdx];
+        total += off.price;
+        return `
+            <div class="glass-card">
+                <div style="margin-bottom:10px"><b>${item.name}</b></div>
+                ${item.offers.map((o, oIdx) => `
+                    <div class="offer-card ${item.selectedOfferIdx === oIdx ? 'selected' : ''}" onclick="selectOffer(${iIdx}, ${oIdx})">
+                        <div style="display:flex; justify-content:space-between; font-size:11px">
+                            <span>${o.seller} | Rep: ${o.rep}</span>
+                            <span class="badge-full">${o.time}</span>
+                        </div>
+                        <b style="color:var(--success)">R$ ${o.price.toFixed(2)}</b>
+                    </div>
+                `).join('')}
+            </div>`;
+    }).join('');
+    document.getElementById('cart-total-val').innerText = "R$ " + total.toFixed(2);
+}
+
+function selectOffer(iIdx, oIdx) {
+    appData.cart[iIdx].selectedOfferIdx = oIdx;
+    renderCart();
+}
+
+// AJUSTES E OBD2
+function autoDetect() {
+    const vin = document.getElementById('vin-input').value.toUpperCase();
+    if(vin.startsWith("9BW")) document.getElementById('inp-modelo').value = "VW GOL 1.6 MSI";
+}
+
+function saveCarSettings() {
+    appData.car.modelo = document.getElementById('inp-modelo').value;
+    document.getElementById('display-car-info').innerText = appData.car.modelo;
+    alert("Salvo!");
+}
+
+function simulateFault() {
+    document.getElementById('main-alert').style.display = 'block';
+    document.getElementById('dot-dash').style.display = 'block';
+    document.getElementById('fault-diagnose').classList.remove('hidden');
+    nav('dash', document.querySelector('.dock-item'));
+}
+
+function resetDTC() {
+    document.getElementById('main-alert').style.display = 'none';
+    document.getElementById('dot-dash').style.display = 'none';
+    document.getElementById('fault-diagnose').classList.add('hidden');
+}
+
+// Início
+renderPartsList();
+</script>
+</body>
+</html>
