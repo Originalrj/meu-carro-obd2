@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoGestão X - Full Assistant</title>
+    <title>AutoGestão X - Cockpit v6.0</title>
     <style>
         :root {
             --bg: #050810; --card: #101625; --accent: #00f2ff; 
@@ -11,26 +11,40 @@
             --warning: #ffaa00; --text: #e2e8f0;
         }
         
-        /* Layout para fixar ícones no rodapé */
+        /* Reset e Estrutura Base */
         html, body { height: 100%; margin: 0; padding: 0; background: var(--bg); overflow: hidden; }
         body { font-family: 'Inter', sans-serif; color: var(--text); display: flex; flex-direction: column; }
         
         .container { max-width: 480px; margin: 0 auto; flex: 1; display: flex; flex-direction: column; width: 100%; height: 100%; }
-        .content-area { flex: 1; overflow-y: auto; padding-bottom: 20px; }
+        .content-area { flex: 1; overflow-y: auto; padding-bottom: 20px; position: relative; }
 
-        /* Dashboard */
-        .telemetry-header { padding: 30px 20px; text-align: center; background: radial-gradient(circle at top, #16213e, #050810); position: relative; }
-        .odometer { font-size: 2.8rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px var(--accent); margin-bottom: 5px; }
-        .mini-stats { display: flex; justify-content: space-around; padding: 10px 15px; }
-        .mini-item { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 5px; }
+        /* HEADER & MINI STATS */
+        .header-stats { padding: 15px 20px 5px; display: flex; justify-content: space-between; background: #050810; }
+        .mini-badge { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.03); padding: 5px 10px; border-radius: 20px; }
+        .mini-badge i { color: var(--accent); }
+
+        /* TACÔMETRO ANALÓGICO MODERNO */
+        .rpm-gauge-container { position: relative; width: 240px; height: 180px; margin: 0 auto; display: flex; justify-content: center; align-items: center; }
+        .gauge-svg { transform: rotate(-90deg); width: 220px; height: 220px; }
+        .gauge-bg { fill: none; stroke: #1e293b; stroke-width: 12; stroke-dasharray: 314; stroke-linecap: round; }
+        .gauge-fill { fill: none; stroke: var(--accent); stroke-width: 12; stroke-dasharray: 0 314; stroke-linecap: round; transition: stroke-dasharray 0.3s ease; filter: drop-shadow(0 0 8px var(--accent)); }
         
-        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
+        .rpm-display { position: absolute; top: 55%; text-align: center; }
+        .rpm-number { font-size: 2.2rem; font-weight: 900; color: #fff; display: block; margin-bottom: -5px; }
+        .rpm-unit { font-size: 10px; color: var(--accent); letter-spacing: 2px; }
+
+        /* DASHBOARD GRID */
+        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 15px 15px; }
         .gauge-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 18px; padding: 15px; text-align: center; }
-        .gauge-wide { grid-column: span 2; border-top: 2px solid var(--accent); background: linear-gradient(90deg, rgba(0,242,255,0.1), transparent); }
-        .gauge-val { font-size: 1.5rem; font-weight: 800; color: var(--accent); display: block; }
+        .gauge-wide { grid-column: span 2; border-left: 4px solid var(--accent); background: linear-gradient(90deg, rgba(0,242,255,0.05), transparent); }
+        .gauge-val { font-size: 1.4rem; font-weight: 800; color: var(--accent); display: block; }
         .gauge-lab { font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: bold; }
 
-        /* Estilos Gerais */
+        /* ODÔMETRO NO PÉ DA ÁREA */
+        .bottom-odometer { text-align: center; padding: 15px; opacity: 0.6; border-top: 1px solid rgba(255,255,255,0.05); margin-top: auto; }
+        .odo-val { font-family: 'Courier New', monospace; font-size: 1.2rem; font-weight: bold; color: #fff; letter-spacing: 2px; }
+
+        /* OUTRAS TELAS */
         .glass-card { background: var(--card); padding: 15px; border-radius: 15px; margin: 15px; border: 1px solid rgba(255,255,255,0.05); }
         input, select { background: #1e293b; border: 1px solid #334155; color: white; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
         .btn-main { background: var(--accent); color: #000; border: none; padding: 12px; border-radius: 10px; font-weight: 800; width: 100%; cursor: pointer; text-transform: uppercase; }
@@ -42,10 +56,11 @@
         .offer-card.selected { border-color: var(--accent); background: rgba(0, 242, 255, 0.1); }
         .badge-full { background: #ffee00; color: #000; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 3px; }
 
-        /* Rodapé Fixo */
+        /* NAVEGAÇÃO FIXA NO RODAPÉ */
         .bottom-dock { background: rgba(16, 22, 37, 0.98); backdrop-filter: blur(15px); display: flex; justify-content: space-around; padding: 20px 10px; border-top: 1px solid rgba(0, 242, 255, 0.2); }
         .dock-item { color: #475569; font-size: 1.5rem; cursor: pointer; transition: 0.3s; }
         .dock-item.active { color: var(--neon); transform: translateY(-5px); }
+        
         .hidden { display: none; }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -55,21 +70,34 @@
 <div class="container">
     <div class="content-area">
         
-        <div id="scr-dash">
-            <div class="telemetry-header">
-                <div id="display-car-info" style="font-size: 11px; color: var(--accent); font-weight: bold;">VW GOL 1.6 MSI</div>
-                <div class="odometer" id="main-odometer">136.670</div>
-                <div class="mini-stats">
-                    <div class="mini-item"><i class="fas fa-thermometer-half"></i> 92°C Motor</div>
-                    <div class="mini-item"><i class="fas fa-coins"></i> R$ 0,42/km</div>
+        <div id="scr-dash" style="display: flex; flex-direction: column; height: 100%;">
+            <div class="header-stats">
+                <div class="mini-badge"><i class="fas fa-thermometer-half"></i> 92°C MOTOR</div>
+                <div class="mini-badge"><i class="fas fa-coins"></i> R$ 0,42 / KM</div>
+            </div>
+
+            <div class="rpm-gauge-container">
+                <svg class="gauge-svg" viewBox="0 0 120 120">
+                    <circle class="gauge-bg" cx="60" cy="60" r="50" stroke-dasharray="235" stroke-dashoffset="-235"></circle>
+                    <circle id="rpm-fill" class="gauge-fill" cx="60" cy="60" r="50" stroke-dasharray="0 314"></circle>
+                </svg>
+                <div class="rpm-display">
+                    <span class="rpm-number" id="rpm-val">850</span>
+                    <span class="rpm-unit">RPM x100</span>
                 </div>
             </div>
+
             <div class="dash-grid">
-                <div class="gauge-card gauge-wide"><span class="gauge-val" id="val-range">380 km disponíveis</span><span class="gauge-lab">Autonomia Estimada</span></div>
+                <div class="gauge-card gauge-wide"><span class="gauge-val">380 KM</span><span class="gauge-lab">Autonomia Estimada</span></div>
                 <div class="gauge-card"><span class="gauge-val">45%</span><span class="gauge-lab">Tanque</span></div>
-                <div class="gauge-card"><span class="gauge-val">12.8</span><span class="gauge-lab">KM/L</span></div>
+                <div class="gauge-card"><span class="gauge-val">12.8</span><span class="gauge-lab">Média KM/L</span></div>
                 <div class="gauge-card"><span class="gauge-val">13.8V</span><span class="gauge-lab">Bateria</span></div>
-                <div class="gauge-card"><span class="gauge-val">850</span><span class="gauge-lab">RPM</span></div>
+                <div class="gauge-card"><span class="gauge-val">OK</span><span class="gauge-lab">Sist. Injeção</span></div>
+            </div>
+
+            <div class="bottom-odometer">
+                <div id="display-car-info" style="font-size: 10px; margin-bottom: 5px; color: var(--accent);">VW GOL 1.6 MSI</div>
+                <div class="odo-val">ODO: 136.670 KM</div>
             </div>
         </div>
 
@@ -101,7 +129,7 @@
             <div id="cart-list"></div>
             <div class="glass-card" style="margin:20px 0 0 0">
                 <div style="display:flex; justify-content:space-between"><span>Total:</span><b id="total-val" style="color:var(--success)">R$ 0,00</b></div>
-                <button class="btn-main" style="background:var(--success); margin-top:10px">Comprar</button>
+                <button class="btn-main" style="background:var(--success); margin-top:10px">Comprar Agora</button>
             </div>
         </div>
 
@@ -131,9 +159,10 @@
 </div>
 
 <script>
+// LOGICA DE INTERFACE
 const db = [
-    {id:1, name:'Velas GOL 1.6', code:'NGK-BKR', cat:'catalog', prev:true, offers:[{s:'ML', p:180, t:'Full'}, {s:'Local', p:160, t:'3 dias'}]},
-    {id:2, name:'Óleo 5W40', code:'VW-508', cat:'catalog', prev:true, offers:[{s:'Oficial', p:240, t:'Full'}]}
+    {id:1, name:'Velas GOL 1.6', code:'NGK-BKR', cat:'catalog', prev:true, offers:[{s:'ML Oficial', p:180, t:'Full'}, {s:'Distribuidor', p:160, t:'3 dias'}]},
+    {id:2, name:'Óleo 5W40', code:'VW-508', cat:'catalog', prev:true, offers:[{s:'Oficial VW', p:240, t:'Full'}]}
 ];
 let app = { cart: [], history: JSON.parse(localStorage.getItem('h')) || [] };
 
@@ -147,6 +176,7 @@ function nav(s, el) {
 
 function toggleForm(id) { document.getElementById(id).classList.toggle('hidden'); }
 
+// HISTÓRICO
 function saveHistory() {
     const p = document.getElementById('hist-part').value;
     const k = document.getElementById('hist-km').value;
@@ -160,9 +190,10 @@ function saveHistory() {
 function renderHistory() {
     const cont = document.getElementById('history-list');
     cont.innerHTML = app.history.map(h => `<div class="glass-card" style="margin:0 0 10px 0; border-left:3px solid var(--accent)">
-        <small>${h.d}</small><br><b>${h.p}</b> - ${h.k} KM</div>`).join('');
+        <small>${h.d}</small><br><b>${h.p}</b> - ${parseInt(h.k).toLocaleString()} KM</div>`).join('');
 }
 
+// PEÇAS
 let activeTab = 'catalog';
 function tab(t) {
     activeTab = t;
@@ -175,9 +206,9 @@ function renderParts() {
     const term = document.getElementById('part-search').value.toLowerCase();
     const cont = document.getElementById('parts-display');
     cont.innerHTML = db.filter(p => (activeTab === 'catalog' || p.prev) && p.name.toLowerCase().includes(term))
-        .map(p => `<div class="glass-card" style="margin:10px 0; display:flex; justify-content:space-between">
-            <span><b>${p.name}</b></span>
-            <input type="checkbox" onchange="toCart(${p.id})" ${app.cart.find(c=>c.id===p.id)?'checked':''} style="width:20px">
+        .map(p => `<div class="glass-card" style="margin:10px 0; display:flex; justify-content:space-between; align-items:center">
+            <span><b>${p.name}</b><br><small>${p.code}</small></span>
+            <input type="checkbox" onchange="toCart(${p.id})" ${app.cart.find(c=>c.id===p.id)?'checked':''} style="width:22px; height:22px">
         </div>`).join('');
 }
 
@@ -197,15 +228,27 @@ function renderCart() {
             <b>${item.name}</b>
             ${item.offers.map((off, oIdx) => `<div class="offer-card ${item.sel===oIdx?'selected':''}" onclick="selOff(${iIdx},${oIdx})">
                 <div style="display:flex; justify-content:space-between"><span>${off.s}</span><span class="badge-full">${off.t}</span></div>
-                <b>R$ ${off.p}</b></div>`).join('')}</div>`;
+                <b>R$ ${off.p.toFixed(2)}</b></div>`).join('')}</div>`;
     }).join('');
     document.getElementById('total-val').innerText = "R$ " + total.toFixed(2);
 }
 
 function selOff(i, o) { app.cart[i].sel = o; renderCart(); }
+
+// CONFIG E SIMULAÇÃO
 function detect() { if(document.getElementById('vin-input').value.toUpperCase().startsWith('9BW')) document.getElementById('inp-model').value = "VW GOL 1.6 MSI"; }
 function saveCar() { document.getElementById('display-car-info').innerText = document.getElementById('inp-model').value; alert('Salvo!'); }
-function simulate() { nav('dash', document.querySelector('.dock-item')); alert('Falha P0301!'); }
+function simulate() { nav('dash', document.querySelector('.dock-item')); alert('Falha P0301 Detectada!'); }
+
+// ANIMAÇÃO RPM (SIMULADA)
+setInterval(() => {
+    if(document.getElementById('scr-dash').className !== 'hidden') {
+        const rpm = Math.floor(Math.random() * (45 - 8) + 8); // Simula entre 800 e 4500 RPM
+        document.getElementById('rpm-val').innerText = rpm * 100;
+        const dashArray = (rpm / 80) * 314; // Cálculo para o arco
+        document.getElementById('rpm-fill').style.strokeDasharray = `${dashArray} 314`;
+    }
+}, 1000);
 
 renderParts();
 </script>
