@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoGestão X - Pro Assistant</title>
+    <title>AutoGestão X - Full Assistant</title>
     <style>
         :root {
             --bg: #050810; --card: #101625; --accent: #00f2ff; 
@@ -11,56 +11,42 @@
             --warning: #ffaa00; --text: #e2e8f0;
         }
         
-        /* Garantindo que o app ocupe a tela toda e a barra fique embaixo */
-        html, body { height: 100%; margin: 0; padding: 0; background: var(--bg); }
-        
+        /* Layout para fixar ícones no rodapé */
+        html, body { height: 100%; margin: 0; padding: 0; background: var(--bg); overflow: hidden; }
         body { font-family: 'Inter', sans-serif; color: var(--text); display: flex; flex-direction: column; }
         
-        .container { 
-            max-width: 480px; 
-            margin: 0 auto; 
-            flex: 1; /* Ocupa o espaço disponível */
-            display: flex; 
-            flex-direction: column; 
-            width: 100%;
-        }
-
+        .container { max-width: 480px; margin: 0 auto; flex: 1; display: flex; flex-direction: column; width: 100%; height: 100%; }
         .content-area { flex: 1; overflow-y: auto; padding-bottom: 20px; }
 
-        /* Dashboard Refinado */
+        /* Dashboard */
         .telemetry-header { padding: 30px 20px; text-align: center; background: radial-gradient(circle at top, #16213e, #050810); position: relative; }
         .odometer { font-size: 2.8rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px var(--accent); margin-bottom: 5px; }
+        .mini-stats { display: flex; justify-content: space-around; padding: 10px 15px; }
+        .mini-item { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 5px; }
         
         .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
-        .gauge-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 18px; padding: 15px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        .gauge-wide { grid-column: span 2; background: linear-gradient(90deg, rgba(0,210,255,0.1), transparent); border-left: 4px solid var(--accent); }
-        .gauge-val { font-size: 1.6rem; font-weight: 800; color: var(--accent); display: block; }
-        .gauge-lab { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+        .gauge-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 18px; padding: 15px; text-align: center; }
+        .gauge-wide { grid-column: span 2; border-top: 2px solid var(--accent); background: linear-gradient(90deg, rgba(0,242,255,0.1), transparent); }
+        .gauge-val { font-size: 1.5rem; font-weight: 800; color: var(--accent); display: block; }
+        .gauge-lab { font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: bold; }
 
-        /* Indicadores Secundários */
-        .mini-stats { display: flex; justify-content: space-around; padding: 0 15px 20px; }
-        .mini-item { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 5px; }
-        .mini-item i { color: var(--success); }
-
-        /* Navegação Fixa no Rodapé */
-        .bottom-dock { 
-            background: rgba(16, 22, 37, 0.98); 
-            backdrop-filter: blur(15px); 
-            display: flex; 
-            justify-content: space-around; 
-            padding: 20px 10px; 
-            border-top: 1px solid rgba(0, 242, 255, 0.2);
-            padding-bottom: calc(20px + env(safe-area-inset-bottom)); /* Suporte para iPhone X+ */
-        }
-        
-        .dock-item { color: #475569; font-size: 1.6rem; cursor: pointer; transition: 0.3s; position: relative; }
-        .dock-item.active { color: var(--neon); transform: translateY(-5px); text-shadow: 0 0 10px var(--neon); }
-
-        /* Estilos de Card de Histórico e Peças */
+        /* Estilos Gerais */
         .glass-card { background: var(--card); padding: 15px; border-radius: 15px; margin: 15px; border: 1px solid rgba(255,255,255,0.05); }
+        input, select { background: #1e293b; border: 1px solid #334155; color: white; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+        .btn-main { background: var(--accent); color: #000; border: none; padding: 12px; border-radius: 10px; font-weight: 800; width: 100%; cursor: pointer; text-transform: uppercase; }
+        .btn-outline { background: none; border: 1px solid var(--accent); color: var(--accent); }
+        .btn-tab { background: #1e293b; color: #94a3b8; border: none; padding: 10px; flex: 1; border-radius: 8px; cursor: pointer; }
+        .btn-tab.active { background: var(--accent); color: #000; font-weight: bold; }
+        
+        .offer-card { background: #1e293b; border-radius: 10px; padding: 10px; margin-top: 8px; border: 2px solid transparent; cursor: pointer; }
+        .offer-card.selected { border-color: var(--accent); background: rgba(0, 242, 255, 0.1); }
+        .badge-full { background: #ffee00; color: #000; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 3px; }
+
+        /* Rodapé Fixo */
+        .bottom-dock { background: rgba(16, 22, 37, 0.98); backdrop-filter: blur(15px); display: flex; justify-content: space-around; padding: 20px 10px; border-top: 1px solid rgba(0, 242, 255, 0.2); }
+        .dock-item { color: #475569; font-size: 1.5rem; cursor: pointer; transition: 0.3s; }
+        .dock-item.active { color: var(--neon); transform: translateY(-5px); }
         .hidden { display: none; }
-        input, select { background: #1e293b; border: 1px solid #334155; color: white; padding: 14px; border-radius: 12px; width: 100%; box-sizing: border-box; margin-bottom: 12px; }
-        .btn-main { background: var(--accent); color: #000; border: none; padding: 15px; border-radius: 12px; font-weight: 800; width: 100%; cursor: pointer; }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -71,49 +57,66 @@
         
         <div id="scr-dash">
             <div class="telemetry-header">
-                <div style="font-size: 12px; color: var(--accent); font-weight: bold; letter-spacing: 2px;">VW GOL 1.6 MSI</div>
+                <div id="display-car-info" style="font-size: 11px; color: var(--accent); font-weight: bold;">VW GOL 1.6 MSI</div>
                 <div class="odometer" id="main-odometer">136.670</div>
                 <div class="mini-stats">
-                    <div class="mini-item"><i class="fas fa-thermometer-half"></i> 92°C Arrefecimento</div>
-                    <div class="mini-item"><i class="fas fa-coins"></i> R$ 0,42 / km</div>
+                    <div class="mini-item"><i class="fas fa-thermometer-half"></i> 92°C Motor</div>
+                    <div class="mini-item"><i class="fas fa-coins"></i> R$ 0,42/km</div>
                 </div>
             </div>
-
             <div class="dash-grid">
-                <div class="gauge-card gauge-wide">
-                    <span class="gauge-val" style="font-size: 2rem;">380 KM</span>
-                    <span class="gauge-lab">Autonomia Estimada</span>
-                </div>
-                <div class="gauge-card">
-                    <span class="gauge-val">45%</span>
-                    <span class="gauge-lab">Combustível</span>
-                </div>
-                <div class="gauge-card">
-                    <span class="gauge-val">12.8</span>
-                    <span class="gauge-lab">Média KM/L</span>
-                </div>
-                <div class="gauge-card">
-                    <span class="gauge-val">13.8V</span>
-                    <span class="gauge-lab">Saúde Bateria</span>
-                </div>
-                <div class="gauge-card">
-                    <span class="gauge-val">850</span>
-                    <span class="gauge-lab">RPM Motor</span>
-                </div>
+                <div class="gauge-card gauge-wide"><span class="gauge-val" id="val-range">380 km disponíveis</span><span class="gauge-lab">Autonomia Estimada</span></div>
+                <div class="gauge-card"><span class="gauge-val">45%</span><span class="gauge-lab">Tanque</span></div>
+                <div class="gauge-card"><span class="gauge-val">12.8</span><span class="gauge-lab">KM/L</span></div>
+                <div class="gauge-card"><span class="gauge-val">13.8V</span><span class="gauge-lab">Bateria</span></div>
+                <div class="gauge-card"><span class="gauge-val">850</span><span class="gauge-lab">RPM</span></div>
             </div>
         </div>
 
-        <div id="scr-history" class="hidden">
-            <div class="glass-card"><h3>Histórico</h3><p>Carregando registros...</p></div>
+        <div id="scr-history" class="hidden" style="padding:15px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px">
+                <h3 style="margin:0">Histórico</h3>
+                <button class="btn-main" style="width:auto; padding:8px 12px" onclick="toggleForm('history-form')">+ Novo</button>
+            </div>
+            <div id="history-form" class="glass-card hidden" style="margin:0 0 15px 0">
+                <select id="hist-part"><option>Óleo e Filtro</option><option>Correia Dentada</option><option>Pneus</option></select>
+                <input type="number" id="hist-km" placeholder="KM da Troca">
+                <input type="date" id="hist-date">
+                <button class="btn-main" onclick="saveHistory()">Gravar</button>
+            </div>
+            <div id="history-list"></div>
         </div>
-        <div id="scr-parts" class="hidden">
-            <div class="glass-card"><h3>Sistemas</h3><p>Selecione uma categoria...</p></div>
+
+        <div id="scr-parts" class="hidden" style="padding:15px">
+            <div style="display:flex; gap:10px; margin-bottom:15px">
+                <button id="t1" class="btn-tab active" onclick="tab('catalog')">Peças</button>
+                <button id="t2" class="btn-tab" onclick="tab('preventive')">Preventiva</button>
+            </div>
+            <input type="text" id="part-search" placeholder="Buscar peça..." onkeyup="renderParts()">
+            <div id="parts-display"></div>
         </div>
-        <div id="scr-cart" class="hidden">
-            <div class="glass-card"><h3>Sacola</h3><p>Seu carrinho está vazio.</p></div>
+
+        <div id="scr-cart" class="hidden" style="padding:15px">
+            <h3>Minha Sacola</h3>
+            <div id="cart-list"></div>
+            <div class="glass-card" style="margin:20px 0 0 0">
+                <div style="display:flex; justify-content:space-between"><span>Total:</span><b id="total-val" style="color:var(--success)">R$ 0,00</b></div>
+                <button class="btn-main" style="background:var(--success); margin-top:10px">Comprar</button>
+            </div>
         </div>
-        <div id="scr-settings" class="hidden">
-            <div class="glass-card"><h3>Configurações</h3><button class="btn-main">Conectar OBD2</button></div>
+
+        <div id="scr-settings" class="hidden" style="padding:15px">
+            <div class="glass-card" style="margin:0 0 15px 0">
+                <h4>Veículo</h4>
+                <input type="text" id="vin-input" placeholder="Chassi (Auto-Detect)" oninput="detect()">
+                <input type="text" id="inp-model" placeholder="Modelo do Carro">
+                <button class="btn-main btn-outline" onclick="saveCar()">Salvar Veículo</button>
+            </div>
+            <div class="glass-card" style="margin:0">
+                <h4>Conexão</h4>
+                <button class="btn-main" style="background:#6200ea" onclick="alert('Buscando...')">Conectar OBD2</button>
+                <button class="btn-main" style="margin-top:10px; background:var(--danger)" onclick="simulate()">Simular Falha</button>
+            </div>
         </div>
 
     </div>
@@ -128,19 +131,83 @@
 </div>
 
 <script>
-    function nav(scr, el) {
-        // Esconde todas as telas dentro da área de conteúdo
-        document.querySelector('.content-area').childNodes.forEach(node => {
-            if(node.id && node.id.startsWith('scr-')) node.classList.add('hidden');
-        });
-        
-        document.getElementById('scr-'+scr).classList.remove('hidden');
-        
-        // Atualiza ícones
-        document.querySelectorAll('.dock-item').forEach(i => i.classList.remove('active'));
-        el.classList.add('active');
-    }
-</script>
+const db = [
+    {id:1, name:'Velas GOL 1.6', code:'NGK-BKR', cat:'catalog', prev:true, offers:[{s:'ML', p:180, t:'Full'}, {s:'Local', p:160, t:'3 dias'}]},
+    {id:2, name:'Óleo 5W40', code:'VW-508', cat:'catalog', prev:true, offers:[{s:'Oficial', p:240, t:'Full'}]}
+];
+let app = { cart: [], history: JSON.parse(localStorage.getItem('h')) || [] };
 
+function nav(s, el) {
+    document.querySelectorAll('.content-area > div').forEach(d => d.classList.add('hidden'));
+    document.getElementById('scr-'+s).classList.remove('hidden');
+    document.querySelectorAll('.dock-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+    if(s === 'history') renderHistory();
+}
+
+function toggleForm(id) { document.getElementById(id).classList.toggle('hidden'); }
+
+function saveHistory() {
+    const p = document.getElementById('hist-part').value;
+    const k = document.getElementById('hist-km').value;
+    const d = document.getElementById('hist-date').value;
+    if(!k || !d) return;
+    app.history.unshift({id:Date.now(), p, k, d});
+    localStorage.setItem('h', JSON.stringify(app.history));
+    toggleForm('history-form'); renderHistory();
+}
+
+function renderHistory() {
+    const cont = document.getElementById('history-list');
+    cont.innerHTML = app.history.map(h => `<div class="glass-card" style="margin:0 0 10px 0; border-left:3px solid var(--accent)">
+        <small>${h.d}</small><br><b>${h.p}</b> - ${h.k} KM</div>`).join('');
+}
+
+let activeTab = 'catalog';
+function tab(t) {
+    activeTab = t;
+    document.getElementById('t1').classList.toggle('active', t === 'catalog');
+    document.getElementById('t2').classList.toggle('active', t === 'preventive');
+    renderParts();
+}
+
+function renderParts() {
+    const term = document.getElementById('part-search').value.toLowerCase();
+    const cont = document.getElementById('parts-display');
+    cont.innerHTML = db.filter(p => (activeTab === 'catalog' || p.prev) && p.name.toLowerCase().includes(term))
+        .map(p => `<div class="glass-card" style="margin:10px 0; display:flex; justify-content:space-between">
+            <span><b>${p.name}</b></span>
+            <input type="checkbox" onchange="toCart(${p.id})" ${app.cart.find(c=>c.id===p.id)?'checked':''} style="width:20px">
+        </div>`).join('');
+}
+
+function toCart(id) {
+    const item = db.find(p => p.id === id);
+    const idx = app.cart.findIndex(c => c.id === id);
+    if(idx > -1) app.cart.splice(idx, 1); else app.cart.push({...item, sel:0});
+    renderCart();
+}
+
+function renderCart() {
+    const cont = document.getElementById('cart-list');
+    let total = 0;
+    cont.innerHTML = app.cart.map((item, iIdx) => {
+        const o = item.offers[item.sel]; total += o.p;
+        return `<div class="glass-card" style="margin:0 0 10px 0">
+            <b>${item.name}</b>
+            ${item.offers.map((off, oIdx) => `<div class="offer-card ${item.sel===oIdx?'selected':''}" onclick="selOff(${iIdx},${oIdx})">
+                <div style="display:flex; justify-content:space-between"><span>${off.s}</span><span class="badge-full">${off.t}</span></div>
+                <b>R$ ${off.p}</b></div>`).join('')}</div>`;
+    }).join('');
+    document.getElementById('total-val').innerText = "R$ " + total.toFixed(2);
+}
+
+function selOff(i, o) { app.cart[i].sel = o; renderCart(); }
+function detect() { if(document.getElementById('vin-input').value.toUpperCase().startsWith('9BW')) document.getElementById('inp-model').value = "VW GOL 1.6 MSI"; }
+function saveCar() { document.getElementById('display-car-info').innerText = document.getElementById('inp-model').value; alert('Salvo!'); }
+function simulate() { nav('dash', document.querySelector('.dock-item')); alert('Falha P0301!'); }
+
+renderParts();
+</script>
 </body>
 </html>
