@@ -81,7 +81,7 @@
 <div class="container">
     <div class="content-area">
         
-        <!-- 1. PAINEL (Dashboard) - VERSÃO FINAL CORRIGIDA -->
+        <!-- 1. PAINEL (Dashboard) -->
         <div id="scr-dash" class="screen active">
             <div class="header-stats">
                 <div class="stat-mini" style="border-color:var(--accent); color:var(--accent); font-weight: 800;">MODO HUD</div>
@@ -131,32 +131,74 @@
             </div>
         </div>
 
-        <!-- 2. DIÁRIO (RESTAURADO) -->
+        <!-- 2. DIÁRIO -->
         <div id="scr-journal" class="screen">
             <h3>Diário de Bordo</h3>
             <div class="glass-card" style="border-left:4px solid var(--warning)">
                 <span>Próxima Revisão <span class="badge-premium">PRO</span></span>
                 <div style="font-size:1.4rem; font-weight:900; margin:5px 0">Em 2.450 km</div>
+                <small style="color:#94a3b8">Estimativa baseada no seu uso atual.</small>
+            </div>
+            <button class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); margin-bottom:20px;">Exportar Relatório PDF</button>
+            
+            <div class="glass-card" style="padding:12px">
+                <div style="font-size:11px; opacity:0.5">ÚLTIMA ATIVIDADE</div>
+                <div style="font-weight:700">Abastecimento: 42.5 Litros</div>
+                <div style="font-size:10px; color:var(--success)">Consumo médio desta viagem: 14.2 km/L</div>
             </div>
         </div>
 
-        <!-- 3. SCANNER (RESTAURADO) -->
+        <!-- 3. SCANNER -->
         <div id="scr-scanner" class="screen">
-            <h3>Scanner DTC</h3>
-            <button class="btn-main" onclick="startScanner()">Iniciar Varredura</button>
-            <div id="scanner-result"></div>
+            <h3>Scanner de Diagnóstico</h3>
+            <div id="scanner-main-ui" class="glass-card" style="text-align:center; padding:30px 15px; min-height: 200px; display: flex; flex-direction: column; justify-content: center;">
+                <div id="scan-idle">
+                    <i class="fas fa-microchip" style="font-size:3rem; color:var(--accent); margin-bottom:15px; opacity:0.5"></i>
+                    <p style="font-size:13px; color:#94a3b8">Pronto para escanear a ECU via Bluetooth.</p>
+                </div>
+                <div id="scan-active" class="hidden">
+                    <div class="loader-scanner" style="width:40px; height:40px; border:3px solid var(--glass); border-top:3px solid var(--accent); border-radius:50%; margin:0 auto; animation:spin 1s linear infinite;"></div>
+                    <p style="margin-top:15px; font-weight:700">Lendo códigos de falha...</p>
+                </div>
+                <div id="scan-result" class="hidden" style="text-align:left">
+                    <div style="color:var(--danger); font-weight:800; font-size:12px">ALERTA DE FALHA:</div>
+                    <div style="font-size:1.8rem; font-weight:900">P0300</div>
+                    <p style="font-size:13px">Falha de Ignição Aleatória detectada.</p>
+                </div>
+            </div>
+            <button class="btn-main" onclick="runScanner()" style="margin-top:15px">Iniciar Varredura</button>
         </div>
 
-        <!-- 4. LOJA (RESTAURADO) -->
+        <!-- 4. LOJA -->
         <div id="scr-shop" class="screen">
-            <h3>Mercado de Peças</h3>
-            <div class="glass-card">Busca por código ou VIN...</div>
+            <div style="display:flex; gap:10px; margin-bottom:20px">
+                <button class="tab-btn active" style="flex:1; padding:10px; border-radius:10px; border:1px solid var(--accent); background:rgba(0,242,255,0.1); color:var(--accent); font-weight:700">Catálogo</button>
+                <button class="tab-btn" style="flex:1; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:var(--glass); color:#94a3b8">Sacola</button>
+            </div>
+            <div class="glass-card" style="display:flex; align-items:center; gap:15px">
+                <div style="width:45px; height:45px; background:#1e293b; border-radius:8px"></div>
+                <div style="flex:1">
+                    <div style="font-weight:700; font-size:13px">Kit Velas de Ignição</div>
+                    <div style="font-size:11px; color:var(--success)">A partir de R$ 149,00</div>
+                </div>
+                <i class="fas fa-chevron-right" style="opacity:0.3"></i>
+            </div>
         </div>
 
-        <!-- 5. PERFIL (RESTAURADO) -->
+        <!-- 5. PERFIL -->
         <div id="scr-profile" class="screen">
-            <h3>Configurações</h3>
-            <div class="glass-card">VW GOL 1.6 MSI 2019</div>
+            <div class="glass-card" style="display:flex; align-items:center; gap:15px; border-left:4px solid var(--accent)">
+                <i class="fas fa-car" style="font-size:1.5rem"></i>
+                <div>
+                    <div style="font-weight:800">VW GOL 1.6 MSI 2019</div>
+                    <div style="font-size:11px; opacity:0.5">CHASSI: 9BW-XXXXXX-XXXX</div>
+                </div>
+            </div>
+            <h4 style="margin:20px 0 10px">Wiki de Problemas Crônicos</h4>
+            <div class="glass-card" style="font-size:12px; line-height:1.5">
+                <strong style="color:var(--warning)">Sistema de Ignição:</strong> Este motor costuma apresentar falhas prematuras nas bobinas. Fique atento a engasgos em marcha lenta.
+            </div>
+            <button class="btn-main" style="margin-top:20px; background:#6200ea; color:#fff">Configurar Adaptador OBD2</button>
         </div>
 
     </div>
@@ -171,15 +213,33 @@
     </nav>
 </div>
 
+<style>
+@keyframes spin { 100% { transform: rotate(360deg); } }
+.hidden { display: none !important; }
+</style>
+
 <script>
+// NAVEGAÇÃO ENTRE TELAS
 function nav(id, el) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    let target = document.getElementById('scr-' + id);
-    if(target) target.classList.add('active');
+    document.getElementById('scr-' + id).classList.add('active');
     document.querySelectorAll('.dock-item').forEach(i => i.classList.remove('active'));
     el.classList.add('active');
 }
 
+// LÓGICA DO SCANNER
+function runScanner() {
+    document.getElementById('scan-idle').classList.add('hidden');
+    document.getElementById('scan-active').classList.remove('hidden');
+    document.getElementById('scan-result').classList.add('hidden');
+    
+    setTimeout(() => {
+        document.getElementById('scan-active').classList.add('hidden');
+        document.getElementById('scan-result').classList.remove('hidden');
+    }, 2500);
+}
+
+// SIMULAÇÃO DO DASHBOARD (RPM e Sensores)
 setInterval(() => {
     if(document.getElementById('scr-dash').classList.contains('active')) {
         let rpm = Math.floor(Math.random() * (30 - 8) + 8) * 100;
