@@ -83,38 +83,33 @@
         
         <!-- 1. PAINEL (Dashboard) -->
         <div id="scr-dash" class="screen active">
-            <div class="header-stats">
-                <div class="stat-mini"><i class="fas fa-thermometer-half" style="color:var(--danger)"></i> <span id="val-temp">--</span>°C</div>
-                <div class="stat-mini"><i class="fas fa-gas-pump" style="color:var(--warning)"></i> <span id="val-liters">--</span> L</div>
-                <div class="stat-mini" style="border-color:var(--accent); color:var(--accent)">MODO HUD</div>
-            </div>
+          <!-- Grid de Sensores Principais -->
+<div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-top:15px;">
+    <div class="glass-card" style="padding:10px; text-align:center; border-bottom: 2px solid var(--danger)">
+        <span class="gauge-lab" style="font-size:8px">Temp. Motor</span>
+        <div class="gauge-val" style="font-size:1.1rem"><span id="val-temp">--</span>°C</div>
+    </div>
+    <div class="glass-card" style="padding:10px; text-align:center; border-bottom: 2px solid var(--warning)">
+        <span class="gauge-lab" style="font-size:8px">Combustível</span>
+        <div class="gauge-val" style="font-size:1.1rem"><span id="val-liters">--</span>L</div>
+    </div>
+    <div class="glass-card" style="padding:10px; text-align:center; border-bottom: 2px solid var(--accent)">
+        <span class="gauge-lab" style="font-size:8px">Tensão Bat.</span>
+        <div class="gauge-val" style="font-size:1.1rem"><span id="val-voltage">--</span>V</div>
+    </div>
+</div>
 
-            <div class="gauge-container">
-                <svg class="gauge-svg" viewBox="0 0 120 120">
-                    <circle class="gauge-bg" cx="60" cy="60" r="50"></circle>
-                    <circle id="rpm-fill" class="gauge-fill" cx="60" cy="60" r="50"></circle>
-                </svg>
-                <div class="rpm-display">
-                    <span class="rpm-val" id="rpm-num">0</span>
-                    <span class="rpm-unit">RPM</span>
-                </div>
-            </div>
-
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px;">
-                <div class="glass-card" style="padding:12px; margin-bottom:0">
-                    <span style="font-size:9px; color:#94a3b8; text-transform:uppercase">Consumo Real</span>
-                    <div style="font-size:1.2rem; font-weight:800; color:var(--success)">14.2 <small style="font-size:10px">km/L</small></div>
-                </div>
-                <div class="glass-card" style="padding:12px; margin-bottom:0">
-                    <span style="font-size:9px; color:#94a3b8; text-transform:uppercase">Custo KM</span>
-                    <div style="font-size:1.2rem; font-weight:800; color:var(--accent)">R$ 0,42</div>
-                </div>
-            </div>
-
-            <div style="margin-top:auto; text-align:center; padding:15px; opacity:0.6">
-                <div style="font-size:10px; letter-spacing:2px">ODÔMETRO TOTAL</div>
-                <div style="font-size:1.5rem; font-weight:900; font-family:monospace">136.670 KM</div>
-            </div>
+<!-- Grid de Consumo -->
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+    <div class="glass-card" style="padding:12px; background: rgba(0, 255, 170, 0.05)">
+        <span style="font-size:9px; color:#94a3b8; text-transform:uppercase">Consumo Médio</span>
+        <div style="font-size:1.3rem; font-weight:800; color:var(--success)">14.2 <small style="font-size:10px">km/L</small></div>
+    </div>
+    <div class="glass-card" style="padding:12px; background: rgba(0, 242, 255, 0.05)">
+        <span style="font-size:9px; color:#94a3b8; text-transform:uppercase">Instantâneo</span>
+        <div id="val-instant" style="font-size:1.3rem; font-weight:800; color:var(--accent)">12.8 <small style="font-size:10px">km/L</small></div>
+    </div>
+</div>
         </div>
 
         <!-- 2. DIÁRIO (Histórico & Previsão) -->
@@ -268,55 +263,28 @@ function shopTab(t) {
 }
 
 // Simulação de Dados OBD2 (Dashboard)
+// ATUALIZAÇÃO DA LÓGICA DO DASHBOARD
 setInterval(() => {
     if(document.getElementById('scr-dash').classList.contains('active')) {
+        // 1. Simulação de RPM (Oscilação suave)
         let rpm = Math.floor(Math.random() * (30 - 8) + 8) * 100;
         document.getElementById('rpm-num').innerText = rpm;
         document.getElementById('rpm-fill').style.strokeDasharray = `${(rpm/6000)*314} 314`;
-        document.getElementById('val-temp').innerText = 92;
-        document.getElementById('val-liters').innerText = 42;
-    }
-}, 1500);
-
-// Banco de dados simplificado de erros (Sera alimentado via Admin Desktop depois)
-const faultDatabase = {
-    "P0300": "Falha de Ignição Aleatória detectada. Provável desgaste em velas ou bobinas.",
-    "P0101": "Problema no sensor MAF (Fluxo de Ar). Pode causar instabilidade na marcha lenta.",
-    "P0420": "Eficiência do sistema de catalisador abaixo do limite.",
-    "P0115": "Mau funcionamento no circuito de temperatura do líquido de arrefecimento."
-};
-
-function startScanner() {
-    const idle = document.getElementById('scanner-idle');
-    const searching = document.getElementById('scanner-searching');
-    const found = document.getElementById('scanner-found');
-    
-    idle.classList.add('hidden');
-    found.classList.add('hidden');
-    searching.classList.remove('hidden');
-
-    // Simulação da leitura via Bluetooth (Comando 03)
-    setTimeout(() => {
-        searching.classList.add('hidden');
-        found.classList.remove('hidden');
         
-        // Simula encontrar um erro P0300 (Comum no motor MSI)
-        const code = "P0300";
-        document.getElementById('fault-code').innerText = code;
-        document.getElementById('fault-desc').innerText = faultDatabase[code];
+        // 2. Sensores Técnicos (Dados fixos ou simulados do OBD2)
+        document.getElementById('val-temp').innerText = 92; 
+        document.getElementById('val-liters').innerText = 42; 
         
-        // Notificação sonora ou tátil (opcional para o app)
-        if(navigator.vibrate) navigator.vibrate(200);
-    }, 3000);
-}
-
-function clearFaults() {
-    if(confirm("Tem certeza que deseja apagar os códigos de erro? A luz de injeção apagará, mas o problema físico deve ser resolvido.")) {
-        alert("Comando 04 enviado. Códigos apagados com sucesso.");
-        document.getElementById('scanner-found').classList.add('hidden');
-        document.getElementById('scanner-idle').classList.remove('hidden');
+        // 3. Tensão da Bateria (Simulando alternador carregando)
+        let voltage = (Math.random() * (14.2 - 13.8) + 13.8).toFixed(1);
+        document.getElementById('val-voltage').innerText = voltage;
+        
+        // 4. Consumo Instantâneo (Inversamente proporcional ao RPM para simular carga)[cite: 1]
+        let instant = (22 - (rpm / 450)).toFixed(1);
+        document.getElementById('val-instant').innerHTML = `${instant} <small style="font-size:10px">km/L</small>`;
     }
-}
+}, 1000); // Frequência de 1 segundo para parecer tempo real
+
 </script>
 </body>
 </html>
