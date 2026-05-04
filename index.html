@@ -59,6 +59,20 @@
         .tab-btn.active { background: rgba(0, 242, 255, 0.1); color: var(--accent); border-color: var(--accent); }
 
         .hidden { display: none; }
+
+        /* Animação do Scanner */
+.loader-scanner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid var(--glass);
+    border-top: 3px solid var(--accent);
+    border-radius: 50%;
+    margin: 0 auto;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.hidden { display: none !important; }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -122,16 +136,54 @@
         </div>
 
         <!-- 3. SCANNER (Diagnóstico DTC) -->
-        <div id="scr-scanner" class="screen">
-            <h3>Scanner de Erros</h3>
-            <div class="glass-card" style="text-align:center; padding:40px 20px">
-                <i class="fas fa-search-engine" style="font-size:3rem; color:var(--accent); margin-bottom:15px"></i>
-                <h4>Nenhum erro detectado</h4>
-                <p style="font-size:12px; color:#94a3b8">Sua central eletrônica (ECU) está operando normalmente.</p>
-            </div>
-            <button class="btn-main">Iniciar Varredura Completa</button>
-            <button class="btn-main" style="margin-top:10px; background:var(--danger); color:#fff">Apagar Luz de Injeção</button>
+<div id="scr-scanner" class="screen">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+        <h3 style="margin:0">Scanner de Diagnóstico</h3>
+        <span id="status-scanner" class="stat-mini" style="color:var(--success); border-color:var(--success)">Pronto</span>
+    </div>
+
+    <!-- Área de Resultado de Busca -->
+    <div id="scanner-result" class="glass-card" style="text-align:center; padding:30px 15px; border: 1px dashed rgba(0, 242, 255, 0.3)">
+        <div id="scanner-idle">
+            <i class="fas fa-microchip" style="font-size:3rem; color:var(--accent); margin-bottom:15px; opacity:0.5"></i>
+            <p style="font-size:13px; color:#94a3b8">Conecte o adaptador ELM327 para iniciar a leitura da ECU.</p>
         </div>
+        
+        <div id="scanner-searching" class="hidden">
+            <div class="loader-scanner"></div>
+            <p style="margin-top:15px; font-weight:700">Lendo códigos de falha...</p>
+            <small id="current-pid" style="color:var(--accent); font-family:monospace">Comando: 03</small>
+        </div>
+
+        <div id="scanner-found" class="hidden" style="text-align:left">
+            <div style="display:flex; align-items:center; gap:10px; color:var(--danger); font-weight:800; margin-bottom:10px">
+                <i class="fas fa-exclamation-triangle"></i> ERRO DETECTADO
+            </div>
+            <div style="font-size:1.8rem; font-weight:900; letter-spacing:1px" id="fault-code">P0300</div>
+            <div style="font-size:14px; margin:10px 0; color:var(--text)" id="fault-desc">Falha de Ignição Aleatória/Múltipla detectada nos cilindros.</div>
+            
+            <div class="glass-card" style="background:rgba(255,0,85,0.05); border:1px solid rgba(255,0,85,0.2); padding:10px; font-size:11px">
+                <strong>O que fazer:</strong> Verifique as velas, cabos de ignição e as bobinas. Este erro pode causar perda de potência e aumento de consumo.
+            </div>
+            
+            <!-- Link de Afiliado Inteligente -->
+            <button class="btn-main" style="margin-top:15px; background:var(--success)" onclick="nav('shop', document.querySelectorAll('.dock-item')[3])">
+                <i class="fas fa-shopping-cart"></i> Ver Peças para este Reparo
+            </button>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px">
+        <button class="btn-main" onclick="startScanner()">Iniciar Varredura</button>
+        <button class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid var(--danger)" onclick="clearFaults()">
+            Apagar Erros
+        </button>
+    </div>
+    
+    <p style="font-size:10px; color:#94a3b8; text-align:center; margin-top:15px">
+        *A limpeza de códigos deve ser feita apenas após o reparo físico do componente.
+    </p>
+</div>
 
         <!-- 4. LOJA (Peças + Sacola) -->
         <div id="scr-shop" class="screen">
@@ -225,6 +277,46 @@ setInterval(() => {
         document.getElementById('val-liters').innerText = 42;
     }
 }, 1500);
+
+// Banco de dados simplificado de erros (Sera alimentado via Admin Desktop depois)
+const faultDatabase = {
+    "P0300": "Falha de Ignição Aleatória detectada. Provável desgaste em velas ou bobinas.",
+    "P0101": "Problema no sensor MAF (Fluxo de Ar). Pode causar instabilidade na marcha lenta.",
+    "P0420": "Eficiência do sistema de catalisador abaixo do limite.",
+    "P0115": "Mau funcionamento no circuito de temperatura do líquido de arrefecimento."
+};
+
+function startScanner() {
+    const idle = document.getElementById('scanner-idle');
+    const searching = document.getElementById('scanner-searching');
+    const found = document.getElementById('scanner-found');
+    
+    idle.classList.add('hidden');
+    found.classList.add('hidden');
+    searching.classList.remove('hidden');
+
+    // Simulação da leitura via Bluetooth (Comando 03)
+    setTimeout(() => {
+        searching.classList.add('hidden');
+        found.classList.remove('hidden');
+        
+        // Simula encontrar um erro P0300 (Comum no motor MSI)
+        const code = "P0300";
+        document.getElementById('fault-code').innerText = code;
+        document.getElementById('fault-desc').innerText = faultDatabase[code];
+        
+        // Notificação sonora ou tátil (opcional para o app)
+        if(navigator.vibrate) navigator.vibrate(200);
+    }, 3000);
+}
+
+function clearFaults() {
+    if(confirm("Tem certeza que deseja apagar os códigos de erro? A luz de injeção apagará, mas o problema físico deve ser resolvido.")) {
+        alert("Comando 04 enviado. Códigos apagados com sucesso.");
+        document.getElementById('scanner-found').classList.add('hidden');
+        document.getElementById('scanner-idle').classList.remove('hidden');
+    }
+}
 </script>
 </body>
 </html>
