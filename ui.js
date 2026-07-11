@@ -118,12 +118,12 @@ async function initStaticSelects() {
 
 async function onMarcaChange(prefix) {
     const brandName = document.getElementById(prefix + '-marca').value;
-    const anoSelect = document.getElementById(prefix + '-ano');
     const modSelect = document.getElementById(prefix + '-modelo');
+    const anoSelect = document.getElementById(prefix + '-ano');
     const verSelect = document.getElementById(prefix + '-versao');
 
-    anoSelect.innerHTML = '<option value="">Ano...</option>';
     modSelect.innerHTML = '<option value="">Modelo...</option>';
+    anoSelect.innerHTML = '<option value="">Ano...</option>';
     verSelect.innerHTML = '<option value="">Versão...</option>';
 
     const brand = marcasCache.find(m => m.nome === brandName);
@@ -134,26 +134,44 @@ async function onMarcaChange(prefix) {
         const data = await resp.json();
         modelosCache[prefix] = data.modelos;
 
-        const anosComModelos = {};
+        data.modelos.forEach(mod => {
+            modSelect.innerHTML += `<option value="${mod.codigo}">${mod.nome}</option>`;
+        });
+    } catch (error) {
+        console.error("Erro ao carregar modelos:", error);
+    }
+}
 
-        const fetches = data.modelos.map(async (mod) => {
-            try {
-                const respAnos = await fetch(`${API_FIPE}/marcas/${brand.codigo}/modelos/${mod.codigo}/anos`);
-                const anos = await respAnos.json();
-                anosPorModeloCache[`${prefix}_${mod.codigo}`] = anos;
-                anos.forEach(a => {
-                    const anoNum = a.codigo.split('-')[0];
-                    if (!anosComModelos[anoNum]) anosComModelos[anoNum] = 0;
-                    anosComModelos[anoNum]++;
-                });
-            } catch (e) {}
+async function onModeloChange(prefix) {
+    const brandName = document.getElementById(prefix + '-marca').value;
+    const modelCode = document.getElementById(prefix + '-modelo').value;
+    const anoSelect = document.getElementById(prefix + '-ano');
+    const verSelect = document.getElementById(prefix + '-versao');
+
+    anoSelect.innerHTML = '<option value="">Ano...</option>';
+    verSelect.innerHTML = '<option value="">Versão...</option>';
+
+    if (!modelCode) return;
+
+    const brand = marcasCache.find(m => m.nome === brandName);
+    if (!brand) return;
+
+    try {
+        const resp = await fetch(`${API_FIPE}/marcas/${brand.codigo}/modelos/${modelCode}/anos`);
+        const anos = await resp.json();
+        anosPorModeloCache[`${prefix}_${modelCode}`] = anos;
+
+        const anosUnicos = {};
+        anos.forEach(a => {
+            const anoNum = a.codigo.split('-')[0];
+            if (!anosUnicos[anoNum]) anosUnicos[anoNum] = [];
+            anosUnicos[anoNum].push(a);
         });
 
-        await Promise.all(fetches);
-
-        const anosOrdenados = Object.keys(anosComModelos).sort((a, b) => b - a);
+        const anosOrdenados = Object.keys(anosUnicos).sort((a, b) => b - a);
         anosOrdenados.forEach(ano => {
-            anoSelect.innerHTML += `<option value="${ano}">${ano} (${anosComModelos[ano]} modelos)</option>`;
+            const versoes = anosUnicos[ano];
+            anoSelect.innerHTML += `<option value="${ano}">${ano} (${versoes.length} versão(ões))</option>`;
         });
     } catch (error) {
         console.error("Erro ao carregar anos:", error);
@@ -162,32 +180,8 @@ async function onMarcaChange(prefix) {
 
 function onAnoChange(prefix) {
     const brandName = document.getElementById(prefix + '-marca').value;
-    const anoSel = document.getElementById(prefix + '-ano').value;
-    const modSelect = document.getElementById(prefix + '-modelo');
-    const verSelect = document.getElementById(prefix + '-versao');
-
-    modSelect.innerHTML = '<option value="">Modelo...</option>';
-    verSelect.innerHTML = '<option value="">Versão...</option>';
-
-    if (!anoSel) return;
-
-    const brand = marcasCache.find(m => m.nome === brandName);
-    const modelos = modelosCache[prefix] || [];
-
-    modelos.forEach(mod => {
-        const chaveCache = `${prefix}_${mod.codigo}`;
-        const anosDoModelo = anosPorModeloCache[chaveCache] || [];
-        const temAno = anosDoModelo.some(a => a.codigo.startsWith(anoSel + '-'));
-        if (temAno) {
-            modSelect.innerHTML += `<option value="${mod.codigo}">${mod.nome}</option>`;
-        }
-    });
-}
-
-function onModeloChange(prefix) {
-    const brandName = document.getElementById(prefix + '-marca').value;
-    const anoSel = document.getElementById(prefix + '-ano').value;
     const modelCode = document.getElementById(prefix + '-modelo').value;
+    const anoSel = document.getElementById(prefix + '-ano').value;
     const verSelect = document.getElementById(prefix + '-versao');
 
     verSelect.innerHTML = '<option value="">Versão...</option>';
@@ -350,8 +344,8 @@ function renderizarDadosGlobais() {
 
 async function preencherPerfil(marca, modelo, ano) {
     const marcaInput = document.getElementById("inp-prof-marca");
-    const anoSelect = document.getElementById("inp-prof-ano");
     const modSelect = document.getElementById("inp-prof-modelo");
+    const anoSelect = document.getElementById("inp-prof-ano");
     const verSelect = document.getElementById("inp-prof-versao");
 
     if (!marca) return;
@@ -372,53 +366,49 @@ async function preencherPerfil(marca, modelo, ano) {
         const data = await resp.json();
         modelosCache['inp-prof'] = data.modelos;
 
-        const anosComModelos = {};
-        const fetches = data.modelos.map(async (mod) => {
-            try {
-                const respAnos = await fetch(`${API_FIPE}/marcas/${brand.codigo}/modelos/${mod.codigo}/anos`);
-                const anos = await respAnos.json();
-                anosPorModeloCache[`inp-prof_${mod.codigo}`] = anos;
-                anos.forEach(a => {
-                    const anoNum = a.codigo.split('-')[0];
-                    if (!anosComModelos[anoNum]) anosComModelos[anoNum] = 0;
-                    anosComModelos[anoNum]++;
-                });
-            } catch (e) {}
-        });
-        await Promise.all(fetches);
-
-        const anosOrdenados = Object.keys(anosComModelos).sort((a, b) => b - a);
-        anoSelect.innerHTML = '<option value="">Ano...</option>';
-        anosOrdenados.forEach(a => {
-            anoSelect.innerHTML += `<option value="${a}" ${a == ano ? 'selected' : ''}>${a}</option>`;
+        modSelect.innerHTML = '<option value="">Modelo...</option>';
+        data.modelos.forEach(mod => {
+            modSelect.innerHTML += `<option value="${mod.codigo}" ${mod.nome === modelo ? 'selected' : ''}>${mod.nome}</option>`;
         });
 
-        if (ano) {
-            modSelect.innerHTML = '<option value="">Modelo...</option>';
-            data.modelos.forEach(mod => {
-                const chaveCache = `inp-prof_${mod.codigo}`;
-                const anosDoModelo = anosPorModeloCache[chaveCache] || [];
-                const temAno = anosDoModelo.some(a => a.codigo.startsWith(ano + '-'));
-                if (temAno) {
-                    modSelect.innerHTML += `<option value="${mod.codigo}" ${mod.nome === modelo ? 'selected' : ''}>${mod.nome}</option>`;
-                }
-            });
-
+        if (modelo) {
             const model = data.modelos.find(m => m.nome === modelo);
             if (model) {
-                const chaveCache = `inp-prof_${model.codigo}`;
-                const versoes = anosPorModeloCache[chaveCache] || [];
-                const verSalva = localStorage.getItem("car_versao_nome") || "";
-                const filtradas = versoes.filter(v => v.codigo.startsWith(ano + '-'));
-                verSelect.innerHTML = '<option value="">Versão...</option>';
-                let verEncontrada = false;
-                filtradas.forEach(ver => {
-                    const selected = ver.nome === verSalva ? 'selected' : '';
-                    if (ver.nome === verSalva) verEncontrada = true;
-                    verSelect.innerHTML += `<option value="${ver.codigo}" ${selected}>${ver.nome}</option>`;
-                });
-                if (!verEncontrada && verSalva) {
-                    verSelect.innerHTML += `<option value="${verSalva}" selected>${verSalva}</option>`;
+                try {
+                    const respAnos = await fetch(`${API_FIPE}/marcas/${brand.codigo}/modelos/${model.codigo}/anos`);
+                    const anos = await respAnos.json();
+                    anosPorModeloCache[`inp-prof_${model.codigo}`] = anos;
+
+                    const anosUnicos = {};
+                    anos.forEach(a => {
+                        const anoNum = a.codigo.split('-')[0];
+                        if (!anosUnicos[anoNum]) anosUnicos[anoNum] = [];
+                        anosUnicos[anoNum].push(a);
+                    });
+
+                    const anosOrdenados = Object.keys(anosUnicos).sort((a, b) => b - a);
+                    anoSelect.innerHTML = '<option value="">Ano...</option>';
+                    anosOrdenados.forEach(a => {
+                        anoSelect.innerHTML += `<option value="${a}" ${a == ano ? 'selected' : ''}>${a}</option>`;
+                    });
+
+                    if (ano) {
+                        const versoes = anos;
+                        const verSalva = localStorage.getItem("car_versao_nome") || "";
+                        const filtradas = versoes.filter(v => v.codigo.startsWith(ano + '-'));
+                        verSelect.innerHTML = '<option value="">Versão...</option>';
+                        let verEncontrada = false;
+                        filtradas.forEach(ver => {
+                            const selected = ver.nome === verSalva ? 'selected' : '';
+                            if (ver.nome === verSalva) verEncontrada = true;
+                            verSelect.innerHTML += `<option value="${ver.codigo}" ${selected}>${ver.nome}</option>`;
+                        });
+                        if (!verEncontrada && verSalva) {
+                            verSelect.innerHTML += `<option value="${verSalva}" selected>${verSalva}</option>`;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Erro ao carregar anos do modelo:", e);
                 }
             }
         }
