@@ -4,88 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AutoGestão X - SaaS Edition v1.0</title>
-    <style>
-        :root {
-            --bg: #050810; --card: #0d121f; --accent: #00f2ff; 
-            --neon: #00f2ff; --danger: #ff0055; --success: #00ffaa;
-            --warning: #ffaa00; --text: #e2e8f0; --glass: rgba(255,255,255,0.03);
-        }
-        
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        html, body { height: 100%; margin: 0; padding: 0; background: var(--bg); color: var(--text); overflow: hidden; }
-        body { font-family: 'Inter', -apple-system, sans-serif; display: flex; flex-direction: column; }
-        
-        /* Estrutura Principal */
-        .container { max-width: 480px; margin: 0 auto; flex: 1; display: flex; flex-direction: column; width: 100%; height: 100%; position: relative; }
-        .content-area { flex: 1; overflow-y: auto; position: relative; z-index: 1; }
-        .screen { display: none; padding: 15px; min-height: 100%; flex-direction: column; }
-        .screen.active { display: flex; }
-
-        /* Iconografia e Estilo do Menu */
-        .bottom-dock { 
-            background: rgba(13, 18, 31, 0.95); 
-            backdrop-filter: blur(20px); 
-            display: flex; 
-            justify-content: space-around; 
-            padding: 12px 5px 25px; 
-            border-top: 1px solid rgba(0, 242, 255, 0.15);
-            z-index: 10;
-        }
-        .dock-item { text-align: center; color: #475569; transition: 0.3s; flex: 1; cursor: pointer; }
-        .dock-item i { font-size: 1.3rem; display: block; margin-bottom: 4px; }
-        .dock-item span { font-size: 9px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
-        .dock-item.active { color: var(--neon); transform: translateY(-3px); }
-        .dock-item.active i { filter: drop-shadow(0 0 8px var(--neon)); }
-
-        /* UI Reutilizável */
-        .glass-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 20px; padding: 18px; margin-bottom: 15px; }
-        .btn-main { background: var(--accent); color: #000; border: none; padding: 14px; border-radius: 12px; font-weight: 800; width: 100%; cursor: pointer; text-transform: uppercase; font-size: 12px; }
-        .badge-premium { background: linear-gradient(45deg, #ffd700, #ffaa00); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; margin-left: 5px; }
-
-        /* Estilo Específico: Dashboard (Ícone 1) */
-        .header-stats { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .stat-mini { background: var(--glass); padding: 8px 12px; border-radius: 50px; font-size: 11px; font-weight: 600; border: 1px solid rgba(255,255,255,0.05); }
-        .gauge-container { position: relative; width: 240px; height: 180px; margin: 0 auto; display: flex; align-items: center; justify-content: center; }
-        .gauge-svg { transform: rotate(-90deg); width: 220px; height: 220px; }
-        .gauge-bg { fill: none; stroke: #1e293b; stroke-width: 8; stroke-dasharray: 235; stroke-dashoffset: -235; stroke-linecap: round; }
-        .gauge-fill { fill: none; stroke: var(--accent); stroke-width: 8; stroke-dasharray: 0 314; stroke-linecap: round; transition: 0.5s cubic-bezier(0.4, 0, 0.2, 1); filter: drop-shadow(0 0 10px var(--accent)); }
-        .rpm-display { position: absolute; top: 55%; text-align: center; }
-        .rpm-val { font-size: 2.5rem; font-weight: 900; display: block; line-height: 1; }
-        .rpm-unit { font-size: 10px; color: var(--accent); letter-spacing: 2px; }
-
-        /* Abas Internas (para Ícone 4 - Loja) */
-        .inner-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
-        .tab-btn { flex: 1; background: var(--glass); border: 1px solid rgba(255,255,255,0.05); color: #94a3b8; padding: 10px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 11px; }
-        .tab-btn.active { background: rgba(0, 242, 255, 0.1); color: var(--accent); border-color: var(--accent); }
-
-        .hidden { display: none; }
-
-        /* Animação do Scanner */
-.loader-scanner {
-    width: 50px;
-    height: 50px;
-    border: 3px solid var(--glass);
-    border-top: 3px solid var(--accent);
-    border-radius: 50%;
-    margin: 0 auto;
-    animation: spin 1s linear infinite;
-}
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-.hidden { display: none !important; }
-    </style>
+    <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
+
+<div class="toast-container" id="toast-container"></div>
 
 <div class="container">
     <div class="content-area">
         
-        <!-- 1. PAINEL (Dashboard) -->
+        <!-- PAINEL (DASHBOARD) -->
         <div id="scr-dash" class="screen active">
             <div class="header-stats">
-                <div class="stat-mini" style="border-color:var(--accent); color:var(--accent); font-weight: 800;">MODO HUD</div>
-                <div class="stat-mini"><i class="fas fa-satellite-dish"></i> OBD2 OK</div>
+                <div class="stat-mini" style="border-color:var(--accent); color:var(--accent); font-weight: 800;">AO VIVO</div>
+                <div class="stat-mini"><i class="fas fa-satellite-dish"></i> Simulado</div>
             </div>
 
             <div class="gauge-container">
@@ -100,24 +34,24 @@
             </div>
 
             <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-top:15px;">
-                <div class="glass-card" style="padding:10px; text-align:center; border-bottom: 2px solid var(--danger); margin-bottom:0">
-                    <span style="font-size:8px; color:#94a3b8; text-transform:uppercase">Temp. Motor</span>
-                    <div style="font-size:1.1rem; font-weight:800; color:var(--text)"><span id="val-temp">--</span>°C</div>
+                <div class="glass-card" style="padding:10px; text-align:center; border-bottom: 3px solid #ff0055; margin-bottom:0">
+                    <span style="font-size:8px; color:#94a3b8; text-transform:uppercase">TEMP. MOTOR</span>
+                    <div style="font-size:1.1rem; font-weight:800; color:var(--text)" id="temp-value">--</div>
                 </div>
                 <div class="glass-card" style="padding:10px; text-align:center; border-bottom: 2px solid var(--warning); margin-bottom:0">
                     <span style="font-size:8px; color:#94a3b8; text-transform:uppercase">Combustível</span>
                     <div style="font-size:1.1rem; font-weight:800; color:var(--text)"><span id="val-liters">--</span>L</div>
                 </div>
-                <div class="glass-card" style="padding:10px; text-align:center; border-bottom: 2px solid var(--accent); margin-bottom:0">
-                    <span style="font-size:8px; color:#94a3b8; text-transform:uppercase">Tensão Bat.</span>
-                    <div style="font-size:1.1rem; font-weight:800; color:var(--text)"><span id="val-voltage">--</span>V</div>
+                <div class="glass-card" style="padding:10px; text-align:center; border-bottom: 3px solid #00e5ff; margin-bottom:0">
+                    <span style="font-size:8px; color:#94a3b8; text-transform:uppercase">TENSÃO BAT.</span>
+                    <div style="font-size:1.1rem; font-weight:800; color:var(--text)" id="volt-value">--</div>
                 </div>
             </div>
 
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
                 <div class="glass-card" style="padding:12px; background: rgba(0, 255, 170, 0.05); margin-bottom:0">
                     <span style="font-size:9px; color:#94a3b8; text-transform:uppercase">Consumo Médio</span>
-                    <div style="font-size:1.3rem; font-weight:800; color:var(--success)">14.2 <small style="font-size:10px">km/L</small></div>
+                    <div id="val-consumo-medio" style="font-size:1.3rem; font-weight:800; color:var(--success)">-- <small style="font-size:10px">km/L</small></div>
                 </div>
                 <div class="glass-card" style="padding:12px; background: rgba(0, 242, 255, 0.05); margin-bottom:0">
                     <span style="font-size:9px; color:#94a3b8; text-transform:uppercase">Instantâneo</span>
@@ -125,133 +59,320 @@
                 </div>
             </div>
 
-            <div style="margin-top:auto; text-align:center; padding:15px; opacity:0.6">
-                <div style="font-size:10px; letter-spacing:2px">ODÔMETRO TOTAL</div>
-                <div style="font-size:1.5rem; font-weight:900; font-family:monospace">136.670 KM</div>
+            <div class="glass-card" style="padding: 15px; margin-top: 15px; text-align: center; border-bottom: 3px solid #888;">
+                <span style="font-size: 9px; color: #aaa; display: block; letter-spacing: 1px;">ODÔMETRO TOTAL</span>
+                <div style="font-size: 1.6rem; font-weight: bold; color: #fff; margin-top: 5px;" id="txt-odometro">
+                    -- <span style="font-size: 0.9rem; color: #aaa;">KM</span>
+                </div>
             </div>
+
+            <div id="dash-alertas" style="margin-top: 15px;"></div>
         </div>
 
-        <!-- 2. DIÁRIO -->
-        <div id="scr-journal" class="screen">
-            <h3>Diário de Bordo</h3>
-            <div class="glass-card" style="border-left:4px solid var(--warning)">
-                <span>Próxima Revisão <span class="badge-premium">PRO</span></span>
-                <div style="font-size:1.4rem; font-weight:900; margin:5px 0">Em 2.450 km</div>
-                <small style="color:#94a3b8">Estimativa baseada no seu uso atual.</small>
-            </div>
-            <button class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); margin-bottom:20px;">Exportar Relatório PDF</button>
+        <!-- MANUTENÇÃO -->
+        <div id="scr-maintenance" class="screen">
+            <h3>Gestão de Manutenção</h3>
             
-            <div class="glass-card" style="padding:12px">
-                <div style="font-size:11px; opacity:0.5">ÚLTIMA ATIVIDADE</div>
-                <div style="font-weight:700">Abastecimento: 42.5 Litros</div>
-                <div style="font-size:10px; color:var(--success)">Consumo médio desta viagem: 14.2 km/L</div>
+            <div class="inner-tabs">
+                <button class="tab-btn active" id="btn-sub-historico" onclick="alternarSubAbaManutencao('historico')">Histórico</button>
+                <button class="tab-btn" id="btn-sub-saude" onclick="alternarSubAbaManutencao('saude')">Saúde do Veículo</button>
+                <button class="tab-btn" id="btn-sub-gastos" onclick="alternarSubAbaManutencao('gastos')">Gastos</button>
+                <button class="tab-btn" id="btn-sub-combustivel" onclick="alternarSubAbaManutencao('combustivel')">Combustível</button>
             </div>
+
+            <!-- Modal Novo Registro Manutenção -->
+            <div id="modal-maint-wrapper" class="modal-overlay hidden">
+                <div class="modal-content glass-card">
+                    <div style="text-align:center; margin-bottom:15px;">
+                        <h4 id="maint-modal-titulo" style="margin:0; color:var(--accent); letter-spacing:1px;">NOVO REGISTRO</h4>
+                    </div>
+
+                    <div style="margin-bottom:10px;"><label>Sistema</label><select id="maint-sistema"><option value="">Selecione o Sistema...</option><option value="Motor & Transmissão">Motor & Transmissão</option><option value="Ignição">Ignição</option><option value="Filtros & Alimentação">Filtros & Alimentação</option><option value="Freios">Freios</option><option value="Suspensão & Direção">Suspensão & Direção</option><option value="Ar Condicionado">Ar Condicionado</option><option value="Elétrica">Elétrica</option></select></div>
+                    <div style="margin-bottom:10px;"><label>Item / Peça</label><input type="text" id="maint-item" list="list-maint-itens" placeholder="Ex: Óleo do Motor com Filtro"><datalist id="list-maint-itens"></datalist></div>
+                    <div style="margin-bottom:10px;"><label>Marca da Peça / Fluido</label><input type="text" id="maint-marca" placeholder="Ex: Castrol, Bosch, Mahle"></div>
+                    <div style="margin-bottom:10px;"><label>Oficina / Mecânico</label><input type="text" id="maint-oficina" placeholder="Nome da oficina ou mecânico"></div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:12px;">
+                        <div><label>Data</label><input type="date" id="maint-data"></div>
+                        <div><label>KM Atual</label><input type="number" id="maint-km" placeholder="KM"></div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:12px;">
+                        <div><label>Custo Peça (R$)</label><input type="number" id="maint-custo-peca" step="0.01" min="0" placeholder="0.00"></div>
+                        <div><label>Mão de Obra (R$)</label><input type="number" id="maint-custo-mao" step="0.01" min="0" placeholder="0.00"></div>
+                    </div>
+                    <div style="margin-bottom:15px;"><label>Notas</label><textarea id="maint-notas" rows="2" placeholder="Detalhes adicionais..."></textarea></div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <button id="maint-save-btn" class="btn-main" onclick="saveMaintRecord()">Salvar</button>
+                        <button class="btn-main" style="background:var(--glass); color:#fff; border:1px solid rgba(255,255,255,0.1)" onclick="closeMaintModal()">Cancelar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABA HISTÓRICO -->
+            <div id="maint-historico">
+                <div class="glass-card" style="border-left:4px solid var(--warning); cursor:pointer;" onclick="showToast('Em breve! Análise preditiva de desgaste baseada em dados reais da ECU.', 'info')">
+                    <span>Próxima Revisão Preditiva <span class="badge-premium">EM BREVE</span></span>
+                    <div style="font-size:1.4rem; font-weight:900; margin:5px 0">Análise de Desgaste</div>
+                    <small style="color:#94a3b8">O sistema monitora dinamicamente sua quilometragem para calcular a próxima troca de óleo.</small>
+                </div>
+
+                <button class="btn-main" onclick="openMaintModal()"><i class="fas fa-plus"></i> Adicionar Registro</button>
+
+                <div class="glass-card" style="margin-top: 20px; padding: 15px 10px; overflow-x: auto;">
+                    <div style="margin-bottom: 15px; padding: 0 8px;">
+                        <label style="display:block; margin-bottom:5px;">Filtrar/Ordenar</label>
+                        <select id="filter-maint" style="margin-top:0;">
+                            <option value="todos">Todos os Registros</option>
+                            <option value="categoria">Ordenar por Categoria</option>
+                            <option value="vencimento">Ordenar por Vencimento (Tempo/KM)</option>
+                        </select>
+                    </div>
+                    <div style="font-size:12px; font-weight: 800; color: var(--accent); margin-bottom: 10px; padding-left: 8px;">HISTÓRICO DE MANUTENÇÕES</div>
+                    <table class="m-table">
+                        <thead>
+                            <tr><th>Item</th><th>KM</th><th>Data</th><th>Peça</th><th>Mão Obra</th><th>Total</th><th>Ações</th></tr>
+                        </thead>
+                        <tbody id="maint-tbody">
+                            <!-- Registros via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <button class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); margin-bottom:20px;" onclick="exportarRelatorioPDF()">EXPORTAR RELATÓRIO PDF</button>
+                <button class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); margin-bottom:20px;" onclick="exportarCSV()">EXPORTAR CSV</button>
+            </div>
+
+            <!-- ABA SAÚDE -->
+            <div id="maint-saude" class="hidden"></div>
+
+            <!-- ABA GASTOS -->
+            <div id="maint-gastos" class="hidden"></div>
+
+            <!-- ABA COMBUSTÍVEL -->
+            <div id="maint-combustivel" class="hidden"></div>
         </div>
 
-        <!-- 3. SCANNER -->
-        <div id="scr-scanner" class="screen">
-            <h3>Scanner de Diagnóstico</h3>
-            <div id="scanner-main-ui" class="glass-card" style="text-align:center; padding:30px 15px; min-height: 200px; display: flex; flex-direction: column; justify-content: center;">
+        <!-- DIAGNÓSTICO (SCANNER) -->
+        <div id="scr-obd" class="screen">
+            <h3>Diagnóstico Eletrônico</h3>
+            
+            <button class="tab-btn" id="btn-conectar-carro" onclick="conectarVeiculoAuto()" style="width:100%; margin-bottom:15px; border-style:dashed; display:flex; align-items:center; justify-content:center; gap:10px;">
+                <i class="fas fa-plug"></i> CONECTAR AO CARRO (ELM327)
+            </button>
+
+            <div class="glass-card" style="display:flex; justify-content: space-between; gap:10px; padding:12px; border-color: rgba(0,242,255,0.2)">
+                <button class="tab-btn active" id="btn-obd-sim" onclick="toggleObdMode(true)" style="font-size:10px; padding:8px;">OBD2 Simulado</button>
+                <button class="tab-btn" id="btn-obd-real" onclick="toggleObdMode(false)" style="font-size:10px; padding:8px; opacity:0.5">Conectar Hardware <span class="badge-premium" style="font-size:7px">PRO</span></button>
+            </div>
+
+            <div id="scanner-main-ui" class="glass-card" style="text-align:center; padding:15px 10px; min-height: 120px; display: flex; flex-direction: column; justify-content: center; margin-top:10px;">
                 <div id="scan-idle">
-                    <i class="fas fa-microchip" style="font-size:3rem; color:var(--accent); margin-bottom:15px; opacity:0.5"></i>
-                    <p style="font-size:13px; color:#94a3b8">Pronto para escanear a ECU via Bluetooth.</p>
+                    <i class="fas fa-microchip" style="font-size:2rem; color:var(--accent); margin-bottom:10px; opacity:0.5"></i>
+                    <p style="font-size:11px; color:#94a3b8">Pronto para verificar falhas na ECU.</p>
                 </div>
                 <div id="scan-active" class="hidden">
-                    <div class="loader-scanner" style="width:40px; height:40px; border:3px solid var(--glass); border-top:3px solid var(--accent); border-radius:50%; margin:0 auto; animation:spin 1s linear infinite;"></div>
-                    <p style="margin-top:15px; font-weight:700">Lendo códigos de falha...</p>
+                    <div class="loader-scanner"></div>
+                    <p style="margin-top:10px; font-weight:700; font-size:12px">Lendo códigos de falha...</p>
                 </div>
                 <div id="scan-result" class="hidden" style="text-align:left">
-                    <div style="color:var(--danger); font-weight:800; font-size:12px">ALERTA DE FALHA:</div>
-                    <div style="font-size:1.8rem; font-weight:900">P0300</div>
-                    <p style="font-size:13px">Falha de Ignição Aleatória detectada.</p>
+                    <div id="scan-result-content"></div>
                 </div>
             </div>
-            <button class="btn-main" onclick="runScanner()" style="margin-top:15px">Iniciar Varredura</button>
+
+            <div id="diagnostico-painel" class="glass-card" style="margin-top:10px; padding:15px;">
+                <div id="diag-status" style="text-align:center; padding:15px 10px; border-radius:12px; margin-bottom:15px;">
+                    <div id="diag-status-icon" style="font-size:2.5rem; margin-bottom:8px;">🔍</div>
+                    <div id="diag-status-text" style="font-size:14px; font-weight:800; color:#fff;">Aguardando leituras...</div>
+                    <div id="diag-status-sub" style="font-size:11px; color:#94a3b8; margin-top:4px;">Inicie a varredura para analisar os sensores</div>
+                </div>
+                <div id="diag-alertas"></div>
+                <div id="diag-sugestoes"></div>
+                <div id="diag-consumo"></div>
+            </div>
+
+            <div class="glass-card" style="margin-top:10px; padding:15px;">
+                <div style="font-size:10px; color:var(--accent); text-transform:uppercase; font-weight:800; letter-spacing:1px; margin-bottom:12px;">Leituras em Tempo Real</div>
+                <div id="obd-sensores" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div>
+            </div>
+
+            <button class="btn-main" onclick="runScanner()" style="margin-top:15px">Verificar Falhas</button>
         </div>
 
-        <!-- 4. LOJA -->
+        <!-- LOJA DE PEÇAS -->
         <div id="scr-shop" class="screen">
-            <div style="display:flex; gap:10px; margin-bottom:20px">
-                <button class="tab-btn active" style="flex:1; padding:10px; border-radius:10px; border:1px solid var(--accent); background:rgba(0,242,255,0.1); color:var(--accent); font-weight:700">Catálogo</button>
-                <button class="tab-btn" style="flex:1; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:var(--glass); color:#94a3b8">Sacola</button>
-            </div>
-            <div class="glass-card" style="display:flex; align-items:center; gap:15px">
-                <div style="width:45px; height:45px; background:#1e293b; border-radius:8px"></div>
-                <div style="flex:1">
-                    <div style="font-weight:700; font-size:13px">Kit Velas de Ignição</div>
-                    <div style="font-size:11px; color:var(--success)">A partir de R$ 149,00</div>
-                </div>
-                <i class="fas fa-chevron-right" style="opacity:0.3"></i>
-            </div>
-        </div>
+            <div class="inner-tabs" style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <button class="tab-btn active" id="btn-sub-catalogo" onclick="alternarSubAbaPecas('catalogo')" style="flex: 1; padding: 10px; font-size: 12px;">Catálogo Inteligente</button>
+        <button class="tab-btn" id="btn-sub-sacola" onclick="alternarSubAbaPecas('sacola')" style="flex: 1; padding: 10px; font-size: 12px;">Plano de Aquisição</button>
+    </div>
+    
+    <div id="catalogo-container" style="display: grid; grid-template-columns: 1fr; gap: 12px;"></div>
+    
+    <div id="sacola-container" class="hidden"></div>
+</div>
 
-        <!-- 5. PERFIL -->
+        <!-- PERFIL -->
         <div id="scr-profile" class="screen">
-            <div class="glass-card" style="display:flex; align-items:center; gap:15px; border-left:4px solid var(--accent)">
-                <i class="fas fa-car" style="font-size:1.5rem"></i>
-                <div>
-                    <div style="font-weight:800">VW GOL 1.6 MSI 2019</div>
-                    <div style="font-size:11px; opacity:0.5">CHASSI: 9BW-XXXXXX-XXXX</div>
+            <h3>Perfil do Veículo</h3>
+            <div class="glass-card" style="border-left:4px solid var(--accent)">
+                <div style="display:flex; align-items:center; gap:15px">
+                    <div style="width:50px; height:50px; border-radius:50%; background:rgba(0,242,255,0.1); display:flex; align-items:center; justify-content:center">
+                        <i class="fas fa-car" style="color:var(--accent); font-size:1.3rem"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight:800; font-size:1.2rem; text-transform:uppercase" id="lbl-veiculo-nome">VEÍCULO NÃO CONFIGURADO</div>
+                        <div style="font-size:11px; opacity:0.6" id="lbl-veiculo-ano">Ano: --</div>
+                        <div style="font-size:9px; color:var(--warning); margin-top:4px;" id="lbl-placa-container" class="hidden">Placa: <span id="lbl-placa" style="font-weight:700;">--</span></div>
+                        <div style="font-size:9px; color:var(--accent); margin-top:2px;" id="lbl-vin-container" class="hidden">VIN: <span id="lbl-vin" style="font-family:monospace">--</span></div>
+                    </div>
                 </div>
             </div>
-            <h4 style="margin:20px 0 10px">Wiki de Problemas Crônicos</h4>
-            <div class="glass-card" style="font-size:12px; line-height:1.5">
-                <strong style="color:var(--warning)">Sistema de Ignição:</strong> Este motor costuma apresentar falhas prematuras nas bobinas. Fique atento a engasgos em marcha lenta.
+
+            <div class="glass-card" style="margin-top:10px;">
+                <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:15px;"><i class="fas fa-sliders-h"></i> Alterar Dados do Veículo</div>
+                
+                <div style="margin-bottom:12px;">
+                    <label>Quilometragem Atual (KM) *</label>
+                    <input type="number" id="inp-prof-km" min="1" placeholder="Ex: 50000">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                    <div>
+                        <label>Placa</label>
+                        <input type="text" id="inp-prof-placa" placeholder="ABC1D23" maxlength="7" style="text-transform:uppercase;">
+                    </div>
+                    <div>
+                        <label>Chassi / VIN</label>
+                        <input type="text" id="inp-prof-vin" placeholder="17 caracteres" maxlength="17" style="text-transform:uppercase;">
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                    <div>
+                        <label>Capacidade Tanque (L)</label>
+                        <input type="number" id="inp-prof-tanque" min="10" max="200" placeholder="Ex: 50">
+                    </div>
+                    <div></div>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label>Marca</label>
+                    <input type="text" id="inp-prof-marca" list="list-inp-prof-marcas" oninput="onMarcaChange('inp-prof')" placeholder="Selecione ou digite a marca">
+                    <datalist id="list-inp-prof-marcas"></datalist>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label>Ano</label>
+                    <select id="inp-prof-ano" onchange="onAnoChange('inp-prof')"><option value="">Ano...</option></select>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label>Modelo</label>
+                    <select id="inp-prof-modelo" onchange="onModeloChange('inp-prof')"><option value="">Modelo...</option></select>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label>Versão</label>
+                    <select id="inp-prof-versao"><option value="">Versão...</option></select>
+                </div>
+
+                <button class="btn-main" onclick="salvarPerfil()">Atualizar Configurações</button>
             </div>
-            <button class="btn-main" style="margin-top:20px; background:#6200ea; color:#fff">Configurar Adaptador OBD2</button>
+
+            <div class="glass-card" style="margin-top:10px;">
+                <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:5px;"><i class="fas fa-database"></i> Backup e Transferência de Dados</div>
+                <small style="color:#94a3b8; display:block; margin-bottom:15px;">Salve um arquivo com todos os seus dados (veículo, histórico de manutenção e plano de aquisição) para guardar ou levar para outro dispositivo.</small>
+
+                <button class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); margin-bottom:10px;" onclick="exportarDadosJSON()">
+                    <i class="fas fa-download"></i> Exportar Dados (Backup)
+                </button>
+
+                <label for="input-importar-dados" class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); display:block; text-align:center; cursor:pointer; margin-bottom:0;">
+                    <i class="fas fa-upload"></i> Importar Dados
+                </label>
+                <input type="file" id="input-importar-dados" accept="application/json" class="hidden" onchange="importarDadosJSON(this)">
+            </div>
         </div>
 
     </div>
 
-    <!-- NAVEGAÇÃO -->
+    <!-- MODAL ONBOARDING -->
+    <div id="modal-onboarding" class="modal-overlay hidden">
+        <div class="modal-content glass-card">
+            <div style="text-align:center; margin-bottom:15px;">
+                <div style="font-size:2rem; margin-bottom:5px;">🚗</div>
+                <h4 style="margin:0; color:var(--accent); letter-spacing:1px;">CONFIGURAR VEÍCULO</h4>
+                <p style="font-size:11px; color:#94a3b8; margin:5px 0 0 0;">Vamos registrar os dados iniciais do seu veículo</p>
+            </div>
+            
+            <div style="margin-bottom:10px;">
+                <label>Quilometragem Atual *</label>
+                <input type="number" id="onb-km" min="1" placeholder="Ex: 87520">
+            </div>
+            <div style="margin-bottom:10px;">
+                <label>Placa do Veículo</label>
+                <input type="text" id="onb-placa" placeholder="Ex: ABC1D23" maxlength="7" style="text-transform:uppercase;">
+            </div>
+            <div style="margin-bottom:10px;">
+                <label>Chassi / VIN (Opcional)</label>
+                <input type="text" id="onb-vin" placeholder="Digite se souber — 17 caracteres" maxlength="17" style="text-transform:uppercase;">
+            </div>
+            <div style="margin-bottom:10px;">
+                <label>Capacidade do Tanque (Opcional)</label>
+                <input type="number" id="onb-tanque" min="10" max="200" placeholder="Ex: 50 litros">
+            </div>
+            <div style="margin-bottom:10px;">
+                <label>Marca</label>
+                <input type="text" id="onb-marca" list="list-onb-marcas" oninput="onMarcaChange('onb')" placeholder="Selecione ou digite a marca">
+                <datalist id="list-onb-marcas"></datalist>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label>Ano</label>
+                <select id="onb-ano" onchange="onAnoChange('onb')"><option value="">Ano...</option></select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label>Modelo</label>
+                <select id="onb-modelo" onchange="onModeloChange('onb')"><option value="">Modelo...</option></select>
+            </div>
+            <div style="margin-bottom:15px;">
+                <label>Versão</label>
+                <select id="onb-versao"><option value="">Versão...</option></select>
+            </div>
+
+            <button class="btn-main" onclick="concluirOnboarding()">Salvar e Continuar</button>
+        </div>
+    </div>
+
+    <!-- MODAL ESTIMATIVA -->
+    <div id="modal-estimativa" class="modal-overlay hidden">
+        <div class="modal-content glass-card" style="border-color: var(--warning);">
+            <div style="text-align:center; margin-bottom:15px;">
+                <div style="font-size:2rem; margin-bottom:5px;">⚡</div>
+                <h4 style="margin:0; color:var(--warning); letter-spacing:1px;">ATUALIZAR QUILOMETRAGEM</h4>
+                <p style="font-size:11px; color:#94a3b8; margin:5px 0 0 0;" id="lbl-estimativa-dias">Faz tempo desde seu último acesso.</p>
+            </div>
+            
+            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:10px; text-align:center; margin-bottom:15px; border:1px solid rgba(255,170,0,0.1)">
+                <span style="font-size:10px; color:#94a3b8; display:block; text-transform:uppercase;">Quilometragem Estimada</span>
+                <div style="font-size:1.8rem; font-weight:900; color:var(--warning); font-family:monospace;" id="txt-km-sugerida">-- KM</div>
+            </div>
+
+            <div style="margin-bottom:15px;">
+                <label style="font-size:10px; color:#e2e8f0; display:block; margin-bottom:4px;">Corrigir ou Confirmar KM Atual:</label>
+                <input type="number" id="inp-km-estimada-editavel" style="width:100%; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.2); padding:10px; border-radius:8px; color:#fff; font-family:monospace; font-weight:700; text-align:center; font-size:1.2rem;">
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <button class="btn-main" style="background:var(--warning); color:#000;" onclick="confirmarEstimativa(true)">Confirmar</button>
+                <button class="btn-main" style="background:var(--glass); color:#fff; border:1px solid rgba(255,255,255,0.1)" onclick="confirmarEstimativa(false)">Ajustar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DOCK DE NAVEGAÇÃO -->
     <nav class="bottom-dock">
         <div class="dock-item active" onclick="nav('dash', this)"><i class="fas fa-tachometer-alt"></i><span>Painel</span></div>
-        <div class="dock-item" onclick="nav('journal', this)"><i class="fas fa-book"></i><span>Diário</span></div>
-        <div class="dock-item" onclick="nav('scanner', this)"><i class="fas fa-microchip"></i><span>Scanner</span></div>
-        <div class="dock-item" onclick="nav('shop', this)"><i class="fas fa-shopping-bag"></i><span>Loja</span></div>
+        <div class="dock-item" onclick="nav('maintenance', this)"><i class="fas fa-tools"></i><span>Manutenção</span></div>
+        <div class="dock-item" onclick="nav('obd', this)"><i class="fas fa-notes-medical"></i><span>Diagnóstico</span></div>
+        <div class="dock-item" onclick="nav('shop', this)"><i class="fas fa-shopping-cart"></i><span>Peças</span></div>
         <div class="dock-item" onclick="nav('profile', this)"><i class="fas fa-user-cog"></i><span>Perfil</span></div>
     </nav>
 </div>
 
-<style>
-@keyframes spin { 100% { transform: rotate(360deg); } }
-.hidden { display: none !important; }
-</style>
-
-<script>
-// NAVEGAÇÃO ENTRE TELAS
-function nav(id, el) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('scr-' + id).classList.add('active');
-    document.querySelectorAll('.dock-item').forEach(i => i.classList.remove('active'));
-    el.classList.add('active');
-}
-
-// LÓGICA DO SCANNER
-function runScanner() {
-    document.getElementById('scan-idle').classList.add('hidden');
-    document.getElementById('scan-active').classList.remove('hidden');
-    document.getElementById('scan-result').classList.add('hidden');
-    
-    setTimeout(() => {
-        document.getElementById('scan-active').classList.add('hidden');
-        document.getElementById('scan-result').classList.remove('hidden');
-    }, 2500);
-}
-
-// SIMULAÇÃO DO DASHBOARD (RPM e Sensores)
-setInterval(() => {
-    if(document.getElementById('scr-dash').classList.contains('active')) {
-        let rpm = Math.floor(Math.random() * (30 - 8) + 8) * 100;
-        document.getElementById('rpm-num').innerText = rpm;
-        document.getElementById('rpm-fill').style.strokeDasharray = `${(rpm/6000)*314} 314`;
-        document.getElementById('val-temp').innerText = 92; 
-        document.getElementById('val-liters').innerText = 42; 
-        document.getElementById('val-voltage').innerText = (Math.random() * (14.2 - 13.8) + 13.8).toFixed(1);
-        let instant = (22 - (rpm / 450)).toFixed(1);
-        document.getElementById('val-instant').innerHTML = `${instant} <small style="font-size:10px">km/L</small>`;
-    }
-}, 1000);
-</script>
+<script src="obd2.js"></script>
+<script src="ui.js"></script>
 </body>
 </html>

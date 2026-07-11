@@ -1,0 +1,1229 @@
+// =============================================
+// obd2.js — Conexão ELM327, simulação e leitura de dados OBD2
+// =============================================
+
+// --- MODO SIMULADOR DE DADOS E CONEXÃO REAL ---
+let modoSimulacao = true; 
+let simulationIntervalId;
+let pollingIntervalId;
+let pollingTelemetriaId;
+let port;
+let reader;
+let writer;
+let bleCharacteristic = null;
+let bleBuffer = '';
+let tipoConexao = null; // 'serial' ou 'ble'
+
+function hexToAscii(hex) {
+    let str = '';
+    for (let i = 0; i < hex.length; i += 2) {
+        let charCode = parseInt(hex.substr(i, 2), 16);
+        if (charCode > 0) str += String.fromCharCode(charCode);
+    }
+    return str;
+}
+
+let leiturasOBD = {
+    rpm: 0, velocidade: 0, tempMotor: 0, tensaoBateria: 0,
+    cargaMotor: 0, posAcelerador: 0, tempArAdmissao: 0,
+    pressaoMAP: 0, consumoInstantaneo: 0, nivelO2: 0,
+    pontoIgnicao: 0, statusCombustivel: '--',
+    fuelTrimSTFT: 0, fuelTrimLTFT: 0, pressaoCombustivel: 0,
+    tempPosCatalisador: 0, tempAmbiente: 0, deslizamentoEmbreagem: 0,
+    nivelCombustivel: 50, consumoEsperado: 0
+};
+
+let nivelCombustivelAnterior = 50;
+let detectandoAbastecimento = false;
+
+function simularDadosOBD() {
+    if (!modoSimulacao) return;
+
+    const kmAtual = parseInt(localStorage.getItem("car_km")) || 80000;
+    const fatorDesgaste = Math.min(1, kmAtual / 300000);
+
+    leiturasOBD.rpm = 750 + Math.random() * 500 + (Math.random() > 0.92 ? Math.random() * 3000 : 0);
+    leiturasOBD.velocidade = Math.max(0, (leiturasOBD.rpm - 800) * 0.04 + (Math.random() - 0.5) * 20);
+    leiturasOBD.tempMotor = 82 + Math.random() * 18 + fatorDesgaste * 8 + (Math.random() > 0.95 ? 15 : 0);
+    leiturasOBD.tensaoBateria = 13.2 + Math.random() * 1.2 - fatorDesgaste * 0.8 + (Math.random() > 0.93 ? -2 : 0);
+    leiturasOBD.cargaMotor = Math.min(100, Math.max(10, (leiturasOBD.rpm / 8000) * 100 + Math.random() * 15));
+    leiturasOBD.posAcelerador = Math.min(100, Math.max(0, (leiturasOBD.rpm - 750) / 60 + Math.random() * 5));
+    leiturasOBD.tempArAdmissao = 25 + Math.random() * 15 + (leiturasOBD.cargaMotor > 60 ? 10 : 0);
+    leiturasOBD.pressaoMAP = 25 + Math.random() * 75 * (leiturasOBD.cargaMotor / 100);
+    leiturasOBD.nivelO2 = 0.1 + Math.random() * 0.9;
+    leiturasOBD.pontoIgnicao = 8 + Math.random() * 12 + (leiturasOBD.tempMotor > 95 ? 3 : 0);
+    leiturasOBD.statusCombustivel = leiturasOBD.tensaoBateria < 11.5 ? 'Fraco' : leiturasOBD.tensaoBateria > 14.8 ? 'Sobrecarga' : 'Normal';
+
+    leiturasOBD.fuelTrimSTFT = (Math.random() - 0.4) * 20 + (fatorDesgaste * 5);
+    leiturasOBD.fuelTrimLTFT = (Math.random() - 0.4) * 15 + (fatorDesgaste * 8);
+    leiturasOBD.pressaoCombustivel = 300 + Math.random() * 100 - (fatorDesgaste * 50) + (leiturasOBD.cargaMotor > 60 ? 50 : 0);
+    leiturasOBD.tempPosCatalisador = leiturasOBD.tempMotor + 100 + Math.random() * 200 + (leiturasOBD.cargaMotor > 50 ? 100 : 0);
+    leiturasOBD.tempAmbiente = 20 + Math.random() * 15;
+
+    const baseConsumo = 2 + (leiturasOBD.cargaMotor / 100) * 6 + (leiturasOBD.rpm / 8000) * 3;
+    leiturasOBD.consumoEsperado = Math.max(1.5, baseConsumo);
+    leiturasOBD.consumoInstantaneo = leiturasOBD.consumoEsperado + (Math.random() - 0.3) * 3 + (fatorDesgaste * 2) + (Math.abs(leiturasOBD.fuelTrimLTFT) > 10 ? 1.5 : 0);
+
+    const rpmEsperado = leiturasOBD.velocidade > 5 ? (leiturasOBD.velocidade * 30 + 800) : 800;
+    const baseClutch = leiturasOBD.velocidade > 10 ? Math.max(0, ((leiturasOBD.rpm - rpmEsperado) / rpmEsperado) * 100) : 0;
+    leiturasOBD.deslizamentoEmbreagem = Math.min(30, baseClutch + (Math.random() > 0.95 ? 15 + Math.random() * 10 : Math.random() * 2));
+
+    const consumoLh = leiturasOBD.consumoInstantaneo;
+    const consumoPercentual = (consumoLh / 3600) * (1 / 3) * 100;
+    leiturasOBD.nivelCombustivel = Math.max(0, leiturasOBD.nivelCombustivel - consumoPercentual);
+
+    if (leiturasOBD.nivelCombustivel < 10 && Math.random() > 0.7) {
+        leiturasOBD.nivelCombustivel = 60 + Math.random() * 30;
+        detectarAbastecimento(nivelCombustivelAnterior, leiturasOBD.nivelCombustivel);
+    }
+    nivelCombustivelAnterior = leiturasOBD.nivelCombustivel;
+
+    const elTempHeader = document.getElementById('temp-value');
+    const elVoltHeader = document.getElementById('volt-value');
+    if (elTempHeader) elTempHeader.innerText = leiturasOBD.tempMotor.toFixed(1) + '°C';
+    if (elVoltHeader) elVoltHeader.innerText = leiturasOBD.tensaoBateria.toFixed(1) + 'V';
+
+    const elLiters = document.getElementById('val-liters');
+    const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
+    const litrosRestante = ((leiturasOBD.nivelCombustivel / 100) * tanqueCap).toFixed(1);
+    if (elLiters) elLiters.innerText = litrosRestante;
+
+    renderizarSensores();
+    renderizarDiagnostico();
+}
+
+async function conectarVeiculoReal() {
+    if ('serial' in navigator) {
+        try {
+            port = await navigator.serial.requestPort();
+            await port.open({ baudRate: 115200 });
+
+            modoSimulacao = false;
+            tipoConexao = 'serial';
+
+            const btnConnect = document.getElementById('btn-conectar-carro');
+            if (btnConnect) {
+                btnConnect.innerText = "CONECTADO";
+                btnConnect.style.background = "var(--success)";
+                btnConnect.style.color = "#000";
+            }
+
+            const badge = document.querySelector('.header-stats .stat-mini:nth-child(2)');
+            if (badge) {
+                badge.innerHTML = '<i class="fas fa-satellite-dish"></i> Conectado';
+                badge.borderColor = "var(--success)";
+                badge.style.color = "var(--success)";
+            }
+
+            clearInterval(simulationIntervalId);
+
+            const textEncoder = new TextEncoderStream();
+            textEncoder.readable.pipeTo(port.writable);
+            writer = textEncoder.writable.getWriter();
+
+            const textDecoder = new TextDecoderStream();
+            port.readable.pipeTo(textDecoder.writable);
+            reader = textDecoder.readable.getReader();
+
+            console.log("Conectado à porta serial.");
+
+            await inicializarPainelReal();
+
+            document.getElementById('btn-obd-sim').classList.remove('active');
+            document.getElementById('btn-obd-real').classList.add('active');
+            const obdModeStat = document.querySelector('.header-stats .stat-mini:nth-child(2)');
+            if (obdModeStat) obdModeStat.innerHTML = '<i class="fas fa-satellite-dish"></i> Conectado';
+            const connectButton = document.getElementById('btn-conectar-carro');
+            if (connectButton) connectButton.classList.add('hidden');
+
+        } catch (error) {
+            console.error("Erro ao conectar ou configurar a porta serial:", error);
+            alert("Erro ao conectar ao ELM327: " + error.message);
+            modoSimulacao = true;
+            tipoConexao = null;
+            simulationIntervalId = setInterval(simularDadosOBD, 3000);
+            const btnConnect = document.getElementById('btn-conectar-carro');
+            if (btnConnect) {
+                btnConnect.innerText = "CONECTAR AO CARRO (ELM327)";
+                btnConnect.style.background = "";
+                btnConnect.style.color = "";
+                btnConnect.classList.remove('hidden');
+            }
+            const obdModeStat = document.querySelector('.header-stats .stat-mini:nth-child(2)');
+            if (obdModeStat) {
+                obdModeStat.innerHTML = '<i class="fas fa-satellite-dish"></i> Simulado';
+                obdModeStat.style.borderColor = "";
+                obdModeStat.style.color = "";
+            }
+            document.getElementById('btn-obd-sim').classList.add('active');
+            document.getElementById('btn-obd-real').classList.remove('active');
+        }
+    } else {
+        alert("Seu navegador não suporta a Web Serial API. Por favor, use Chrome ou Edge.");
+    }
+}
+
+// --- CONEXÃO BLUETOOTH (Web Bluetooth API) ---
+const ELM327_SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+const ELM327_CHAR_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+
+async function conectarVeiculoAuto() {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobile && navigator.bluetooth) {
+        await conectarVeiculoBluetooth();
+    } else if ('serial' in navigator) {
+        await conectarVeiculoReal();
+    } else if (navigator.bluetooth) {
+        await conectarVeiculoBluetooth();
+    } else {
+        showToast("Navegador não suporta conexão OBD2. Use Chrome.", "error");
+    }
+}
+
+async function conectarVeiculoBluetooth() {
+    if (!navigator.bluetooth) {
+        showToast("Seu navegador não suporta Web Bluetooth. Use Chrome Android.", "error");
+        return;
+    }
+
+    try {
+        showToast("Procurando ELM327 Bluetooth...", "info");
+
+        const device = await navigator.bluetooth.requestDevice({
+            filters: [
+                { services: [ELM327_SERVICE_UUID] },
+                { namePrefix: 'ELM' },
+                { namePrefix: 'OBD' },
+                { namePrefix: 'Vlink' }
+            ],
+            optionalServices: [ELM327_SERVICE_UUID]
+        });
+
+        showToast("Conectando ao dispositivo...", "info");
+
+        device.addEventListener('gattserverdisconnected', onBleDisconnect);
+
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(ELM327_SERVICE_UUID);
+        bleCharacteristic = await service.getCharacteristic(ELM327_CHAR_UUID);
+
+        modoSimulacao = false;
+        tipoConexao = 'ble';
+
+        clearInterval(simulationIntervalId);
+
+        await bleCharacteristic.startNotifications();
+        bleCharacteristic.addEventListener('characteristicvaluechanged', onBleNotification);
+
+        showToast("Bluetooth conectado! Inicializando ELM327...", "success");
+
+        atualizarUIConectado();
+
+        await inicializarPainelReal();
+
+    } catch (error) {
+        console.error("Erro na conexão Bluetooth:", error);
+        if (error.name === 'NotFoundError') {
+            showToast("Nenhum dispositivo selecionado.", "warning");
+        } else {
+            showToast("Erro ao conectar Bluetooth: " + error.message, "error");
+        }
+        modoSimulacao = true;
+        tipoConexao = null;
+        bleCharacteristic = null;
+        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        atualizarUIDesconectado();
+    }
+}
+
+function onBleNotification(event) {
+    const decoder = new TextDecoder();
+    const value = decoder.decode(event.target.value);
+    bleBuffer += value;
+
+    if (bleBuffer.includes(">")) {
+        const resposta = bleBuffer;
+        bleBuffer = '';
+        console.log("Recebido BLE:", resposta);
+
+        if (resposta.includes(">")) {
+            if (elmPromptResolve) elmPromptResolve();
+        }
+        parseObdResponse(resposta);
+    }
+}
+
+function onBleDisconnect() {
+    console.log("Dispositivo Bluetooth desconectado.");
+    if (!modoSimulacao) {
+        modoSimulacao = true;
+        tipoConexao = null;
+        bleCharacteristic = null;
+        if (pollingIntervalId) clearInterval(pollingIntervalId);
+        if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
+        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        atualizarUIDesconectado();
+        showToast("Bluetooth desconectado. Voltando ao modo simulado.", "warning");
+    }
+}
+
+function atualizarUIConectado() {
+    const btnConnect = document.getElementById('btn-conectar-carro');
+    if (btnConnect) {
+        btnConnect.innerText = "CONECTADO";
+        btnConnect.style.background = "var(--success)";
+        btnConnect.style.color = "#000";
+    }
+    const badge = document.querySelector('.header-stats .stat-mini:nth-child(2)');
+    if (badge) {
+        badge.innerHTML = '<i class="fas fa-satellite-dish"></i> Conectado';
+        badge.style.borderColor = "var(--success)";
+        badge.style.color = "var(--success)";
+    }
+    document.getElementById('btn-obd-sim').classList.remove('active');
+    document.getElementById('btn-obd-real').classList.add('active');
+    const connectButton = document.getElementById('btn-conectar-carro');
+    if (connectButton) connectButton.classList.add('hidden');
+}
+
+function atualizarUIDesconectado() {
+    const btnConnect = document.getElementById('btn-conectar-carro');
+    if (btnConnect) {
+        btnConnect.innerText = "CONECTAR AO CARRO (ELM327)";
+        btnConnect.style.background = "";
+        btnConnect.style.color = "";
+        btnConnect.classList.remove('hidden');
+    }
+    const obdModeStat = document.querySelector('.header-stats .stat-mini:nth-child(2)');
+    if (obdModeStat) {
+        obdModeStat.innerHTML = '<i class="fas fa-satellite-dish"></i> Simulado';
+        obdModeStat.style.borderColor = "";
+        obdModeStat.style.color = "";
+    }
+    document.getElementById('btn-obd-sim').classList.add('active');
+    document.getElementById('btn-obd-real').classList.remove('active');
+}
+
+async function inicializarPainelReal() {
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+    try {
+        modoSimulacao = false;
+        clearInterval(simulationIntervalId);
+
+        await sendElmCommand("ATZ"); await delay(1000);
+        await sendElmCommand("ATE0"); await delay(200);
+        await sendElmCommand("ATL0"); await delay(200);
+        await sendElmCommand("ATH0"); await delay(200);
+        await sendElmCommand("ATSP0"); await delay(500);
+
+        if (tipoConexao === 'serial') {
+            readLoop();
+        }
+
+        try { await sendElmCommand("0902"); await delay(800); } catch(e) { console.error("Falha VIN:", e); }
+        try { await sendElmCommand("01A6"); await delay(500); } catch(e) { console.error("Falha Odo:", e); }
+
+        pollingIntervalId = setInterval(() => { if(!modoSimulacao) sendElmCommand("010C"); }, 500);
+        pollingTelemetriaId = setInterval(() => {
+            if(!modoSimulacao) {
+                sendElmCommand("0104"); // Engine Load
+                setTimeout(() => sendElmCommand("010D"), 300); // Speed
+                setTimeout(() => sendElmCommand("0105"), 600); // Coolant Temp
+                setTimeout(() => sendElmCommand("0142"), 900); // Battery Voltage
+                setTimeout(() => sendElmCommand("010F"), 1200); // Intake Air Temp
+                setTimeout(() => sendElmCommand("0111"), 1500); // Throttle Position
+                setTimeout(() => sendElmCommand("0106"), 1800); // STFT
+                setTimeout(() => sendElmCommand("0107"), 2100); // LTFT
+                setTimeout(() => sendElmCommand("010B"), 2400); // MAP
+                setTimeout(() => sendElmCommand("010E"), 2700); // Ignition Timing
+            }
+        }, 5000);
+    } catch(e) { console.error("Erro na inicialização:", e); }
+}
+
+let elmPromptResolve = null;
+let elmCommandQueue = [];
+let elmProcessing = false;
+
+function waitForElmPrompt(timeoutMs = 2000) {
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+            elmPromptResolve = null;
+            resolve(false);
+        }, timeoutMs);
+        elmPromptResolve = () => {
+            clearTimeout(timer);
+            elmPromptResolve = null;
+            resolve(true);
+        };
+    });
+}
+
+async function sendElmCommand(command) {
+    if (tipoConexao === 'ble') {
+        if (!bleCharacteristic) {
+            console.error("Characteristic BLE não disponível.");
+            return;
+        }
+        if (elmProcessing) {
+            elmCommandQueue.push(command);
+            return;
+        }
+        elmProcessing = true;
+        try {
+            console.log("Enviando BLE:", command);
+            const encoder = new TextEncoder();
+            await bleCharacteristic.writeValue(encoder.encode(command + "\r"));
+            await waitForElmPrompt();
+        } catch (e) {
+            console.error("Erro ao enviar comando BLE:", e);
+        } finally {
+            elmProcessing = false;
+            if (elmCommandQueue.length > 0 && !modoSimulacao) {
+                const next = elmCommandQueue.shift();
+                await sendElmCommand(next);
+            }
+        }
+        return;
+    }
+
+    if (tipoConexao === 'serial') {
+        if (!writer) {
+            console.error("Writer da porta serial não disponível.");
+            return;
+        }
+        if (elmProcessing) {
+            elmCommandQueue.push(command);
+            return;
+        }
+        elmProcessing = true;
+        try {
+            console.log("Enviando Serial:", command);
+            await writer.write(command + "\r");
+            await waitForElmPrompt();
+        } catch (e) {
+            console.error("Erro ao enviar comando serial:", e);
+        } finally {
+            elmProcessing = false;
+            if (elmCommandQueue.length > 0 && !modoSimulacao) {
+                const next = elmCommandQueue.shift();
+                await sendElmCommand(next);
+            }
+        }
+    }
+}
+
+async function readLoop() {
+    if (tipoConexao !== 'serial' || !reader) {
+        return;
+    }
+    while (port && port.readable && !modoSimulacao) {
+        try {
+            const { value, done } = await reader.read();
+            if (done) {
+                console.log("Leitor serial fechado.");
+                break;
+            }
+            console.log("Recebido Serial:", value);
+            if (value.includes(">")) {
+                if (elmPromptResolve) elmPromptResolve();
+            }
+            parseObdResponse(value);
+        } catch (error) {
+            console.error("Erro na leitura serial:", error);
+            break;
+        }
+    }
+    if (!modoSimulacao && tipoConexao === 'serial') {
+        console.log("Conexão serial perdida. Retornando ao modo de simulação.");
+        modoSimulacao = true;
+        tipoConexao = null;
+        if (pollingIntervalId) clearInterval(pollingIntervalId);
+        if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
+        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        atualizarUIDesconectado();
+    }
+}
+
+// --- BANCO DE DADOS E AUXILIARES DTC (ESTILO TORQUE) ---
+const DICIONARIO_DTC = {
+    "P0300": "Random/Multiple Cylinder Misfire Detected (Falha de Ignição Aleatória/Múltiplos Cilindros)",
+    "P0301": "Cylinder 1 Misfire Detected (Falha de Ignição Detectada no Cilindro 1)",
+    "P0302": "Cylinder 2 Misfire Detected (Falha de Ignição Detectada no Cilindro 2)",
+    "P0303": "Cylinder 3 Misfire Detected (Falha de Ignição Detectada no Cilindro 3)",
+    "P0304": "Cylinder 4 Misfire Detected (Falha de Ignição Detectada no Cilindro 4)"
+};
+
+const obterSistemaDTC = (codigo) => {
+    const prefixo = codigo[0];
+    const sistemas = {
+        'P': 'Trem de Força / Transmissão',
+        'C': 'Chassi (ABS/Direção/Freios)',
+        'B': 'Carroceria (Airbag/Ar-Condicionado)',
+        'U': 'Rede de Comunicação (Módulos/CAN)'
+    };
+    return sistemas[prefixo] || 'Sistema Desconhecido';
+};
+
+const obterSubsistemaDTC = (codigo) => {
+    if (codigo[0] !== 'P') return '';
+    const char = codigo[2];
+    if (['1', '2'].includes(char)) return 'Controle de Medição de Combustível e Ar (Injeção)';
+    if (char === '3') return 'Sistema de Ignição ou Falha de Ignição (Misfire)';
+    if (char === '4') return 'Controles Auxiliares de Emissões (Catalisador/EGR)';
+    if (char === '5') return 'Controle de Velocidade e Marcha Lenta';
+    if (char === '6') return 'Módulo de Controle do Computador (ECU/PCM)';
+    if (['7', '8', '9'].includes(char)) return 'Transmissão / Caixa de Câmbio';
+    return 'Subsistema não identificado';
+};
+
+function decodeDTC(hexPair) {
+    const firstDigit = hexPair[0];
+    const prefixes = ["P0", "P1", "P2", "P3", "C0", "C1", "C2", "C3", "B0", "B1", "B2", "B3", "U0", "U1", "U2", "U3"];
+    return prefixes[parseInt(firstDigit, 16)] + hexPair.substring(1);
+}
+
+function gerarHtmlErroTorque(codigo) {
+    const sistema = obterSistemaDTC(codigo);
+    const subsistema = obterSubsistemaDTC(codigo);
+    const desc = DICIONARIO_DTC[codigo] || "Descrição detalhada não cadastrada. Verifique o subsistema indicado.";
+    
+    return `
+        <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,0,85,0.05); border-radius: 12px; border-left: 4px solid var(--danger);">
+            <div style="font-size: 1.8rem; font-weight: 900; color: var(--danger); line-height: 1;">${codigo}</div>
+            <div style="font-size: 9px; color: var(--accent); text-transform: uppercase; font-weight: 800; margin: 6px 0;">
+                ${sistema}${subsistema ? ' — ' + subsistema : ''}
+            </div>
+            <p style="font-size: 12px; line-height: 1.4; color: #fff; margin: 8px 0 0 0; opacity: 0.9;">${desc}</p>
+        </div>
+    `;
+}
+
+function parseObdResponse(response) {
+    const lines = response.split('\r\n').map(line => line.trim()).filter(line => line.length > 0);
+
+    for (const line of lines) {
+        if (line.includes("NO DATA")) {
+            document.getElementById('scan-active').classList.add('hidden');
+            const res = document.getElementById('scan-result');
+            res.classList.remove('hidden');
+            const resContent = document.getElementById('scan-result-content');
+            resContent.innerHTML = `<div style="color:var(--success); font-weight:800; font-size:10px"><i class="fas fa-check-circle"></i> STATUS:</div>
+                             <p style="font-size:12px; margin:5px 0 15px;">Nenhum código de falha encontrado. Sistema operacional normal.</p>`;
+        }
+
+        if (line.includes("49 02")) {
+            let cleanHex = line.replace(/49\s?02\s?01\s?/, "").replace(/\s/g, "");
+            if (cleanHex.length >= 34) {
+                let vin = hexToAscii(cleanHex.substring(0, 34));
+                const vinEl = document.getElementById('lbl-vin');
+                if (vinEl) {
+                    vinEl.innerText = vin;
+                    document.getElementById('lbl-vin-container').classList.remove('hidden');
+                }
+                let wmi = vin.substring(0, 3);
+                const WMI_DB = {
+                    "9BW": "Volkswagen", "9BG": "Chevrolet", "93H": "Fiat",
+                    "9BF": "Ford", "93C": "Chery", "93R": "Renault",
+                    "93A": "GM", "93M": "Mitsubishi", "93P": "Peugeot",
+                    "93T": "Citroën", "93V": "Honda", "93W": "Hyundai",
+                    "93X": "Toyota", "93Y": "Kia", "93Z": "Suzuki",
+                    "93L": "Nissan", "93N": "Dodge", "93S": "Subaru",
+                    "93U": "BMW", "93J": "Mercedes-Benz", "93G": "Audi",
+                    "93F": "Jeep", "93B": "Volvo", "93D": "Land Rover",
+                    "93K": "Mazda", "93Q": "Mitsubishi", "93I": "Porsche",
+                    "9A0": "Agrale", "9A1": "GM Trucks", "9A2": "Iveco",
+                    "9A4": "MAN", "9A5": "Scania", "9A6": "Mercedes-Benz Trucks",
+                    "9A8": "Volkswagen Trucks", "9AA": "Honda",
+                    "9AH": "Hyundai Trucks", "9AJ": "Toyota Trucks",
+                    "9AK": "Nissan Trucks", "9AL": "Kia Trucks",
+                    "9AM": "Randon", "9AN": "Marcopolo", "9AO": "Busscar",
+                    "9AP": "Caetano", "9AQ": "Ashok Leyland", "9AR": "Avelino",
+                    "9AS": "Metalpont", "9AT": "Ciferal", "9AU": "Vera Cruz",
+                    "9AV": "Thomson", "9AW": "Daimler", "9AX": "Neobus",
+                    "9AY": "Terraza", "9AZ": "Viação Ouro",
+                    "1C4": "Chrysler", "1D1": "Dodge", "1FA": "Ford",
+                    "1FT": "Ford Trucks", "1GC": "GM", "1GM": "GM",
+                    "1HG": "Honda", "1J4": "Jeep", "1L1": "Lincoln",
+                    "1LN": "Lincoln", "1ME": "Mercury", "1N4": "Nissan",
+                    "1NX": "Toyota", "1VW": "Volkswagen", "2C3": "Chrysler",
+                    "2D4": "Dodge", "2FA": "Ford", "2G1": "GM",
+                    "2HG": "Honda", "2HM": "Hyundai", "2T1": "Toyota",
+                    "3C3": "Chrysler", "3D1": "Dodge", "3FA": "Ford",
+                    "3G1": "GM", "3HG": "Honda", "3HM": "Hyundai",
+                    "3N6": "Nissan", "3VW": "Volkswagen",
+                    "4T1": "Toyota", "4T3": "Toyota",
+                    "5J6": "Honda", "5TD": "Hyundai", "5YJ": "Tesla",
+                    "J10": "Isuzu", "J20": "Daihatsu", "J30": "Suzuki",
+                    "J40": "Toyota", "J50": "Subaru", "J60": "Nissan",
+                    "J70": "Honda", "J80": "Mazda", "J90": "Kia"
+                };
+                let montadora = WMI_DB[wmi] || "Desconhecida";
+                console.log("Veículo Detectado: " + montadora);
+            }
+        }
+
+        if (line.includes("43")) {
+            document.getElementById('scan-active').classList.add('hidden');
+            const res = document.getElementById('scan-result');
+            res.classList.remove('hidden');
+            const resContent = document.getElementById('scan-result-content');
+
+            const parts = line.split(" ").filter(p => p.length === 2);
+            let html = `<div style="color:var(--danger); font-weight:800; font-size:10px; margin-bottom:8px; text-transform:uppercase;"><i class="fas fa-exclamation-triangle"></i> Erros Identificados na ECU:</div>`;
+            let startIdx = line.includes("43 01") ? 2 : 1;
+
+            for (let i = startIdx; i < parts.length; i += 2) {
+                const hexPair = parts[i] + (parts[i + 1] || "00");
+                if (hexPair === "0000") continue;
+
+                const codigoDTC = decodeDTC(hexPair);
+                html += gerarHtmlErroTorque(codigoDTC);
+
+                if (codigoDTC.startsWith("P030")) {
+                    adicionarAosNecessarios('Bobina de Ignição', `Falha ${codigoDTC} Detectada`, 0, 'Crítica', 15);
+                    if (codigoDTC === "P0300") adicionarAosNecessarios('Jogo de Velas de Ignição', 'Falha P0300 Detectada', 0, 'Crítica', 15);
+                }
+            }
+
+            html += `<button class="btn-main" style="background:var(--warning); color:#000; font-size:10px; padding:8px 12px; margin-top:8px;" onclick="nav('shop', document.querySelectorAll('.dock-item')[3]); alternarSubAbaPecas('sacola');">Buscar Peças</button>`;
+            resContent.innerHTML = html;
+            renderizarPlanoNecessidades();
+        }
+
+        if (line.includes("41 A6")) {
+            const match = line.match(/41 A6 ([0-9A-F]{2}) ([0-9A-F]{2}) ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                let odoReal = ((parseInt(match[1], 16) * 16777216) + (parseInt(match[2], 16) * 65536) + (parseInt(match[3], 16) * 256) + parseInt(match[4], 16)) / 10;
+                const odoEl = document.getElementById('txt-odometro');
+                if (odoEl) odoEl.innerHTML = odoReal.toLocaleString() + ' <span style="font-size: 0.9rem; color: #aaa;">KM</span>';
+                localStorage.setItem("car_km", Math.round(odoReal));
+            }
+        }
+
+        if (line.includes("41 0C")) {
+            const match = line.match(/41 0C ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                const rpm = ((parseInt(match[1], 16) * 256) + parseInt(match[2], 16)) / 4;
+                leiturasOBD.rpm = rpm;
+                const rpmEl = document.getElementById('rpm-num');
+                if (rpmEl) rpmEl.innerText = Math.round(rpm);
+                const rpmFill = document.getElementById('rpm-fill');
+                if (rpmFill) {
+                    const pct = (rpm / 8000) * 314;
+                    rpmFill.style.strokeDasharray = `${pct} 314`;
+                }
+            }
+        }
+
+        if (line.includes("41 05")) {
+            const match = line.match(/41 05 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tempMotor = parseInt(match[1], 16) - 40;
+                const elTempHeader = document.getElementById('temp-value');
+                if (elTempHeader) elTempHeader.innerText = leiturasOBD.tempMotor.toFixed(1) + '°C';
+            }
+        }
+
+        if (line.includes("41 42")) {
+            const match = line.match(/41 42 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tensaoBateria = ((parseInt(match[1], 16) * 256) + parseInt(match[2], 16)) / 1000;
+                const elVoltHeader = document.getElementById('volt-value');
+                if (elVoltHeader) elVoltHeader.innerText = leiturasOBD.tensaoBateria.toFixed(1) + 'V';
+            }
+        }
+
+        if (line.includes("41 0D")) {
+            const match = line.match(/41 0D ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.velocidade = parseInt(match[1], 16);
+            }
+        }
+
+        if (line.includes("41 04")) {
+            const match = line.match(/41 04 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.cargaMotor = (parseInt(match[1], 16) / 2.55).toFixed(1);
+            }
+        }
+
+        if (line.includes("41 0F")) {
+            const match = line.match(/41 0F ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tempArAdmissao = parseInt(match[1], 16) - 40;
+            }
+        }
+
+        if (line.includes("41 11")) {
+            const match = line.match(/41 11 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.posicaoTBO = (parseInt(match[1], 16) / 2.55).toFixed(1);
+            }
+        }
+
+        if (line.includes("41 06")) {
+            const match = line.match(/41 06 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.fuelTrimSTFT = ((parseInt(match[1], 16) / 1.28) - 100).toFixed(1);
+            }
+        }
+
+        if (line.includes("41 07")) {
+            const match = line.match(/41 07 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.fuelTrimLTFT = ((parseInt(match[1], 16) / 1.28) - 100).toFixed(1);
+            }
+        }
+
+        if (line.includes("41 0B")) {
+            const match = line.match(/41 0B ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.pressaoMAP = parseInt(match[1], 16);
+            }
+        }
+
+        if (line.includes("41 0E")) {
+            const match = line.match(/41 0E ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tempoIgnicao = (parseInt(match[1], 16) / 2) - 64;
+            }
+        }
+
+        renderizarSensores();
+        renderizarDiagnostico();
+    }
+}
+
+// Alterna entre modo simulado e modo real (hardware conectado)
+function toggleObdMode(isSimulated) {
+    document.getElementById('btn-obd-sim').classList.toggle('active', isSimulated);
+    document.getElementById('btn-obd-real').classList.toggle('active', !isSimulated);
+}
+
+// Nova versão do scanner acoplada ao novo layout preditivo
+function runScanner() {
+    document.getElementById('scan-idle').classList.add('hidden');
+    document.getElementById('scan-result').classList.add('hidden');
+    document.getElementById('scan-active').classList.remove('hidden');
+    
+    if (!modoSimulacao) {
+        sendElmCommand("03");
+        return;
+    }
+
+    setTimeout(() => {
+        document.getElementById('scan-active').classList.add('hidden');
+        document.getElementById('scan-result').classList.remove('hidden');
+        
+        const res = document.getElementById('scan-result-content');
+        res.innerHTML = `<div style="color:var(--danger); font-weight:800; font-size:10px; margin-bottom:8px; text-transform:uppercase;"><i class="fas fa-exclamation-triangle"></i> Falhas Detectadas:</div>`;
+        res.innerHTML += gerarHtmlErroTorque("P0300");
+        res.innerHTML += `<button class="btn-main" style="background:var(--warning); color:#000; font-size:10px; padding:8px 12px; margin-top:8px;" onclick="nav('shop', document.querySelectorAll('.dock-item')[3]); alternarSubAbaPecas('sacola');">Buscar Peças</button>`;
+
+        adicionarAosNecessarios('Jogo de Velas de Ignição', 'Falha P0300 Detectada', 0, 'Crítica', 15);
+        adicionarAosNecessarios('Bobina de Ignição', 'Falha P0300 Detectada', 0, 'Crítica', 15);
+
+        renderizarPlanoNecessidades();
+
+        const btnShop = document.querySelector("#scan-result button");
+        if (btnShop) {
+            btnShop.onclick = () => {
+                nav('shop', document.querySelectorAll('.dock-item')[3]);
+                alternarSubAbaPecas('sacola');
+            };
+        }
+    }, 2000);
+}
+
+const SENSORES_OBD = [
+    { id: 'rpm', label: 'RPM Motor', icon: '⚙️', unit: '', decimals: 0, min: 0, max: 8000, critico: [6500, 8000], alerta: [5500, 6500] },
+    { id: 'velocidade', label: 'Velocidade', icon: '🚗', unit: 'km/h', decimals: 0, min: 0, max: 220, critico: [180, 220], alerta: [140, 180] },
+    { id: 'tempMotor', label: 'Temp. Motor', icon: '🌡️', unit: '°C', decimals: 1, min: 60, max: 120, critico: [105, 120], alerta: [95, 105] },
+    { id: 'tensaoBateria', label: 'Tensão Bateria', icon: '🔋', unit: 'V', decimals: 1, min: 10, max: 16, critico: [10, 11.5], alerta: [11.5, 12.0] },
+    { id: 'cargaMotor', label: 'Carga Motor', icon: '📊', unit: '%', decimals: 0, min: 0, max: 100, critico: [90, 100], alerta: [75, 90] },
+    { id: 'posAcelerador', label: 'Pos. Acelerador', icon: '⬆️', unit: '%', decimals: 0, min: 0, max: 100, critico: [90, 100], alerta: [75, 90] },
+    { id: 'tempArAdmissao', label: 'Temp. Admissão', icon: '💨', unit: '°C', decimals: 1, min: 0, max: 80, critico: [60, 80], alerta: [50, 60] },
+    { id: 'pressaoMAP', label: 'Pressão MAP', icon: '🔴', unit: 'kPa', decimals: 0, min: 0, max: 110, critico: [95, 110], alerta: [80, 95] },
+    { id: 'consumoInstantaneo', label: 'Consumo', icon: '⛽', unit: 'L/h', decimals: 1, min: 0, max: 20, critico: [15, 20], alerta: [10, 15] },
+    { id: 'nivelO2', label: 'Sensor O₂', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
+    { id: 'pontoIgnicao', label: 'Ponto Ignição', icon: '⚡', unit: '°', decimals: 1, min: 0, max: 40, critico: [30, 40], alerta: [25, 30] },
+    { id: 'fuelTrimSTFT', label: 'Fuel Trim STFT', icon: '🔧', unit: '%', decimals: 1, min: -30, max: 30, critico: [-30, -20], alerta: [-20, -10], criticoAlto: [20, 30], alertaAlto: [10, 20] },
+    { id: 'fuelTrimLTFT', label: 'Fuel Trim LTFT', icon: '🔧', unit: '%', decimals: 1, min: -30, max: 30, critico: [-30, -20], alerta: [-20, -10], criticoAlto: [20, 30], alertaAlto: [10, 20] },
+    { id: 'pressaoCombustivel', label: 'Pressão Comb.', icon: '⛽', unit: 'kPa', decimals: 0, min: 0, max: 600, critico: [150, 250], alerta: [250, 300], criticoAlto: [500, 600], alertaAlto: [450, 500] },
+    { id: 'tempPosCatalisador', label: 'Temp. Pós-Catalisador', icon: '🔥', unit: '°C', decimals: 0, min: 0, max: 1000, critico: [850, 1000], alerta: [750, 850] },
+    { id: 'tempAmbiente', label: 'Temp. Ambiente', icon: '🌍', unit: '°C', decimals: 1, min: -20, max: 55, critico: [-20, -10], alerta: [-10, 0], criticoAlto: [45, 55], alertaAlto: [40, 45] },
+    { id: 'deslizamentoEmbreagem', label: 'Embreagem', icon: '🔗', unit: '%', decimals: 1, min: 0, max: 30, critico: [15, 30], alerta: [8, 15] }
+];
+
+function renderizarSensores() {
+    const container = document.getElementById('obd-sensores');
+    if (!container) return;
+
+    container.innerHTML = SENSORES_OBD.map(s => {
+        const val = leiturasOBD[s.id] || 0;
+        let cor = 'var(--success)';
+
+        if (s.criticoAlto) {
+            if ((val >= s.critico[0] && val <= s.critico[1]) || (val >= s.criticoAlto[0] && val <= s.criticoAlto[1])) {
+                cor = 'var(--danger)';
+            } else if ((val >= s.alerta[0] && val <= s.alerta[1]) || (val >= s.alertaAlto[0] && val <= s.alertaAlto[1])) {
+                cor = 'var(--warning)';
+            }
+        } else {
+            if ((val >= s.critico[0] && val <= s.critico[1]) || (s.id === 'tensaoBateria' && val <= s.critico[1])) {
+                cor = 'var(--danger)';
+            } else if ((val >= s.alerta[0] && val <= s.alerta[1]) || (s.id === 'tensaoBateria' && val <= s.alerta[1])) {
+                cor = 'var(--warning)';
+            } else if (s.id === 'nivelO2' && val < 0.1) {
+                cor = 'var(--danger)';
+            } else if (s.id === 'nivelO2' && val > 0.8) {
+                cor = 'var(--warning)';
+            }
+        }
+
+        return `
+            <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left:3px solid ${cor};">
+                <div style="font-size:8px; color:#94a3b8; text-transform:uppercase;">${s.icon} ${s.label}</div>
+                <div style="font-size:1.1rem; font-weight:800; color:${cor};">${val > 0 ? '+' : ''}${val.toFixed(s.decimals)}${s.unit ? ' ' + s.unit : ''}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderizarDiagnostico() {
+    const statusIcon = document.getElementById('diag-status-icon');
+    const statusText = document.getElementById('diag-status-text');
+    const statusSub = document.getElementById('diag-status-sub');
+    const alertasContainer = document.getElementById('diag-alertas');
+    const sugestoesContainer = document.getElementById('diag-sugestoes');
+    if (!statusIcon || !statusText || !alertasContainer || !sugestoesContainer) return;
+
+    const alertas = [];
+    const sugestoes = [];
+    let nivelGeral = 'ok'; // ok, alerta, critico
+
+    const L = leiturasOBD;
+
+    // --- Temperatura do Motor ---
+    if (L.tempMotor > 105) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Motor superaquecendo!', detalhe: `Temperatura em ${L.tempMotor.toFixed(1)}°C (limite: 105°C)` });
+        sugestoes.push({ texto: 'Verifique o nível de líquido de arrefecimento e a mangueira do radiador.', prioridade: 'alta' });
+    } else if (L.tempMotor > 95) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Temperatura do motor elevada.', detalhe: `${L.tempMotor.toFixed(1)}°C — próximo do limite` });
+        sugestoes.push({ texto: 'Possível termostato travado aberto ou ventilador com defeito.', prioridade: 'media' });
+    }
+
+    // --- Tensão da Bateria ---
+    if (L.tensaoBateria < 11.5) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Bateria descarregando!', detalhe: `Tensão em ${L.tensaoBateria.toFixed(1)}V (mínimo: 12.0V)` });
+        sugestoes.push({ texto: 'Alternador pode estar com defeito. Verifique correia e regulador de tensão.', prioridade: 'alta' });
+    } else if (L.tensaoBateria < 12.0) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Tensão da bateria baixa.', detalhe: `${L.tensaoBateria.toFixed(1)}V — bateria pode estar fraca` });
+        sugestoes.push({ texto: 'Bateria pode precisar de carga ou troca. Verifique os terminais.', prioridade: 'media' });
+    } else if (L.tensaoBateria > 15.0) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Sobretensão no sistema elétrico!', detalhe: `${L.tensaoBateria.toFixed(1)}V (máximo: 14.8V)` });
+        sugestoes.push({ texto: 'Regulador de tensão com defeito. Pode danificar bateria e eletrônica.', prioridade: 'alta' });
+    }
+
+    // --- RPM ---
+    if (L.rpm > 6500) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'RPM em zona de perigo!', detalhe: `${Math.round(L.rpm)} RPM — risco de dano ao motor` });
+        sugestoes.push({ texto: 'Evite girar o motor acima de 6000 RPM por tempo prolongado.', prioridade: 'alta' });
+    } else if (L.rpm > 5500 && L.velocidade < 20) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'RPM alto com veículo parado.', detalhe: `${Math.round(L.rpm)} RPM em ponto morto` });
+        sugestoes.push({ texto: 'Marcha lenta pode estar irregular. Verifique vela de ignição e sensor IAT.', prioridade: 'media' });
+    }
+
+    // --- Sensor O₂ ---
+    if (L.nivelO2 < 0.1) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Sensor O₂ com leitura baixa.', detalhe: `${L.nivelO2.toFixed(2)}V — mistura muito pobre` });
+        sugestoes.push({ texto: 'Mistura pobre pode indicar vazamento de ar ou injetor entupido.', prioridade: 'media' });
+    } else if (L.nivelO2 > 0.8) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Sensor O₂ com leitura alta.', detalhe: `${L.nivelO2.toFixed(2)}V — mistura muito rica` });
+        sugestoes.push({ texto: 'Mistura rica pode indicar injetor vazando ou sensor MAP com defeito.', prioridade: 'media' });
+    }
+
+    // --- Pressão MAP ---
+    if (L.pressaoMAP > 95) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Pressão MAP elevada.', detalhe: `${L.pressaoMAP.toFixed(0)} kPa — acima do esperado` });
+        sugestoes.push({ texto: 'Possível obstrução na admissão ou válvula EGR travada.', prioridade: 'media' });
+    }
+
+    // --- Consumo ---
+    if (L.consumoInstantaneo > 15 && L.cargaMotor < 30) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Consumo elevado para a carga atual.', detalhe: `${L.consumoInstantaneo.toFixed(1)} L/h com ${L.cargaMotor.toFixed(0)}% de carga` });
+        sugestoes.push({ texto: 'Consumo alto pode indicar vaza de combustível ou sensor de fluxo com defeito.', prioridade: 'media' });
+    }
+
+    // --- Temp Ar Admissão ---
+    if (L.tempArAdmissao > 55) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Ar de admissão muito quente.', detalhe: `${L.tempArAdmissao.toFixed(1)}°C — afeta performance` });
+        sugestoes.push({ texto: 'Ar quente reduz potência. Verifique o intercooler e ductos de admissão.', prioridade: 'baixa' });
+    }
+
+    // --- FUEL TRIM (STFT / LTFT) ---
+    const ftStft = L.fuelTrimSTFT;
+    const ftLtft = L.fuelTrimLTFT;
+
+    if (ftStft > 20 || ftLtft > 20) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Fuel Trim muito alto (mistura pobre)!', detalhe: `STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}% | LTFT: ${ftLtft > 0 ? '+' : ''}${ftLtft.toFixed(1)}%` });
+        sugestoes.push({ texto: 'ECU adicionando muita correção. Possíveis causas: vazamento de ar na admissão, injetor entupido, sensor MAF sujo ou baixa pressão de combustível.', prioridade: 'alta' });
+    } else if (ftStft < -20 || ftLtft < -20) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Fuel Trim muito baixo (mistura rica)!', detalhe: `STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}% | LTFT: ${ftLtft > 0 ? '+' : ''}${ftLtft.toFixed(1)}%` });
+        sugestoes.push({ texto: 'ECU reduzindo muita correção. Possíveis causas: injetor vazando, regulador de pressão com defeito ou sensor O₂ descalibrado.', prioridade: 'alta' });
+    } else if (ftStft > 10 || ftLtft > 10) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Fuel Trim elevado (tendência pobre).', detalhe: `STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}% | LTFT: ${ftLtft > 0 ? '+' : ''}${ftLtft.toFixed(1)}%` });
+        sugestoes.push({ texto: 'Mistura lean. Verificar filtro de ar, conexões da admissão e limpeza dos bicos injetores.', prioridade: 'media' });
+    } else if (ftStft < -10 || ftLtft < -10) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Fuel Trim baixo (tendência rica).', detalhe: `STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}% | LTFT: ${ftLtft > 0 ? '+' : ''}${ftLtft.toFixed(1)}%` });
+        sugestoes.push({ texto: 'Mistura rica. Verificar se injetores estão vazando ou sensor O₂ está com leitura correta.', prioridade: 'media' });
+    }
+
+    // --- PRESSÃO DE COMBUSTÍVEL ---
+    if (L.pressaoCombustivel < 250) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Pressão de combustível baixa!', detalhe: `${L.pressaoCombustivel.toFixed(0)} kPa (mínimo: 300 kPa)` });
+        sugestoes.push({ texto: 'Bomba de combustível fraca, filtro entupido ou regulador de pressão com defeito.', prioridade: 'alta' });
+    } else if (L.pressaoCombustivel < 300) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Pressão de combustível abaixo do ideal.', detalhe: `${L.pressaoCombustivel.toFixed(0)} kPa` });
+        sugestoes.push({ texto: 'Verificar filtro de combustível e bomba. Pode causar falhas em alta rotação.', prioridade: 'media' });
+    } else if (L.pressaoCombustivel > 500) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Pressão de combustível alta demais.', detalhe: `${L.pressaoCombustivel.toFixed(0)} kPa (máximo: 450 kPa)` });
+        sugestoes.push({ texto: 'Retorno de combustível bloqueado ou regulador de pressão travado. Pode danificar injetores.', prioridade: 'alta' });
+    }
+
+    // --- TEMP. PÓS-CATALISADOR ---
+    if (L.tempPosCatalisador > 850) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Catalisador superaquecendo!', detalhe: `${L.tempPosCatalisador.toFixed(0)}°C (limite: 850°C)` });
+        sugestoes.push({ texto: 'Catalisador pode estar entupido ou queimando. Risco de danos ao motor. Verificar ignição e mistura.', prioridade: 'alta' });
+    } else if (L.tempPosCatalisador > 750) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Temperatura do catalisador elevada.', detalhe: `${L.tempPosCatalisador.toFixed(0)}°C` });
+        sugestoes.push({ texto: 'Catalisador pode estar degradando. Verificar se há misfire ou fuel trim anormal.', prioridade: 'media' });
+    }
+
+    // --- DESLIZAMENTO DA EMBREAGEM ---
+    if (L.deslizamentoEmbreagem > 15) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Embreagem deslizando significativamente!', detalhe: `${L.deslizamentoEmbreagem.toFixed(1)}% de deslizamento` });
+        sugestoes.push({ texto: 'Embreagem gasta. Disco, mola e/ou rolamento precisam de troca. Substituir kit completo.', prioridade: 'alta' });
+    } else if (L.deslizamentoEmbreagem > 8) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Possível deslizamento inicial da embreagem.', detalhe: `${L.deslizamentoEmbreagem.toFixed(1)}% de deslizamento` });
+        sugestoes.push({ texto: 'Monitorar. Se aumentar, considerar troca do kit de embreagem.', prioridade: 'media' });
+    }
+
+    // --- TEMP. AMBIENTE ---
+    if (L.tempAmbiente > 40) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Temperatura ambiente muito alta.', detalhe: `${L.tempAmbiente.toFixed(1)}°C — pode afetar performance do motor` });
+        sugestoes.push({ texto: 'Ar quente reduz potência. Evite acelerações pesadas em dias muito quentes.', prioridade: 'baixa' });
+    } else if (L.tempAmbiente < -5) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Temperatura ambiente abaixo de zero.', detalhe: `${L.tempAmbiente.toFixed(1)}°C — motor pode demorar a atingir temperatura operacional` });
+        sugestoes.push({ texto: 'Em frio extremo, aguarde o motor aquecer antes de acelerar. Use combustível de inverno se disponível.', prioridade: 'baixa' });
+    }
+
+    // --- Status Geral ---
+    if (nivelGeral === 'critico') {
+        statusIcon.textContent = '🚨';
+        statusIcon.style.color = 'var(--danger)';
+        statusText.textContent = 'ALERTA CRÍTICO';
+        statusText.style.color = 'var(--danger)';
+        statusSub.textContent = 'Problemas sérios detectados. Verifique imediatamente.';
+    } else if (nivelGeral === 'alerta') {
+        statusIcon.textContent = '⚠️';
+        statusIcon.style.color = 'var(--warning)';
+        statusText.textContent = 'Atenção Necessária';
+        statusText.style.color = 'var(--warning)';
+        statusSub.textContent = 'Alguns parâmetros fora da faixa ideal.';
+    } else {
+        statusIcon.textContent = '✅';
+        statusIcon.style.color = 'var(--success)';
+        statusText.textContent = 'Sistema Normal';
+        statusText.style.color = 'var(--success)';
+        statusSub.textContent = 'Todos os sensores dentro dos parâmetros esperados.';
+    }
+
+    const bgStatus = nivelGeral === 'critico' ? 'rgba(239,68,68,0.1)' : nivelGeral === 'alerta' ? 'rgba(234,179,8,0.1)' : 'rgba(34,197,94,0.1)';
+    const bordaStatus = nivelGeral === 'critico' ? 'var(--danger)' : nivelGeral === 'alerta' ? 'var(--warning)' : 'var(--success)';
+    const statusContainer = document.getElementById('diag-status');
+    statusContainer.style.background = bgStatus;
+    statusContainer.style.border = `2px solid ${bordaStatus}`;
+    statusContainer.style.borderRadius = '12px';
+
+    alertasContainer.innerHTML = alertas.length > 0
+        ? '<div style="font-size:9px; color:var(--danger); text-transform:uppercase; font-weight:800; margin-bottom:8px;">Alertas Detectados</div>' +
+          alertas.map(a => `
+            <div style="padding:10px 12px; margin-bottom:8px; border-radius:8px; background:rgba(255,255,255,0.03); border-left:3px solid ${a.nivel === 'critico' ? 'var(--danger)' : 'var(--warning)'};">
+                <div style="font-size:12px; font-weight:700; color:${a.nivel === 'critico' ? 'var(--danger)' : 'var(--warning)'};">${a.msg}</div>
+                <div style="font-size:10px; color:#94a3b8; margin-top:2px;">${a.detalhe}</div>
+            </div>
+        `).join('')
+        : '';
+
+    sugestoesContainer.innerHTML = sugestoes.length > 0
+        ? '<div style="font-size:9px; color:var(--accent); text-transform:uppercase; font-weight:800; margin-bottom:8px; margin-top:10px;">Sugestões de Diagnóstico</div>' +
+          sugestoes.map(s => `
+            <div style="padding:10px 12px; margin-bottom:8px; border-radius:8px; background:rgba(0,242,255,0.03); border-left:3px solid var(--accent);">
+                <div style="font-size:11px; color:#e2e8f0;">${s.texto}</div>
+                <div style="font-size:9px; color:${s.prioridade === 'alta' ? 'var(--danger)' : s.prioridade === 'media' ? 'var(--warning)' : '#94a3b8'}; margin-top:3px; text-transform:uppercase; font-weight:700;">Prioridade: ${s.prioridade}</div>
+            </div>
+        `).join('')
+        : '';
+
+    // --- ANÁLISE DE CONSUMO ---
+    const consumoContainer = document.getElementById('diag-consumo');
+    if (consumoContainer && L.consumoEsperado > 0) {
+        const real = L.consumoInstantaneo;
+        const esperado = L.consumoEsperado;
+        const delta = real - esperado;
+        const pctDelta = ((delta / esperado) * 100).toFixed(0);
+        const statusConsumo = delta > 2 ? 'alto' : delta > 0.5 ? 'levemente_alto' : delta < -1 ? 'baixo' : 'normal';
+
+        let corBarra = 'var(--success)';
+        let statusLabel = 'Consumo Normal';
+        let statusCor = 'var(--success)';
+        let iconStatus = '✅';
+
+        if (statusConsumo === 'alto') {
+            corBarra = 'var(--danger)';
+            statusLabel = 'Consumo Elevado';
+            statusCor = 'var(--danger)';
+            iconStatus = '🚨';
+        } else if (statusConsumo === 'levemente_alto') {
+            corBarra = 'var(--warning)';
+            statusLabel = 'Consumo Ligeiramente Alto';
+            statusCor = 'var(--warning)';
+            iconStatus = '⚠️';
+        } else if (statusConsumo === 'baixo') {
+            corBarra = 'var(--accent)';
+            statusLabel = 'Consumo Abaixo do Esperado';
+            statusCor = 'var(--accent)';
+            iconStatus = 'ℹ️';
+        }
+
+        const maxConsumo = Math.max(real, esperado, 1);
+        const pctReal = (real / maxConsumo) * 100;
+        const pctEsperado = (esperado / maxConsumo) * 100;
+
+        const causas = [];
+        if (statusConsumo === 'alto' || statusConsumo === 'levemente_alto') {
+            if (Math.abs(L.fuelTrimLTFT) > 10) causas.push({ texto: 'Fuel Trim descalibrado — ECU compensando falha na mistura', icon: '🔧' });
+            if (L.nivelO2 < 0.15 || L.nivelO2 > 0.85) causas.push({ texto: 'Sensor O₂ com leitura fora do ideal — possível descalibração', icon: '🫁' });
+            if (L.tempMotor < 82) causas.push({ texto: 'Motor não está atingindo temperatura operacional — termostato travado aberto', icon: '🌡️' });
+            if (L.pressaoCombustivel < 300) causas.push({ texto: 'Pressão de combustível baixa — bomba ou filtro', icon: '⛽' });
+            if (L.tempArAdmissao > 50) causas.push({ texto: 'Ar de admissão quente — intercooler ou dutos com problema', icon: '💨' });
+            if (L.deslizamentoEmbreagem > 8) causas.push({ texto: 'Embreagem deslizando — RPM não converte em movimento', icon: '🔗' });
+            if (L.tempPosCatalisador > 750) causas.push({ texto: 'Catalisador quente demais — possível entupimento', icon: '🔥' });
+            if (causas.length === 0) {
+                causas.push({ texto: 'Filtro de ar sujo ou obstruído', icon: '🌬️' });
+                causas.push({ texto: 'Velas de ignição com desgaste', icon: '⚡' });
+                causas.push({ texto: 'Bicos injetores sujos ou entupidos', icon: '🔧' });
+                causas.push({ texto: 'Pneus com pressão abaixo do recomendado', icon: '🛞' });
+                causas.push({ texto: 'Freios arrastando (pastilhas travadas)', icon: '🛑' });
+            }
+        }
+
+        let htmlConsumo = `
+            <div style="margin-top:15px; padding:15px; background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <span style="font-size:1.2rem;">${iconStatus}</span>
+                    <div>
+                        <div style="font-size:10px; color:var(--accent); text-transform:uppercase; font-weight:800; letter-spacing:1px;">Análise de Consumo</div>
+                        <div style="font-size:13px; font-weight:700; color:${statusCor};">${statusLabel}</div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px;">
+                    <div style="text-align:center; padding:10px; background:rgba(255,255,255,0.03); border-radius:8px;">
+                        <div style="font-size:8px; color:#94a3b8; text-transform:uppercase;">Atual</div>
+                        <div style="font-size:1.1rem; font-weight:800; color:${statusCor};">${real.toFixed(1)}</div>
+                        <div style="font-size:8px; color:#94a3b8;">L/h</div>
+                    </div>
+                    <div style="text-align:center; padding:10px; background:rgba(255,255,255,0.03); border-radius:8px;">
+                        <div style="font-size:8px; color:#94a3b8; text-transform:uppercase;">Esperado</div>
+                        <div style="font-size:1.1rem; font-weight:800; color:var(--success);">${esperado.toFixed(1)}</div>
+                        <div style="font-size:8px; color:#94a3b8;">L/h</div>
+                    </div>
+                    <div style="text-align:center; padding:10px; background:rgba(255,255,255,0.03); border-radius:8px;">
+                        <div style="font-size:8px; color:#94a3b8; text-transform:uppercase;">Diferença</div>
+                        <div style="font-size:1.1rem; font-weight:800; color:${delta > 0.5 ? 'var(--danger)' : 'var(--success)'};">${delta > 0 ? '+' : ''}${delta.toFixed(1)}</div>
+                        <div style="font-size:8px; color:#94a3b8;">L/h (${pctDelta > 0 ? '+' : ''}${pctDelta}%)</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <div style="display:flex; justify-content:space-between; font-size:8px; color:#94a3b8; margin-bottom:4px;">
+                        <span>Real</span><span>Esperado</span>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.05); height:8px; border-radius:4px; overflow:hidden; position:relative;">
+                        <div style="position:absolute; height:100%; width:${pctReal}%; background:${corBarra}; border-radius:4px; transition:0.5s;"></div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:8px; color:#94a3b8; margin-top:2px;">
+                        <span>Real: ${real.toFixed(1)} L/h</span><span>Base: ${esperado.toFixed(1)} L/h</span>
+                    </div>
+                </div>
+        `;
+
+        if (causas.length > 0) {
+            htmlConsumo += `
+                <div style="font-size:9px; color:var(--warning); text-transform:uppercase; font-weight:800; margin-bottom:8px;">Possíveis Causas</div>
+                ${causas.map(c => `
+                    <div style="display:flex; align-items:flex-start; gap:8px; padding:8px 10px; margin-bottom:6px; background:rgba(234,179,8,0.05); border-radius:6px; border-left:3px solid var(--warning);">
+                        <span style="font-size:12px;">${c.icon}</span>
+                        <span style="font-size:11px; color:#e2e8f0;">${c.texto}</span>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        htmlConsumo += '</div>';
+        consumoContainer.innerHTML = htmlConsumo;
+    }
+}
+
+// ==========================================
+// SISTEMA DE ABASTECIMENTO E QUALIDADE
+// ==========================================
+
+let abastecimentos = JSON.parse(localStorage.getItem("car_abastecimentos") || "[]");
+
+function salvarAbastecimentos() {
+    localStorage.setItem("car_abastecimentos", JSON.stringify(abastecimentos));
+}
+
+function detectarAbastecimento(nivelAntes, nivelDepois) {
+    if (nivelDepois > nivelAntes + 10) {
+        const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
+        const litros = ((nivelDepois - nivelAntes) / 100) * tanqueCap;
+        const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+
+        const abast = {
+            data: new Date().toISOString(),
+            litros: parseFloat(litros.toFixed(1)),
+            nivelAntes: parseFloat(nivelAntes.toFixed(1)),
+            nivelDepois: parseFloat(nivelDepois.toFixed(1)),
+            km: kmAtual,
+            posto: "",
+            snapshot: {
+                fuelTrimSTFT: parseFloat(leiturasOBD.fuelTrimSTFT.toFixed(1)),
+                fuelTrimLTFT: parseFloat(leiturasOBD.fuelTrimLTFT.toFixed(1)),
+                consumo: parseFloat(leiturasOBD.consumoInstantaneo.toFixed(1)),
+                nivelO2: parseFloat(leiturasOBD.nivelO2.toFixed(2)),
+                tempCatalisador: parseFloat(leiturasOBD.tempPosCatalisador.toFixed(0)),
+                tempMotor: parseFloat(leiturasOBD.tempMotor.toFixed(1))
+            }
+        };
+
+        abastecimentos.push(abast);
+        salvarAbastecimentos();
+
+        showToast(`Abastecimento detectado! ~${litros.toFixed(1)}L adicionados. Registre o posto no histórico.`, "info");
+        if (typeof renderizarAbastecimentos === 'function') renderizarAbastecimentos();
+    }
+}
+
+function registrarAbastecimentoManual() {
+    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const nivelAtual = leiturasOBD.nivelCombustivel || 50;
+    const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
+
+    const abast = {
+        data: new Date().toISOString(),
+        litros: 0,
+        nivelAntes: parseFloat(nivelAtual.toFixed(1)),
+        nivelDepois: parseFloat(nivelAtual.toFixed(1)),
+        km: kmAtual,
+        posto: "",
+        snapshot: {
+            fuelTrimSTFT: parseFloat(leiturasOBD.fuelTrimSTFT.toFixed(1)),
+            fuelTrimLTFT: parseFloat(leiturasOBD.fuelTrimLTFT.toFixed(1)),
+            consumo: parseFloat(leiturasOBD.consumoInstantaneo.toFixed(1)),
+            nivelO2: parseFloat(leiturasOBD.nivelO2.toFixed(2)),
+            tempCatalisador: parseFloat(leiturasOBD.tempPosCatalisador.toFixed(0)),
+            tempMotor: parseFloat(leiturasOBD.tempMotor.toFixed(1))
+        }
+    };
+
+    abastecimentos.push(abast);
+    salvarAbastecimentos();
+    showToast("Registro de abastecimento salvo. Edite para adicionar posto e litros.", "success");
+    if (typeof renderizarAbastecimentos === 'function') renderizarAbastecimentos();
+}
+
+function editarAbastecimento(index, litros, posto) {
+    if (abastecimentos[index]) {
+        abastecimentos[index].litros = parseFloat(litros) || 0;
+        abastecimentos[index].posto = posto || "";
+        salvarAbastecimentos();
+        showToast("Abastecimento atualizado!", "success");
+    }
+}
+
+function removerAbastecimento(index) {
+    abastecimentos.splice(index, 1);
+    salvarAbastecimentos();
+    showToast("Abastecimento removido.", "info");
+}
+
+function calcularKmPorLitro() {
+    if (abastecimentos.length < 2) return null;
+    const ordenado = [...abastecimentos].sort((a, b) => a.km - b.km);
+    let totalKm = ordenado[ordenado.length - 1].km - ordenado[0].km;
+    let totalLitros = ordenado.slice(1).reduce((sum, a) => sum + (a.litros || 0), 0);
+    return totalLitros > 0 ? (totalKm / totalLitros).toFixed(1) : null;
+}
+
+function calcularPerfilPostos() {
+    const perfil = {};
+    abastecimentos.forEach(a => {
+        if (!a.posto) return;
+        if (!perfil[a.posto]) {
+            perfil[a.posto] = { nome: a.posto, abastecimentos: 0, mediaFuelTrim: 0, mediaConsumo: 0, mediaMisfires: 0, qualidade: 100, historico: [] };
+        }
+        const p = perfil[a.posto];
+        p.abastecimentos++;
+        p.historico.push(a.snapshot);
+        p.mediaFuelTrim += Math.abs(a.snapshot.fuelTrimLTFT || 0);
+        p.mediaConsumo += a.snapshot.consumo || 0;
+    });
+
+    Object.values(perfil).forEach(p => {
+        if (p.abastecimentos > 0) {
+            p.mediaFuelTrim = parseFloat((p.mediaFuelTrim / p.abastecimentos).toFixed(1));
+            p.mediaConsumo = parseFloat((p.mediaConsumo / p.abastecimentos).toFixed(1));
+
+            let penalidades = 0;
+            if (p.mediaFuelTrim > 10) penalidades += 25;
+            else if (p.mediaFuelTrim > 5) penalidades += 10;
+            if (p.mediaConsumo > 10) penalidades += 20;
+            else if (p.mediaConsumo > 8) penalidades += 10;
+
+            p.qualidade = Math.max(0, 100 - penalidades);
+        }
+    });
+
+    return perfil;
+}
