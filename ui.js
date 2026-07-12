@@ -2,12 +2,15 @@
 // ui.js — Navegação, dados do veículo (FIPE), manutenção, loja de peças e onboarding
 // =============================================
 
-const API_FIPE = "https://parallelum.com.br/fipe/api/v1/carros";
+const API_FIPE_V2 = "https://fipe.parallelum.com.br/api/v2/cars/brands";
 let marcasCache = [];
 let modelosCache = {};
 let anosPorModeloCache = {};
 let listaNecessidades = [];
-let categoriaAtualCatalogo = "filtros"; // Categoria padrão ao abrir
+let categoriaAtualCatalogo = "filtros";
+
+function cacheGet(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
+function cacheSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
 
 // ==========================================
 // CATÁLOGO MESTRE DE MANUTENÇÃO
@@ -98,105 +101,259 @@ document.addEventListener("DOMContentLoaded", async () => {
     verificarOnboardingESincronizacao();
 });
 
-async function initStaticSelects() {
-    try {
-        const response = await fetch(`${API_FIPE}/marcas`);
-        marcasCache = await response.json();
-        ['list-onb-marcas', 'list-inp-prof-marcas'].forEach(id => {
-            const dl = document.getElementById(id);
-            dl.innerHTML = '';
-            marcasCache.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m.nome;
-                dl.appendChild(opt);
-            });
-        });
-    } catch (error) {
-        console.error("Erro ao carregar marcas:", error);
-    }
+const MARCAS_FIPE = [
+    { codigo: "59", nome: "Volkswagen" },
+    { codigo: "60", nome: "GM (Chevrolet)" },
+    { codigo: "22", nome: "Fiat" },
+    { codigo: "17", nome: "Ford" },
+    { codigo: "20", nome: "Honda" },
+    { codigo: "56", nome: "Toyota" },
+    { codigo: "21", nome: "Hyundai" },
+    { codigo: "33", nome: "Kia" },
+    { codigo: "35", nome: "Nissan" },
+    { codigo: "42", nome: "Renault" },
+    { codigo: "38", nome: "Peugeot" },
+    { codigo: "12", nome: "Citroën" },
+    { codigo: "26", nome: "Jeep" },
+    { codigo: "5", nome: "Audi" },
+    { codigo: "7", nome: "BMW" },
+    { codigo: "34", nome: "Mercedes-Benz" },
+    { codigo: "57", nome: "Volvo" },
+    { codigo: "36", nome: "Mitsubishi" },
+    { codigo: "47", nome: "Suzuki" },
+    { codigo: "48", nome: "CAOA Chery" },
+    { codigo: "63", nome: "BYD" },
+    { codigo: "31", nome: "Land Rover" },
+    { codigo: "50", nome: "Chery" },
+    { codigo: "58", nome: "Troller" },
+    { codigo: "54", nome: "Porsche" },
+    { codigo: "29", nome: "Iveco" },
+    { codigo: "3", nome: "Agrale" },
+    { codigo: "32", nome: "MINI" },
+    { codigo: "19", nome: "Alfa Romeo" },
+    { codigo: "24", nome: "JAC" },
+    { codigo: "62", nome: "RAM" },
+    { codigo: "53", nome: "Subaru" },
+    { codigo: "61", nome: "Dodge" }
+];
+
+const MARCAS_ALIASES = {
+    'vw': 'Volkswagen', 'volks': 'Volkswagen', 'volkswagen': 'Volkswagen',
+    'gm': 'GM (Chevrolet)', 'chevrolet': 'GM (Chevrolet)', 'chevy': 'GM (Chevrolet)',
+    'fiat': 'Fiat', 'ford': 'Ford', 'honda': 'Honda', 'toyota': 'Toyota',
+    'hyundai': 'Hyundai', 'kia': 'Kia', 'nissan': 'Nissan', 'renault': 'Renault',
+    'peugeot': 'Peugeot', 'citroen': 'Citroën', 'citroën': 'Citroën',
+    'jeep': 'Jeep', 'audi': 'Audi', 'bmw': 'BMW',
+    'mercedes': 'Mercedes-Benz', 'mercedes-benz': 'Mercedes-Benz',
+    'volvo': 'Volvo', 'mitsubishi': 'Mitsubishi', 'suzuki': 'Suzuki',
+    'chery': 'Chery', 'caoa chery': 'CAOA Chery', 'caoa': 'CAOA Chery',
+    'land rover': 'Land Rover', 'range rover': 'Land Rover',
+    'dodge': 'Dodge', 'ram': 'RAM', 'porsche': 'Porsche', 'mini': 'MINI',
+    'subaru': 'Subaru', 'byd': 'BYD', 'jac': 'JAC',
+    'ssangyong': 'SsangYong', 'lifan': 'Lifan',
+    'alfa': 'Alfa Romeo', 'alfa romeo': 'Alfa Romeo',
+    'ferrari': 'Ferrari', 'lexus': 'Lexus',
+    'gurgel': 'Gurgel', 'buggy': 'Buggy', 'troller': 'Troller'
+};
+
+function resolverMarca(texto) {
+    const t = texto.toLowerCase().trim();
+    if (!t) return null;
+    let found = MARCAS_FIPE.find(m => m.nome.toLowerCase() === t);
+    if (found) return found;
+    const alias = MARCAS_ALIASES[t];
+    if (alias) found = MARCAS_FIPE.find(m => m.nome === alias);
+    if (found) return found;
+    found = MARCAS_FIPE.find(m => m.nome.toLowerCase().startsWith(t));
+    if (found) return found;
+    found = MARCAS_FIPE.find(m => m.nome.toLowerCase().includes(t));
+    return found || null;
 }
+
+async function initStaticSelects() {
+    marcasCache = MARCAS_FIPE;
+    ['inp-prof', 'onb'].forEach(prefix => {
+        const input = document.getElementById(prefix + '-marca');
+        if (!input) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'combo-wrap';
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+        input.removeAttribute('list');
+        input.setAttribute('autocomplete', 'off');
+
+        const list = document.createElement('div');
+        list.className = 'combo-list';
+        list.id = prefix + '-combo-list';
+        wrap.appendChild(list);
+
+        marcasCache.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'combo-item';
+            item.textContent = m.nome;
+            item.dataset.value = m.nome;
+            list.appendChild(item);
+        });
+
+        let highlighted = -1;
+        const getVisible = () => [...list.querySelectorAll('.combo-item')].filter(i => i.style.display !== 'none');
+
+        function showAll() {
+            list.querySelectorAll('.combo-item').forEach(i => {
+                i.style.display = '';
+                i.classList.remove('highlighted');
+            });
+            highlighted = -1;
+            list.classList.add('open');
+        }
+
+        function showFiltered(text) {
+            const t = text.toLowerCase().trim();
+            let count = 0;
+            list.querySelectorAll('.combo-item').forEach(item => {
+                const match = !t || item.dataset.value.toLowerCase().includes(t);
+                item.style.display = match ? '' : 'none';
+                if (match) count++;
+            });
+            highlighted = -1;
+            list.querySelectorAll('.combo-item').forEach(i => i.classList.remove('highlighted'));
+            list.classList.toggle('open', count > 0);
+        }
+
+        input.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showAll();
+        });
+
+        input.addEventListener('input', () => {
+            showFiltered(input.value);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            const visible = getVisible();
+            if (!visible.length) return;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                highlighted = Math.min(highlighted + 1, visible.length - 1);
+                visible.forEach((v, i) => v.classList.toggle('highlighted', i === highlighted));
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlighted = Math.max(highlighted - 1, 0);
+                visible.forEach((v, i) => v.classList.toggle('highlighted', i === highlighted));
+            } else if (e.key === 'Enter' && highlighted >= 0) {
+                e.preventDefault();
+                selectItem(visible[highlighted]);
+            } else if (e.key === 'Escape') {
+                list.classList.remove('open');
+            }
+        });
+
+        list.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('combo-item')) {
+                e.preventDefault();
+                selectItem(e.target);
+            }
+        });
+
+        function selectItem(item) {
+            input.value = item.dataset.value;
+            list.classList.remove('open');
+            executarMarcaChange(prefix);
+        }
+
+        document.addEventListener('click', () => {
+            list.classList.remove('open');
+        });
+    });
+}
+
+let marcaDebounceTimers = {};
 
 async function onMarcaChange(prefix) {
-    const brandName = document.getElementById(prefix + '-marca').value;
-    const modSelect = document.getElementById(prefix + '-modelo');
+    clearTimeout(marcaDebounceTimers[prefix]);
+    marcaDebounceTimers[prefix] = setTimeout(() => executarMarcaChange(prefix), 300);
+}
+
+async function executarMarcaChange(prefix) {
+    const input = document.getElementById(prefix + '-marca');
     const anoSelect = document.getElementById(prefix + '-ano');
-    const verSelect = document.getElementById(prefix + '-versao');
+    const modSelect = document.getElementById(prefix + '-modelo');
+    const brand = resolverMarca(input.value);
+
+    if (!brand) return;
+
+    input.value = brand.nome;
+    anoSelect.innerHTML = '<option value="">Carregando anos...</option>';
+    modSelect.innerHTML = '<option value="">Modelo...</option>';
+
+    let anos = cacheGet(`fipe_v2_years_${brand.codigo}`);
+    if (!anos) {
+        try {
+            const resp = await fetch(`${API_FIPE_V2}/${brand.codigo}/years`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            anos = await resp.json();
+            cacheSet(`fipe_v2_years_${brand.codigo}`, anos);
+        } catch (e) {
+            console.error("Erro ao carregar anos:", e);
+            anoSelect.innerHTML = '<option value="">Erro ao carregar. Toque para tentar</option>';
+            anoSelect.onclick = () => executarMarcaChange(prefix);
+            return;
+        }
+    }
+
+    anoSelect.onclick = null;
+    const anosUnicos = {};
+    anos.forEach(a => {
+        const anoNum = a.code.split('-')[0];
+        if (!anosUnicos[anoNum]) anosUnicos[anoNum] = [];
+        anosUnicos[anoNum].push(a);
+    });
+    const anosOrdenados = Object.keys(anosUnicos).sort((a, b) => b - a);
+    anosPorModeloCache[`${prefix}_years`] = anosUnicos;
+    anoSelect.innerHTML = '<option value="">Ano...</option>';
+    anosOrdenados.forEach(ano => {
+        anoSelect.innerHTML += `<option value="${ano}">${ano} (${anosUnicos[ano].length} ver.)</option>`;
+    });
+}
+
+async function onAnoChange(prefix) {
+    const brand = resolverMarca(document.getElementById(prefix + '-marca').value);
+    const anoSel = document.getElementById(prefix + '-ano').value;
+    const modSelect = document.getElementById(prefix + '-modelo');
 
     modSelect.innerHTML = '<option value="">Modelo...</option>';
-    anoSelect.innerHTML = '<option value="">Ano...</option>';
-    verSelect.innerHTML = '<option value="">Versão...</option>';
+    if (!brand || !anoSel) return;
 
-    const brand = marcasCache.find(m => m.nome === brandName);
-    if (!brand) return;
+    const anosUnicos = anosPorModeloCache[`${prefix}_years`] || {};
+    const versoesDoAno = anosUnicos[anoSel] || [];
+    const yearCodes = versoesDoAno.map(v => v.code);
 
-    try {
-        const resp = await fetch(`${API_FIPE}/marcas/${brand.codigo}/modelos`);
-        const data = await resp.json();
-        modelosCache[prefix] = data.modelos;
+    const cacheKey = `fipe_v2_mods_${brand.codigo}_${anoSel}`;
+    let modelos = cacheGet(cacheKey);
 
-        data.modelos.forEach(mod => {
-            modSelect.innerHTML += `<option value="${mod.codigo}">${mod.nome}</option>`;
-        });
-    } catch (error) {
-        console.error("Erro ao carregar modelos:", error);
+    if (!modelos) {
+        try {
+            const allModels = {};
+            for (const yearId of yearCodes) {
+                try {
+                    const resp = await fetch(`${API_FIPE_V2}/${brand.codigo}/years/${yearId}/models`);
+                    if (!resp.ok) continue;
+                    const batch = await resp.json();
+                    batch.forEach(m => { allModels[m.code] = m; });
+                } catch {}
+            }
+            modelos = Object.values(allModels);
+            cacheSet(cacheKey, modelos);
+        } catch (e) {
+            console.error("Erro ao carregar modelos:", e);
+            modSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+            return;
+        }
     }
-}
 
-async function onModeloChange(prefix) {
-    const brandName = document.getElementById(prefix + '-marca').value;
-    const modelCode = document.getElementById(prefix + '-modelo').value;
-    const anoSelect = document.getElementById(prefix + '-ano');
-    const verSelect = document.getElementById(prefix + '-versao');
-
-    anoSelect.innerHTML = '<option value="">Ano...</option>';
-    verSelect.innerHTML = '<option value="">Versão...</option>';
-
-    if (!modelCode) return;
-
-    const brand = marcasCache.find(m => m.nome === brandName);
-    if (!brand) return;
-
-    try {
-        const resp = await fetch(`${API_FIPE}/marcas/${brand.codigo}/modelos/${modelCode}/anos`);
-        const anos = await resp.json();
-        anosPorModeloCache[`${prefix}_${modelCode}`] = anos;
-
-        const anosUnicos = {};
-        anos.forEach(a => {
-            const anoNum = a.codigo.split('-')[0];
-            if (!anosUnicos[anoNum]) anosUnicos[anoNum] = [];
-            anosUnicos[anoNum].push(a);
-        });
-
-        const anosOrdenados = Object.keys(anosUnicos).sort((a, b) => b - a);
-        anosOrdenados.forEach(ano => {
-            const versoes = anosUnicos[ano];
-            anoSelect.innerHTML += `<option value="${ano}">${ano} (${versoes.length} versão(ões))</option>`;
-        });
-    } catch (error) {
-        console.error("Erro ao carregar anos:", error);
-    }
-}
-
-function onAnoChange(prefix) {
-    const brandName = document.getElementById(prefix + '-marca').value;
-    const modelCode = document.getElementById(prefix + '-modelo').value;
-    const anoSel = document.getElementById(prefix + '-ano').value;
-    const verSelect = document.getElementById(prefix + '-versao');
-
-    verSelect.innerHTML = '<option value="">Versão...</option>';
-
-    if (!anoSel || !modelCode) return;
-
-    const brand = marcasCache.find(m => m.nome === brandName);
-    if (!brand) return;
-
-    const chaveCache = `${prefix}_${modelCode}`;
-    const versoes = anosPorModeloCache[chaveCache] || [];
-    const filtradas = versoes.filter(v => v.codigo.startsWith(anoSel + '-'));
-
-    filtradas.forEach(ver => {
-        verSelect.innerHTML += `<option value="${ver.codigo}">${ver.nome}</option>`;
+    modSelect.innerHTML = '<option value="">Modelo...</option>';
+    modelos.forEach(mod => {
+        modSelect.innerHTML += `<option value="${mod.code}">${mod.name}</option>`;
     });
 }
 
@@ -204,7 +361,8 @@ function verificarOnboardingESincronizacao() {
     let kmAtual = localStorage.getItem("car_km");
     
     if (!kmAtual) {
-        document.getElementById("modal-onboarding").classList.remove("hidden");
+        renderizarDadosGlobais();
+        showToast("Bem-vindo! Preencha os dados do seu veículo na aba Perfil para ter acesso a todas as funcionalidades.", "info", 8000);
     } else {
         processarEstimativaDeQuilometragem();
         renderizarDadosGlobais();
@@ -215,8 +373,7 @@ function concluirOnboarding() {
     const kmInput = document.getElementById("onb-km").value;
     const mSel = document.getElementById("onb-marca").value;
     const modSelect = document.getElementById("onb-modelo");
-    const verSel = document.getElementById("onb-versao");
-    const anoSel = document.getElementById("onb-ano").value;
+    const anoSelect = document.getElementById("onb-ano");
     const placaInput = document.getElementById("onb-placa").value.trim();
     const vinInput = document.getElementById("onb-vin").value.trim();
 
@@ -238,17 +395,19 @@ function concluirOnboarding() {
     localStorage.setItem("car_km", kmInput);
     localStorage.setItem("car_marca_nome", mSel);
     localStorage.setItem("car_modelo_nome", modSelect.options[modSelect.selectedIndex]?.text || "");
-    localStorage.setItem("car_versao_nome", verSel.options[verSel.selectedIndex]?.text || "");
-    localStorage.setItem("car_ano", anoSel);
+    localStorage.setItem("car_ano", anoSelect.options[anoSelect.selectedIndex]?.text || anoSelect.value);
+    localStorage.setItem("car_ano_codigo", anoSelect.value);
     localStorage.setItem("car_ultima_data", new Date().toISOString());
     localStorage.setItem("car_media_diaria", "40");
     if (placaInput) localStorage.setItem("car_placa", placaInput.toUpperCase());
     if (vinInput) localStorage.setItem("car_vin", vinInput.toUpperCase());
 
     const tanqueInput = document.getElementById("onb-tanque").value;
+    const motorInput = document.getElementById("onb-motor").value.trim();
     if (tanqueInput && parseInt(tanqueInput) > 0) {
         localStorage.setItem("car_tanque_capacidade", tanqueInput);
     }
+    if (motorInput) localStorage.setItem("car_motor", motorInput);
 
     document.getElementById("modal-onboarding").classList.add("hidden");
     renderizarDadosGlobais();
@@ -321,6 +480,18 @@ function renderizarDadosGlobais() {
             document.getElementById("lbl-vin-container").classList.add("hidden");
         }
     }
+
+    // Exibe motor no perfil (se o elemento existir)
+    const motor = localStorage.getItem("car_motor") || "";
+    const lblMotor = document.getElementById("lbl-motor");
+    if (lblMotor) {
+        if (motor) {
+            lblMotor.innerText = motor;
+            document.getElementById("lbl-motor-container").classList.remove("hidden");
+        } else {
+            document.getElementById("lbl-motor-container").classList.add("hidden");
+        }
+    }
     
     // Configura os valores nos inputs do perfil para o usuário ver o atual
     document.getElementById("inp-prof-km").value = km;
@@ -344,77 +515,51 @@ function renderizarDadosGlobais() {
 
 async function preencherPerfil(marca, modelo, ano) {
     const marcaInput = document.getElementById("inp-prof-marca");
-    const modSelect = document.getElementById("inp-prof-modelo");
     const anoSelect = document.getElementById("inp-prof-ano");
-    const verSelect = document.getElementById("inp-prof-versao");
+    const modSelect = document.getElementById("inp-prof-modelo");
 
     if (!marca) return;
     marcaInput.value = marca;
 
-    if (!marcasCache.length) {
+    const brand = resolverMarca(marca);
+    if (!brand) return;
+
+    let anos = cacheGet(`fipe_v2_years_${brand.codigo}`);
+    if (!anos) {
         try {
-            const resp = await fetch(`${API_FIPE}/marcas`);
-            marcasCache = await resp.json();
+            const resp = await fetch(`${API_FIPE_V2}/${brand.codigo}/years`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            anos = await resp.json();
+            cacheSet(`fipe_v2_years_${brand.codigo}`, anos);
         } catch (e) { return; }
     }
 
-    const brand = marcasCache.find(m => m.nome === marca);
-    if (!brand) return;
+    const anosUnicos = {};
+    anos.forEach(a => {
+        const anoNum = a.code.split('-')[0];
+        if (!anosUnicos[anoNum]) anosUnicos[anoNum] = [];
+        anosUnicos[anoNum].push(a);
+    });
+    anosPorModeloCache['inp-prof_years'] = anosUnicos;
 
-    try {
-        const resp = await fetch(`${API_FIPE}/marcas/${brand.codigo}/modelos`);
-        const data = await resp.json();
-        modelosCache['inp-prof'] = data.modelos;
+    const anosOrdenados = Object.keys(anosUnicos).sort((a, b) => b - a);
+    anoSelect.innerHTML = '<option value="">Ano...</option>';
+    anosOrdenados.forEach(a => {
+        anoSelect.innerHTML += `<option value="${a}" ${a === ano ? 'selected' : ''}>${a} (${anosUnicos[a].length} ver.)</option>`;
+    });
 
-        modSelect.innerHTML = '<option value="">Modelo...</option>';
-        data.modelos.forEach(mod => {
-            modSelect.innerHTML += `<option value="${mod.codigo}" ${mod.nome === modelo ? 'selected' : ''}>${mod.nome}</option>`;
-        });
-
+    if (ano && anosUnicos[ano]) {
+        anoSelect.value = ano;
+        await onAnoChange('inp-prof');
         if (modelo) {
-            const model = data.modelos.find(m => m.nome === modelo);
-            if (model) {
-                try {
-                    const respAnos = await fetch(`${API_FIPE}/marcas/${brand.codigo}/modelos/${model.codigo}/anos`);
-                    const anos = await respAnos.json();
-                    anosPorModeloCache[`inp-prof_${model.codigo}`] = anos;
-
-                    const anosUnicos = {};
-                    anos.forEach(a => {
-                        const anoNum = a.codigo.split('-')[0];
-                        if (!anosUnicos[anoNum]) anosUnicos[anoNum] = [];
-                        anosUnicos[anoNum].push(a);
-                    });
-
-                    const anosOrdenados = Object.keys(anosUnicos).sort((a, b) => b - a);
-                    anoSelect.innerHTML = '<option value="">Ano...</option>';
-                    anosOrdenados.forEach(a => {
-                        anoSelect.innerHTML += `<option value="${a}" ${a == ano ? 'selected' : ''}>${a}</option>`;
-                    });
-
-                    if (ano) {
-                        const versoes = anos;
-                        const verSalva = localStorage.getItem("car_versao_nome") || "";
-                        const filtradas = versoes.filter(v => v.codigo.startsWith(ano + '-'));
-                        verSelect.innerHTML = '<option value="">Versão...</option>';
-                        let verEncontrada = false;
-                        filtradas.forEach(ver => {
-                            const selected = ver.nome === verSalva ? 'selected' : '';
-                            if (ver.nome === verSalva) verEncontrada = true;
-                            verSelect.innerHTML += `<option value="${ver.codigo}" ${selected}>${ver.nome}</option>`;
-                        });
-                        if (!verEncontrada && verSalva) {
-                            verSelect.innerHTML += `<option value="${verSalva}" selected>${verSalva}</option>`;
-                        }
-                    }
-                } catch (e) {
-                    console.error("Erro ao carregar anos do modelo:", e);
-                }
-            }
+            const modelOpts = Array.from(modSelect.options);
+            const match = modelOpts.find(o => o.text.toLowerCase() === modelo.toLowerCase());
+            if (match) modSelect.value = match.value;
         }
-    } catch (e) {
-        console.error("Erro ao preencher perfil:", e);
     }
+
+    const motorInput = document.getElementById("inp-prof-motor");
+    if (motorInput) motorInput.value = localStorage.getItem("car_motor") || "";
 }
 
 function renderizarSaudeVeiculo() {
@@ -439,9 +584,9 @@ function renderizarSaudeVeiculo() {
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                     <strong style="font-size:13px; color:#fff;">${catalogo.nome}</strong>
-                    <span style="color:#64748b; font-weight:700; font-size:10px; text-transform:uppercase;">Sem registro</span>
+                    <span style="color:var(--accent); font-weight:700; font-size:10px; text-transform:uppercase;">Original de fábrica</span>
                 </div>
-                <div style="font-size:9px; color:#64748b;">Adicione um registro de manutenção para acompanhar este item.</div>
+                <div style="font-size:9px; color:#64748b;">Nenhum serviço registrado. Pode ser a peça original de fábrica.</div>
             `;
             container.appendChild(card);
             return;
@@ -767,7 +912,7 @@ function renderizarAlertasManutencao() {
         const ultimoRegistro = registrosDoItem.sort((a, b) => new Date(b.data) - new Date(a.data))[0];
 
         if (!ultimoRegistro) {
-            alertas.push({ nome: catalogo.nome, tipo: 'info', msg: 'Sem registro', cor: 'var(--accent)' });
+            alertas.push({ nome: catalogo.nome, tipo: 'info', msg: 'Original de fábrica', cor: 'var(--accent)' });
             return;
         }
 
@@ -959,11 +1104,11 @@ function salvarPerfil() {
     const kmInput = document.getElementById("inp-prof-km").value;
     const mInput = document.getElementById("inp-prof-marca").value;
     const modSelect = document.getElementById("inp-prof-modelo");
-    const verSelect = document.getElementById("inp-prof-versao");
-    const anoSelect = document.getElementById("inp-prof-ano").value;
+    const anoSelect = document.getElementById("inp-prof-ano");
     const placaInput = document.getElementById("inp-prof-placa")?.value.trim() || "";
     const vinInput = document.getElementById("inp-prof-vin")?.value.trim() || "";
     const tanqueInput = document.getElementById("inp-prof-tanque")?.value || "";
+    const motorInput = document.getElementById("inp-prof-motor")?.value.trim() || "";
 
     if (kmInput && kmInput > 0) {
         if (placaInput && !validarPlaca(placaInput)) {
@@ -979,11 +1124,14 @@ function salvarPerfil() {
         localStorage.setItem("car_km", kmInput);
         if(mInput) localStorage.setItem("car_marca_nome", mInput);
         if(modSelect.selectedIndex > 0) localStorage.setItem("car_modelo_nome", modSelect.options[modSelect.selectedIndex].text);
-        if(verSelect.selectedIndex > 0) localStorage.setItem("car_versao_nome", verSelect.options[verSelect.selectedIndex].text);
-        if(anoSelect) localStorage.setItem("car_ano", anoSelect);
+        if(anoSelect.selectedIndex > 0) {
+            localStorage.setItem("car_ano", anoSelect.options[anoSelect.selectedIndex].text);
+            localStorage.setItem("car_ano_codigo", anoSelect.value);
+        }
         localStorage.setItem("car_placa", placaInput.toUpperCase());
         localStorage.setItem("car_vin", vinInput.toUpperCase());
         if(tanqueInput) localStorage.setItem("car_tanque_capacidade", tanqueInput);
+        if(motorInput) localStorage.setItem("car_motor", motorInput);
         localStorage.setItem("car_ultima_data", new Date().toISOString());
         
         renderizarDadosGlobais();
@@ -1001,14 +1149,14 @@ function salvarPerfil() {
 function coletarDadosCompletos() {
     return {
         appNome: "AutoGestão X",
-        versaoFormato: 4,
+        versaoFormato: 6,
         exportadoEm: new Date().toISOString(),
         veiculo: {
             km: localStorage.getItem("car_km"),
             marca: localStorage.getItem("car_marca_nome"),
             modelo: localStorage.getItem("car_modelo_nome"),
-            versao: localStorage.getItem("car_versao_nome"),
             ano: localStorage.getItem("car_ano"),
+            motor: localStorage.getItem("car_motor"),
             placa: localStorage.getItem("car_placa"),
             vin: localStorage.getItem("car_vin"),
             tanqueCapacidade: localStorage.getItem("car_tanque_capacidade"),
@@ -1062,8 +1210,8 @@ function importarDadosJSON(inputEl) {
             if (v.km) localStorage.setItem("car_km", v.km);
             if (v.marca) localStorage.setItem("car_marca_nome", v.marca);
             if (v.modelo) localStorage.setItem("car_modelo_nome", v.modelo);
-            if (v.versao) localStorage.setItem("car_versao_nome", v.versao);
             if (v.ano) localStorage.setItem("car_ano", v.ano);
+            if (v.motor) localStorage.setItem("car_motor", v.motor);
             if (v.placa) localStorage.setItem("car_placa", v.placa);
             if (v.vin) localStorage.setItem("car_vin", v.vin);
             if (v.tanqueCapacidade) localStorage.setItem("car_tanque_capacidade", v.tanqueCapacidade);
@@ -1116,8 +1264,8 @@ function exportarRelatorioPDF() {
 
     const marca = localStorage.getItem("car_marca_nome") || "Não configurado";
     const modelo = localStorage.getItem("car_modelo_nome") || "";
-    const versao = localStorage.getItem("car_versao_nome") || "";
     const ano = localStorage.getItem("car_ano") || "--";
+    const motor = localStorage.getItem("car_motor") || "";
     const km = parseInt(localStorage.getItem("car_km")) || 0;
     const placa = localStorage.getItem("car_placa") || "Não informada";
     const vin = localStorage.getItem("car_vin") || "Não informado";
@@ -1150,9 +1298,9 @@ function exportarRelatorioPDF() {
 
     // Box de identificação do veículo
     doc.setFillColor(240, 240, 240);
-    doc.roundedRect(margemEsquerda, y - 2, larguraUtil, 38, 2, 2, 'F');
+    doc.roundedRect(margemEsquerda, y - 2, larguraUtil, 44, 2, 2, 'F');
     doc.setDrawColor(180);
-    doc.roundedRect(margemEsquerda, y - 2, larguraUtil, 38, 2, 2, 'S');
+    doc.roundedRect(margemEsquerda, y - 2, larguraUtil, 44, 2, 2, 'S');
 
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
@@ -1167,7 +1315,7 @@ function exportarRelatorioPDF() {
     doc.setFont(undefined, 'bold');
     doc.text("Veículo:", col1X, infoY);
     doc.setFont(undefined, 'normal');
-    doc.text(`${marca} ${modelo} ${versao}`.trim(), col1X + 20, infoY);
+    doc.text(`${marca} ${modelo} ${ano}`.trim(), col1X + 20, infoY);
 
     doc.setFont(undefined, 'bold');
     doc.text("Ano:", col2X, infoY);
@@ -1190,6 +1338,13 @@ function exportarRelatorioPDF() {
     doc.text("Chassi/VIN:", col1X, infoY);
     doc.setFont(undefined, 'normal');
     doc.text(vin, col1X + 26, infoY);
+
+    if (motor) {
+        doc.setFont(undefined, 'bold');
+        doc.text("Motor:", col2X, infoY);
+        doc.setFont(undefined, 'normal');
+        doc.text(motor, col2X + 16, infoY);
+    }
     infoY += 8;
 
     y = infoY + 6;
@@ -1281,7 +1436,7 @@ function exportarRelatorioPDF() {
             doc.setFont(undefined, 'italic');
             doc.setFontSize(8);
             doc.setTextColor(140);
-            doc.text("Sem registro — adicione um registro de manutenção para acompanhar este item.", margemEsquerda + 4, y);
+            doc.text("Original de fábrica — nenhum serviço registrado para este item.", margemEsquerda + 4, y);
             doc.setTextColor(0);
             y += 6;
             return;

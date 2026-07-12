@@ -223,6 +223,7 @@
                         <div style="font-size:11px; opacity:0.6" id="lbl-veiculo-ano">Ano: --</div>
                         <div style="font-size:9px; color:var(--warning); margin-top:4px;" id="lbl-placa-container" class="hidden">Placa: <span id="lbl-placa" style="font-weight:700;">--</span></div>
                         <div style="font-size:9px; color:var(--accent); margin-top:2px;" id="lbl-vin-container" class="hidden">VIN: <span id="lbl-vin" style="font-family:monospace">--</span></div>
+                        <div style="font-size:9px; color:var(--accent); margin-top:2px;" id="lbl-motor-container" class="hidden">Motor: <span id="lbl-motor" style="font-weight:700;">--</span></div>
                     </div>
                 </div>
             </div>
@@ -253,20 +254,19 @@
                 </div>
                 <div style="margin-bottom:12px;">
                     <label>Marca</label>
-                    <input type="text" id="inp-prof-marca" list="list-inp-prof-marcas" oninput="onMarcaChange('inp-prof')" placeholder="Selecione ou digite a marca">
-                    <datalist id="list-inp-prof-marcas"></datalist>
-                </div>
-                <div style="margin-bottom:12px;">
-                    <label>Modelo</label>
-                    <select id="inp-prof-modelo" onchange="onModeloChange('inp-prof')"><option value="">Modelo...</option></select>
+                    <input type="text" id="inp-prof-marca" placeholder="Selecione ou digite a marca">
                 </div>
                 <div style="margin-bottom:12px;">
                     <label>Ano</label>
                     <select id="inp-prof-ano" onchange="onAnoChange('inp-prof')"><option value="">Ano...</option></select>
                 </div>
                 <div style="margin-bottom:15px;">
-                    <label>Versão</label>
-                    <select id="inp-prof-versao"><option value="">Versão...</option></select>
+                    <label>Modelo</label>
+                    <select id="inp-prof-modelo"><option value="">Modelo...</option></select>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <label>Código do Motor (Opcional)</label>
+                    <input type="text" id="inp-prof-motor" placeholder="Ex: EA111 1.6 8V, Fire 1.0 8V">
                 </div>
 
                 <button class="btn-main" onclick="salvarPerfil()">Atualizar Configurações</button>
@@ -316,20 +316,19 @@
             </div>
             <div style="margin-bottom:10px;">
                 <label>Marca</label>
-                <input type="text" id="onb-marca" list="list-onb-marcas" oninput="onMarcaChange('onb')" placeholder="Selecione ou digite a marca">
-                <datalist id="list-onb-marcas"></datalist>
-            </div>
-            <div style="margin-bottom:10px;">
-                <label>Modelo</label>
-                <select id="onb-modelo" onchange="onModeloChange('onb')"><option value="">Modelo...</option></select>
+                <input type="text" id="onb-marca" placeholder="Selecione ou digite a marca">
             </div>
             <div style="margin-bottom:10px;">
                 <label>Ano</label>
                 <select id="onb-ano" onchange="onAnoChange('onb')"><option value="">Ano...</option></select>
             </div>
             <div style="margin-bottom:15px;">
-                <label>Versão</label>
-                <select id="onb-versao"><option value="">Versão...</option></select>
+                <label>Modelo</label>
+                <select id="onb-modelo"><option value="">Modelo...</option></select>
+            </div>
+            <div style="margin-bottom:15px;">
+                <label>Código do Motor (Opcional)</label>
+                <input type="text" id="onb-motor" placeholder="Ex: EA111 1.6 8V, Fire 1.0 8V">
             </div>
 
             <button class="btn-main" onclick="concluirOnboarding()">Salvar e Continuar</button>

@@ -122,6 +122,26 @@
         .toast.error { border-color: var(--danger); color: var(--danger); }
         .toast.warning { border-color: var(--warning); color: var(--warning); }
         .toast.info { border-color: var(--accent); color: var(--accent); }
+        /* Combobox custom */
+        .combo-wrap { position: relative; }
+        .combo-wrap input { width: 100%; cursor: text; }
+        .combo-list {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 99999;
+            max-height: 200px; overflow-y: auto;
+            background: rgba(13, 18, 31, 0.98); backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 242, 255, 0.2); border-top: none;
+            border-radius: 0 0 10px 10px; display: none;
+            scrollbar-width: thin; scrollbar-color: rgba(0,242,255,0.3) transparent;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        }
+        .combo-list.open { display: block; }
+        .combo-item {
+            padding: 11px 12px; color: #cbd5e1; font-size: 13px; cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s;
+        }
+        .combo-item:hover, .combo-item.highlighted { background: rgba(0, 242, 255, 0.1); color: var(--accent); }
+        .combo-item:last-child { border-bottom: none; }
+
         @keyframes toastIn {
             from { opacity: 0; transform: translateY(-20px); }
             to { opacity: 1; transform: translateY(0); }

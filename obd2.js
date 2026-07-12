@@ -30,7 +30,11 @@ let leiturasOBD = {
     pontoIgnicao: 0, statusCombustivel: '--',
     fuelTrimSTFT: 0, fuelTrimLTFT: 0, pressaoCombustivel: 0,
     tempPosCatalisador: 0, tempAmbiente: 0, deslizamentoEmbreagem: 0,
-    nivelCombustivel: 50, consumoEsperado: 0
+    nivelCombustivel: 50, consumoEsperado: 0,
+    statusMIL: false, qtdDTCs: 0,
+    statusSistemaComb: '--',
+    distDesdeDTC: 0, tempoDesdeUltimaPartida: 0, tempoDesdeDTC: 0,
+    o2Sensor1: 0, o2Sensor2: 0, o2Sensor3: 0, o2Sensor4: 0
 };
 
 let nivelCombustivelAnterior = 50;
@@ -337,8 +341,17 @@ async function inicializarPainelReal() {
                 setTimeout(() => sendElmCommand("0107"), 2100); // LTFT
                 setTimeout(() => sendElmCommand("010B"), 2400); // MAP
                 setTimeout(() => sendElmCommand("010E"), 2700); // Ignition Timing
+                setTimeout(() => sendElmCommand("0101"), 3000); // Monitor Status + DTC Count
+                setTimeout(() => sendElmCommand("0103"), 3300); // Fuel System Status
+                setTimeout(() => sendElmCommand("0121"), 3600); // Distance since DTCs cleared
+                setTimeout(() => sendElmCommand("014D"), 3900); // Time since engine start
+                setTimeout(() => sendElmCommand("014E"), 4200); // Time since DTCs cleared
+                setTimeout(() => sendElmCommand("0114"), 4500); // O2 Sensor 1 (Bank 1)
+                setTimeout(() => sendElmCommand("0115"), 4800); // O2 Sensor 2 (Bank 1)
+                setTimeout(() => sendElmCommand("0116"), 5100); // O2 Sensor 1 (Bank 2)
+                setTimeout(() => sendElmCommand("0117"), 5400); // O2 Sensor 2 (Bank 2)
             }
-        }, 5000);
+        }, 6000);
     } catch(e) { console.error("Erro na inicialização:", e); }
 }
 
@@ -691,7 +704,88 @@ function parseObdResponse(response) {
             }
         }
 
-        renderizarSensores();
+        if (line.includes("41 01")) {
+            const match = line.match(/41 01 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                const byteA = parseInt(match[1], 16);
+                leiturasOBD.statusMIL = (byteA & 0x80) !== 0;
+                leiturasOBD.qtdDTCs = byteA & 0x7F;
+            }
+        }
+
+        if (line.includes("41 03")) {
+            const match = line.match(/41 03 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                const byteA = parseInt(match[1], 16);
+                const byteB = parseInt(match[2], 16);
+                const fuelStatus1 = (byteA >> 4) & 0x0F;
+                const fuelStatus2 = byteA & 0x0F;
+                const statuses = { 1: 'Open Loop (冷启动)', 2: 'Closed Loop', 3: 'Open Loop (贫油)', 4: 'Open Loop (富油)', 5: 'Closed Loop (falha)', 6: '--' };
+                leiturasOBD.statusSistemaComb = statuses[fuelStatus1] || '--';
+            }
+        }
+
+        if (line.includes("41 21")) {
+            const match = line.match(/41 21 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.distDesdeDTC = (parseInt(match[1], 16) * 256) + parseInt(match[2], 16);
+            }
+        }
+
+        if (line.includes("41 4D")) {
+            const match = line.match(/41 4D ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tempoDesdeUltimaPartida = (parseInt(match[1], 16) * 256) + parseInt(match[2], 16);
+            }
+        }
+
+        if (line.includes("41 4E")) {
+            const match = line.match(/41 4E ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tempoDesdeDTC = (parseInt(match[1], 16) * 256) + parseInt(match[2], 16);
+            }
+        }
+
+        if (line.includes("41 14")) {
+            const match = line.match(/41 14 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.o2Sensor1 = (parseInt(match[2], 16) / 200).toFixed(2);
+            }
+        }
+
+        if (line.includes("41 15")) {
+            const match = line.match(/41 15 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.o2Sensor2 = (parseInt(match[2], 16) / 200).toFixed(2);
+            }
+        }
+
+        if (line.includes("41 16")) {
+            const match = line.match(/41 16 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.o2Sensor3 = (parseInt(match[2], 16) / 200).toFixed(2);
+            }
+        }
+
+        if (line.includes("41 17")) {
+            const match = line.match(/41 17 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.o2Sensor4 = (parseInt(match[2], 16) / 200).toFixed(2);
+            }
+        }
+
+    leiturasOBD.statusMIL = Math.random() > 0.97;
+    leiturasOBD.qtdDTCs = leiturasOBD.statusMIL ? Math.floor(Math.random() * 3) + 1 : 0;
+    leiturasOBD.statusSistemaComb = leiturasOBD.tensaoBateria < 11.5 ? 'Open Loop' : 'Closed Loop';
+    leiturasOBD.distDesdeDTC = Math.floor(Math.random() * 5000);
+    leiturasOBD.tempoDesdeUltimaPartida = Math.floor(Math.random() * 120);
+    leiturasOBD.tempoDesdeDTC = Math.floor(Math.random() * 10000);
+    leiturasOBD.o2Sensor1 = 0.1 + Math.random() * 0.9;
+    leiturasOBD.o2Sensor2 = 0.1 + Math.random() * 0.9;
+    leiturasOBD.o2Sensor3 = 0.1 + Math.random() * 0.9;
+    leiturasOBD.o2Sensor4 = 0.1 + Math.random() * 0.9;
+
+    renderizarSensores();
         renderizarDiagnostico();
     }
 }
@@ -754,7 +848,14 @@ const SENSORES_OBD = [
     { id: 'pressaoCombustivel', label: 'Pressão Comb.', icon: '⛽', unit: 'kPa', decimals: 0, min: 0, max: 600, critico: [150, 250], alerta: [250, 300], criticoAlto: [500, 600], alertaAlto: [450, 500] },
     { id: 'tempPosCatalisador', label: 'Temp. Pós-Catalisador', icon: '🔥', unit: '°C', decimals: 0, min: 0, max: 1000, critico: [850, 1000], alerta: [750, 850] },
     { id: 'tempAmbiente', label: 'Temp. Ambiente', icon: '🌍', unit: '°C', decimals: 1, min: -20, max: 55, critico: [-20, -10], alerta: [-10, 0], criticoAlto: [45, 55], alertaAlto: [40, 45] },
-    { id: 'deslizamentoEmbreagem', label: 'Embreagem', icon: '🔗', unit: '%', decimals: 1, min: 0, max: 30, critico: [15, 30], alerta: [8, 15] }
+    { id: 'deslizamentoEmbreagem', label: 'Embreagem', icon: '🔗', unit: '%', decimals: 1, min: 0, max: 30, critico: [15, 30], alerta: [8, 15] },
+    { id: 'distDesdeDTC', label: 'Dist. desde DTCs', icon: '📏', unit: 'km', decimals: 0, min: 0, max: 65535, critico: [0, 100], alerta: [100, 500] },
+    { id: 'tempoDesdeUltimaPartida', label: 'Tempo Motor', icon: '⏱️', unit: 'min', decimals: 0, min: 0, max: 1440, critico: [480, 1440], alerta: [360, 480] },
+    { id: 'tempoDesdeDTC', label: 'Tempo desde DTCs', icon: '📅', unit: 'min', decimals: 0, min: 0, max: 65535, critico: [0, 100], alerta: [100, 1000] },
+    { id: 'o2Sensor1', label: 'Sensor O₂ (B1S1)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
+    { id: 'o2Sensor2', label: 'Sensor O₂ (B1S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
+    { id: 'o2Sensor3', label: 'Sensor O₂ (B2S1)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
+    { id: 'o2Sensor4', label: 'Sensor O₂ (B2S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] }
 ];
 
 function renderizarSensores() {
@@ -943,6 +1044,36 @@ function renderizarDiagnostico() {
         if (nivelGeral !== 'critico') nivelGeral = 'alerta';
         alertas.push({ nivel: 'alerta', msg: 'Temperatura ambiente abaixo de zero.', detalhe: `${L.tempAmbiente.toFixed(1)}°C — motor pode demorar a atingir temperatura operacional` });
         sugestoes.push({ texto: 'Em frio extremo, aguarde o motor aquecer antes de acelerar. Use combustível de inverno se disponível.', prioridade: 'baixa' });
+    }
+
+    // --- MIL (Luz de Averia) ---
+    if (L.statusMIL) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Luz de Averia (MIL) Acesa!', detalhe: `${L.qtdDTCs} código(s) de falha registrado(s)` });
+        sugestoes.push({ texto: 'Execute um diagnóstico completo para identificar os códigos de falha. Não ignore a luz de advertência.', prioridade: 'alta' });
+    }
+
+    // --- Sistema de Combustível ---
+    if (L.statusSistemaComb === 'Open Loop (冷启动)' || L.statusSistemaComb === 'Open Loop (贫油)' || L.statusSistemaComb === 'Open Loop (富油)') {
+        if (L.tempMotor > 80) {
+            if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+            alertas.push({ nivel: 'alerta', msg: 'Sistema em Open Loop com motor quente.', detalhe: `Status: ${L.statusSistemaComb}` });
+            sugestoes.push({ texto: 'Motor aquecido deveria estar em Closed Loop. Verificar sensores O₂ e sensor de temperatura.', prioridade: 'media' });
+        }
+    } else if (L.statusSistemaComb === 'Closed Loop (falha)') {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Sistema de combustível com falha!', detalhe: 'Closed Loop com erro detectado' });
+        sugestoes.push({ texto: 'Falha no controle de mistura. Verificar sensores O₂, injetores e sensor MAF.', prioridade: 'alta' });
+    }
+
+    // --- Sensor O₂ (B1S1 vs B1S2) ---
+    if (L.o2Sensor1 > 0.01 && L.o2Sensor2 > 0.01) {
+        const diffO2 = Math.abs(L.o2Sensor1 - L.o2Sensor2);
+        if (diffO2 < 0.1 && L.o2Sensor1 > 0.6) {
+            if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+            alertas.push({ nivel: 'alerta', msg: 'Sensor O₂ traseiro alto.', detalhe: `B1S1: ${L.o2Sensor1.toFixed(2)}V | B1S2: ${L.o2Sensor2.toFixed(2)}V` });
+            sugestoes.push({ texto: 'Sensor O₂ traseiro alto pode indicar catalisador degradado. Verifique a eficiência do catalisador.', prioridade: 'media' });
+        }
     }
 
     // --- Status Geral ---
