@@ -11,6 +11,7 @@ let port;
 let reader;
 let writer;
 let bleCharacteristic = null;
+let bleTxCharacteristic = null;
 let bleBuffer = '';
 let tipoConexao = null; // 'serial' ou 'ble'
 
@@ -168,8 +169,13 @@ async function conectarVeiculoReal() {
 }
 
 // --- CONEXÃO BLUETOOTH (Web Bluetooth API) ---
-const ELM327_SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
-const ELM327_CHAR_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+const ELM327_BLE_PROFILES = [
+    { name: 'Clones baratos (FFF0)', service: '0000fff0-0000-1000-8000-00805f9b34fb', rx: '0000fff1-0000-1000-8000-00805f9b34fb', tx: '0000fff2-0000-1000-8000-00805f9b34fb' },
+    { name: 'vLinker / genéricos (18F0)', service: '000018f0-0000-1000-8000-00805f9b34fb', rx: '00002af0-0000-1000-8000-00805f9b34fb', tx: '00002af1-0000-1000-8000-00805f9b34fb' },
+    { name: 'HC-05/HC-06 SPP (FFE0)', service: '0000ffe0-0000-1000-8000-00805f9b34fb', rx: '0000ffe1-0000-1000-8000-00805f9b34fb', tx: '0000ffe1-0000-1000-8000-00805f9b34fb' }
+];
+
+const ELM327_ALL_OPTIONAL_SERVICES = ELM327_BLE_PROFILES.map(p => p.service);
 
 async function conectarVeiculoAuto() {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -192,16 +198,18 @@ async function conectarVeiculoBluetooth() {
     }
 
     try {
-        showToast("Procurando ELM327 Bluetooth...", "info");
+        showToast("Procurando dispositivos BLE (OBD2/ELM327)...", "info");
 
         const device = await navigator.bluetooth.requestDevice({
             filters: [
-                { services: [ELM327_SERVICE_UUID] },
                 { namePrefix: 'ELM' },
                 { namePrefix: 'OBD' },
-                { namePrefix: 'Vlink' }
+                { namePrefix: 'Vlink' },
+                { namePrefix: 'Vgate' },
+                { namePrefix: 'BLED' },
+                { namePrefix: 'BLU' }
             ],
-            optionalServices: [ELM327_SERVICE_UUID]
+            optionalServices: ELM327_ALL_OPTIONAL_SERVICES
         });
 
         showToast("Conectando ao dispositivo...", "info");
@@ -209,8 +217,28 @@ async function conectarVeiculoBluetooth() {
         device.addEventListener('gattserverdisconnected', onBleDisconnect);
 
         const server = await device.gatt.connect();
-        const service = await server.getPrimaryService(ELM327_SERVICE_UUID);
-        bleCharacteristic = await service.getCharacteristic(ELM327_CHAR_UUID);
+
+        let connected = false;
+        for (const profile of ELM327_BLE_PROFILES) {
+            try {
+                const service = await server.getPrimaryService(profile.service);
+                bleCharacteristic = await service.getCharacteristic(profile.rx);
+                try {
+                    bleTxCharacteristic = await service.getCharacteristic(profile.tx);
+                } catch (e) {
+                    bleTxCharacteristic = bleCharacteristic;
+                }
+                connected = true;
+                console.log(`Conectado via UUID: ${profile.name}`);
+                break;
+            } catch (e) {
+                console.log(`UUID ${profile.name} não encontrado, tentando próximo...`);
+            }
+        }
+
+        if (!connected) {
+            throw new Error("Nenhum serviço BLE compatível encontrado no dispositivo.");
+        }
 
         modoSimulacao = false;
         tipoConexao = 'ble';
@@ -236,6 +264,7 @@ async function conectarVeiculoBluetooth() {
         modoSimulacao = true;
         tipoConexao = null;
         bleCharacteristic = null;
+        bleTxCharacteristic = null;
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
         atualizarUIDesconectado();
     }
@@ -264,6 +293,7 @@ function onBleDisconnect() {
         modoSimulacao = true;
         tipoConexao = null;
         bleCharacteristic = null;
+        bleTxCharacteristic = null;
         if (pollingIntervalId) clearInterval(pollingIntervalId);
         if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
@@ -375,7 +405,8 @@ function waitForElmPrompt(timeoutMs = 2000) {
 
 async function sendElmCommand(command) {
     if (tipoConexao === 'ble') {
-        if (!bleCharacteristic) {
+        const txChar = bleTxCharacteristic || bleCharacteristic;
+        if (!txChar) {
             console.error("Characteristic BLE não disponível.");
             return;
         }
@@ -387,7 +418,7 @@ async function sendElmCommand(command) {
         try {
             console.log("Enviando BLE:", command);
             const encoder = new TextEncoder();
-            await bleCharacteristic.writeValue(encoder.encode(command + "\r"));
+            await txChar.writeValue(encoder.encode(command + "\r"));
             await waitForElmPrompt();
         } catch (e) {
             console.error("Erro ao enviar comando BLE:", e);
