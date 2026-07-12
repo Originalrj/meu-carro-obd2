@@ -12,6 +12,7 @@ let reader;
 let writer;
 let bleCharacteristic = null;
 let bleTxCharacteristic = null;
+let bleWriteType = 'writeWithoutResponse';
 let bleBuffer = '';
 let tipoConexao = null; // 'serial' ou 'ble'
 
@@ -229,7 +230,8 @@ async function conectarVeiculoBluetooth() {
                     bleTxCharacteristic = bleCharacteristic;
                 }
                 connected = true;
-                console.log(`Conectado via UUID: ${profile.name}`);
+                bleWriteType = bleTxCharacteristic.properties.writeWithoutResponse ? 'writeWithoutResponse' : 'write';
+                console.log(`Conectado via UUID: ${profile.name} | Write type: ${bleWriteType}`);
                 break;
             } catch (e) {
                 console.log(`UUID ${profile.name} não encontrado, tentando próximo...`);
@@ -270,6 +272,7 @@ async function conectarVeiculoBluetooth() {
     }
 }
 
+let bleDataCount = 0;
 function onBleNotification(event) {
     const decoder = new TextDecoder();
     const value = decoder.decode(event.target.value);
@@ -278,11 +281,14 @@ function onBleNotification(event) {
     if (bleBuffer.includes(">")) {
         const resposta = bleBuffer;
         bleBuffer = '';
-        console.log("Recebido BLE:", resposta);
+        bleDataCount++;
+        console.log(`[BLE #${bleDataCount}] Recebido:`, resposta.trim());
 
-        if (resposta.includes(">")) {
-            if (elmPromptResolve) elmPromptResolve();
+        if (bleDataCount === 1) {
+            showToast("Primeira resposta do ELM327 recebida!", "success");
         }
+
+        if (elmPromptResolve) elmPromptResolve();
         parseObdResponse(resposta);
     }
 }
@@ -341,15 +347,17 @@ function atualizarUIDesconectado() {
 
 async function inicializarPainelReal() {
     const delay = ms => new Promise(res => setTimeout(res, ms));
+    const isBle = tipoConexao === 'ble';
+    const baseDelay = isBle ? 500 : 200;
     try {
         modoSimulacao = false;
         clearInterval(simulationIntervalId);
 
-        await sendElmCommand("ATZ"); await delay(1000);
-        await sendElmCommand("ATE0"); await delay(200);
-        await sendElmCommand("ATL0"); await delay(200);
-        await sendElmCommand("ATH0"); await delay(200);
-        await sendElmCommand("ATSP0"); await delay(500);
+        await sendElmCommand("ATZ"); await delay(isBle ? 2000 : 1000);
+        await sendElmCommand("ATE0"); await delay(baseDelay);
+        await sendElmCommand("ATL0"); await delay(baseDelay);
+        await sendElmCommand("ATH0"); await delay(baseDelay);
+        await sendElmCommand("ATSP0"); await delay(isBle ? 1000 : 500);
 
         if (tipoConexao === 'serial') {
             readLoop();
@@ -358,30 +366,41 @@ async function inicializarPainelReal() {
         try { await sendElmCommand("0902"); await delay(800); } catch(e) { console.error("Falha VIN:", e); }
         try { await sendElmCommand("01A6"); await delay(500); } catch(e) { console.error("Falha Odo:", e); }
 
-        pollingIntervalId = setInterval(() => { if(!modoSimulacao) sendElmCommand("010C"); }, 500);
+        pollingIntervalId = setInterval(() => { if(!modoSimulacao) sendElmCommand("010C"); }, isBle ? 1000 : 500);
         pollingTelemetriaId = setInterval(() => {
             if(!modoSimulacao) {
-                sendElmCommand("0104"); // Engine Load
-                setTimeout(() => sendElmCommand("010D"), 300); // Speed
-                setTimeout(() => sendElmCommand("0105"), 600); // Coolant Temp
-                setTimeout(() => sendElmCommand("0142"), 900); // Battery Voltage
-                setTimeout(() => sendElmCommand("010F"), 1200); // Intake Air Temp
-                setTimeout(() => sendElmCommand("0111"), 1500); // Throttle Position
-                setTimeout(() => sendElmCommand("0106"), 1800); // STFT
-                setTimeout(() => sendElmCommand("0107"), 2100); // LTFT
-                setTimeout(() => sendElmCommand("010B"), 2400); // MAP
-                setTimeout(() => sendElmCommand("010E"), 2700); // Ignition Timing
-                setTimeout(() => sendElmCommand("0101"), 3000); // Monitor Status + DTC Count
-                setTimeout(() => sendElmCommand("0103"), 3300); // Fuel System Status
-                setTimeout(() => sendElmCommand("0121"), 3600); // Distance since DTCs cleared
-                setTimeout(() => sendElmCommand("014D"), 3900); // Time since engine start
-                setTimeout(() => sendElmCommand("014E"), 4200); // Time since DTCs cleared
-                setTimeout(() => sendElmCommand("0114"), 4500); // O2 Sensor 1 (Bank 1)
-                setTimeout(() => sendElmCommand("0115"), 4800); // O2 Sensor 2 (Bank 1)
-                setTimeout(() => sendElmCommand("0116"), 5100); // O2 Sensor 1 (Bank 2)
-                setTimeout(() => sendElmCommand("0117"), 5400); // O2 Sensor 2 (Bank 2)
+                if (isBle) {
+                    (async () => {
+                        const cmds = ["0104","010D","0105","0142","010F","0111","0106","0107","010B","010E","0101","0103","0121","014D","014E","0114","0115","0116","0117"];
+                        for (const cmd of cmds) {
+                            if (modoSimulacao) break;
+                            await sendElmCommand(cmd);
+                            await delay(150);
+                        }
+                    })();
+                } else {
+                    sendElmCommand("0104");
+                    setTimeout(() => sendElmCommand("010D"), 300);
+                    setTimeout(() => sendElmCommand("0105"), 600);
+                    setTimeout(() => sendElmCommand("0142"), 900);
+                    setTimeout(() => sendElmCommand("010F"), 1200);
+                    setTimeout(() => sendElmCommand("0111"), 1500);
+                    setTimeout(() => sendElmCommand("0106"), 1800);
+                    setTimeout(() => sendElmCommand("0107"), 2100);
+                    setTimeout(() => sendElmCommand("010B"), 2400);
+                    setTimeout(() => sendElmCommand("010E"), 2700);
+                    setTimeout(() => sendElmCommand("0101"), 3000);
+                    setTimeout(() => sendElmCommand("0103"), 3300);
+                    setTimeout(() => sendElmCommand("0121"), 3600);
+                    setTimeout(() => sendElmCommand("014D"), 3900);
+                    setTimeout(() => sendElmCommand("014E"), 4200);
+                    setTimeout(() => sendElmCommand("0114"), 4500);
+                    setTimeout(() => sendElmCommand("0115"), 4800);
+                    setTimeout(() => sendElmCommand("0116"), 5100);
+                    setTimeout(() => sendElmCommand("0117"), 5400);
+                }
             }
-        }, 6000);
+        }, isBle ? 12000 : 6000);
     } catch(e) { console.error("Erro na inicialização:", e); }
 }
 
@@ -389,7 +408,7 @@ let elmPromptResolve = null;
 let elmCommandQueue = [];
 let elmProcessing = false;
 
-function waitForElmPrompt(timeoutMs = 2000) {
+function waitForElmPrompt(timeoutMs = tipoConexao === 'ble' ? 4000 : 2000) {
     return new Promise((resolve) => {
         const timer = setTimeout(() => {
             elmPromptResolve = null;
@@ -418,7 +437,12 @@ async function sendElmCommand(command) {
         try {
             console.log("Enviando BLE:", command);
             const encoder = new TextEncoder();
-            await txChar.writeValue(encoder.encode(command + "\r"));
+            const data = encoder.encode(command + "\r");
+            if (bleWriteType === 'writeWithoutResponse') {
+                await txChar.writeValueWithoutResponse(data);
+            } else {
+                await txChar.writeValueWithResponse(data);
+            }
             await waitForElmPrompt();
         } catch (e) {
             console.error("Erro ao enviar comando BLE:", e);
