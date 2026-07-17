@@ -1739,7 +1739,6 @@ function renderizarCatalogoInteligente() {
     const modelo = localStorage.getItem("car_modelo_nome") || "";
     const categoria = (typeof categoriaAtualCatalogo !== 'undefined') ? categoriaAtualCatalogo : 'filtros';
     const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
-    const busca = buscaCatalogo.toLowerCase();
     
     const catData = BANCO_PECAS[categoria];
     if (!catData) return;
@@ -1756,10 +1755,6 @@ function renderizarCatalogoInteligente() {
     let html = `
         <div style="font-size:11px; color:#94a3b8; margin-bottom:5px; text-transform:uppercase;">
             PEÇAS COMPATÍVEIS${marca ? `: <strong style="color:var(--accent);">${marca} ${modelo}</strong>` : ''}
-        </div>
-        <div style="position:relative; margin-bottom:12px;">
-            <input type="text" id="busca-peca" placeholder="Buscar peça..." value="${buscaCatalogo}" oninput="buscaCatalogo=this.value; renderizarCatalogoInteligente()" style="width:100%; padding:10px 12px 10px 32px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:12px; outline:none; box-sizing:border-box;">
-            <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#475569; font-size:11px;"></i>
         </div>
         <div style="display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:8px; flex-wrap:nowrap;">
             ${Object.entries(BANCO_PECAS).map(([key, cat]) => `<button class="tab-btn ${categoria === key ? 'active' : ''}" onclick="mudarCategoriaCatalogo('${key}')" style="font-size:9px; padding:6px 10px; min-width:70px; white-space:nowrap;">${cat.label}</button>`).join('')}
@@ -1787,18 +1782,10 @@ function renderizarCatalogoInteligente() {
     });
     html += `</div>`;
 
-    let pecasFiltradas = catData.subs[subAtiva] || [];
-    if (busca) {
-        pecasFiltradas = [];
-        subKeys.forEach(sk => {
-            catData.subs[sk].forEach(p => {
-                if (p.nome.toLowerCase().includes(busca)) pecasFiltradas.push(p);
-            });
-        });
-    }
+    const pecasFiltradas = catData.subs[subAtiva] || [];
 
     if (pecasFiltradas.length === 0) {
-        html += `<div style="text-align:center; padding:30px; color:#475569; font-size:12px;">Nenhuma peça encontrada.</div>`;
+        html += `<div style="text-align:center; padding:30px; color:#475569; font-size:12px;">Nenhuma peça nesta categoria.</div>`;
         container.innerHTML = html;
         return;
     }

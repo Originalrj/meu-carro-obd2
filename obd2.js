@@ -102,6 +102,7 @@ function simularDadosOBD() {
 function atualizarPainelConsumo() {
     const elInst = document.getElementById('val-instant');
     const elMedio = document.getElementById('val-consumo-medio');
+    const elKmRest = document.getElementById('val-km-restantes');
     const vel = leiturasOBD.velocidade || 0;
     const consLh = leiturasOBD.consumoInstantaneo || 0;
     if (elInst) {
@@ -115,8 +116,31 @@ function atualizarPainelConsumo() {
         }
     }
     if (elMedio) {
-        const kmLitro = calcularKmPorLitro();
+        let kmLitro = calcularKmPorLitro();
+        if (!kmLitro && consLh > 0 && vel > 5) {
+            kmLitro = (vel / consLh).toFixed(1);
+        }
         elMedio.innerHTML = kmLitro ? `${kmLitro} <small style="font-size:10px">km/L</small>` : `-- <small style="font-size:10px">km/L</small>`;
+    }
+    if (elKmRest) {
+        const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 0;
+        const nivel = leiturasOBD.nivelCombustivel || 0;
+        const litrosRestante = (nivel / 100) * tanqueCap;
+        let kmLitro = calcularKmPorLitro();
+        if (!kmLitro && consLh > 0 && vel > 5) kmLitro = vel / consLh;
+        if (tanqueCap > 0 && litrosRestante > 0 && kmLitro > 0) {
+            const kmRest = Math.round(litrosRestante * parseFloat(kmLitro));
+            elKmRest.innerHTML = `${kmRest.toLocaleString()} <small style="font-size:10px">km</small>`;
+        } else {
+            elKmRest.innerHTML = `-- <small style="font-size:10px">km</small>`;
+        }
+    }
+    const elAutonomia = document.getElementById('val-autonomia');
+    if (elAutonomia) {
+        const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 0;
+        const nivel = leiturasOBD.nivelCombustivel || 0;
+        const litrosRestante = ((nivel / 100) * tanqueCap).toFixed(1);
+        elAutonomia.innerHTML = tanqueCap > 0 ? `${litrosRestante} <small style="font-size:10px">L</small>` : `-- <small style="font-size:10px">L</small>`;
     }
 }
 
@@ -330,6 +354,15 @@ function onBleDisconnect() {
     }
 }
 
+function desconectarVeiculo() {
+    if (tipoConexao === 'ble' && bleDevice) {
+        bleDevice.gatt.disconnect();
+    } else if (tipoConexao === 'serial' && port) {
+        port.close();
+    }
+    onBleDisconnect();
+}
+
 function atualizarUIConectado() {
     const btnConnect = document.getElementById('btn-conectar-carro');
     if (btnConnect) {
@@ -337,6 +370,8 @@ function atualizarUIConectado() {
         btnConnect.style.background = "var(--success)";
         btnConnect.style.color = "#000";
     }
+    const btnDisconnect = document.getElementById('btn-desconectar-carro');
+    if (btnDisconnect) btnDisconnect.classList.remove('hidden');
     const badge = document.querySelector('.header-stats .stat-mini:nth-child(2)');
     if (badge) {
         badge.innerHTML = '<i class="fas fa-satellite-dish"></i> Conectado';
@@ -357,6 +392,8 @@ function atualizarUIDesconectado() {
         btnConnect.style.color = "";
         btnConnect.classList.remove('hidden');
     }
+    const btnDisconnect = document.getElementById('btn-desconectar-carro');
+    if (btnDisconnect) btnDisconnect.classList.add('hidden');
     const obdModeStat = document.querySelector('.header-stats .stat-mini:nth-child(2)');
     if (obdModeStat) {
         obdModeStat.innerHTML = '<i class="fas fa-satellite-dish"></i> Simulado';
