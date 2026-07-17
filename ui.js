@@ -1579,58 +1579,110 @@ function exportarCSV() {
 // BANCO DE DADOS DE COMPONENTES E PREDITIVA
 // ==========================================
 const BANCO_PECAS = {
-    "filtros": [
-        { id: "p1", nome: "Filtro de Óleo", categoria: "Filtros & Alimentação", vidaUtilKm: 10000, prioridade: "Alta" },
-        { id: "p2", nome: "Filtro de Ar do Motor", categoria: "Filtros & Alimentação", vidaUtilKm: 15000, prioridade: "Média" },
-        { id: "p3", nome: "Filtro de Combustível", categoria: "Filtros & Alimentação", vidaUtilKm: 10000, prioridade: "Alta" },
-        { id: "p4", nome: "Filtro de Cabine (Ar Cond.)", categoria: "Filtros & Alimentação", vidaUtilKm: 15000, prioridade: "Baixa" },
-        { id: "p5", nome: "Fluido de Arrefecimento", categoria: "Filtros & Alimentação", vidaUtilKm: 30000, prioridade: "Alta" },
-        { id: "p6", nome: "Fluido de Freio DOT4", categoria: "Filtros & Alimentação", vidaUtilKm: 20000, prioridade: "Alta" },
-        { id: "p7", nome: "Fluido de Direção Hidráulica", categoria: "Filtros & Alimentação", vidaUtilKm: 40000, prioridade: "Média" },
-        { id: "p8", nome: "Óleo de Transmissão", categoria: "Filtros & Alimentação", vidaUtilKm: 40000, prioridade: "Média" }
-    ],
-    "ignicao": [
-        { id: "p9", nome: "Jogo de Velas de Ignição", categoria: "Ignição", vidaUtilKm: 40000, prioridade: "Alta" },
-        { id: "p10", nome: "Bobina de Ignição", categoria: "Ignição", vidaUtilKm: 80000, prioridade: "Média" },
-        { id: "p11", nome: "Cabos de Vela (Jogo)", categoria: "Ignição", vidaUtilKm: 50000, prioridade: "Média" },
-        { id: "p12", nome: "Sensor CKP (Câmbio)", categoria: "Ignição", vidaUtilKm: 100000, prioridade: "Baixa" },
-        { id: "p13", nome: "Sensor MAP", categoria: "Ignição", vidaUtilKm: 100000, prioridade: "Média" },
-        { id: "p14", nome: "Sensor MAF / Fluxo de Ar", categoria: "Ignição", vidaUtilKm: 80000, prioridade: "Média" }
-    ],
-    "freios": [
-        { id: "p15", nome: "Pastilha de Freio Dianteira", categoria: "Freios", vidaUtilKm: 30000, prioridade: "Crítica" },
-        { id: "p16", nome: "Disco de Freio Dianteiro (Par)", categoria: "Freios", vidaUtilKm: 60000, prioridade: "Média" },
-        { id: "p17", nome: "Pastilha de Freio Traseira", categoria: "Freios", vidaUtilKm: 40000, prioridade: "Alta" },
-        { id: "p18", nome: "Disco de Freio Traseiro (Par)", categoria: "Freios", vidaUtilKm: 80000, prioridade: "Média" },
-        { id: "p19", nome: "Mangueira de Freio", categoria: "Freios", vidaUtilKm: 60000, prioridade: "Alta" },
-        { id: "p20", nome: "Líquido de Freio (Troca)", categoria: "Freios", vidaUtilKm: 20000, prioridade: "Alta" }
-    ],
-    "motor": [
-        { id: "p21", nome: "Óleo de Motor 5W40 Sintético", categoria: "Motor & Transmissão", vidaUtilKm: 10000, prioridade: "Alta" },
-        { id: "p22", nome: "Kit Correia Dentada e Tensor", categoria: "Motor & Transmissão", vidaUtilKm: 60000, prioridade: "Crítica" },
-        { id: "p23", nome: "Correia Alternador / Acessórios", categoria: "Motor & Transmissão", vidaUtilKm: 50000, prioridade: "Alta" },
-        { id: "p24", nome: "Termostato do Motor", categoria: "Motor & Transmissão", vidaUtilKm: 80000, prioridade: "Média" },
-        { id: "p25", nome: "Bomba de Água / Radiador", categoria: "Motor & Transmissão", vidaUtilKm: 80000, prioridade: "Média" },
-        { id: "p26", nome: "Vedação de Tela do Óleo", categoria: "Motor & Transmissão", vidaUtilKm: 40000, prioridade: "Média" },
-        { id: "p27", nome: "Retentor do Virabrequim", categoria: "Motor & Transmissão", vidaUtilKm: 100000, prioridade: "Média" }
-    ],
-    "suspensao": [
-        { id: "p28", nome: "Amortecedor Dianteiro (Par)", categoria: "Suspensão & Direção", vidaUtilKm: 60000, prioridade: "Média" },
-        { id: "p29", nome: "Amortecedor Traseiro (Par)", categoria: "Suspensão & Direção", vidaUtilKm: 60000, prioridade: "Média" },
-        { id: "p30", nome: "Mola Dianteira (Par)", categoria: "Suspensão & Direção", vidaUtilKm: 80000, prioridade: "Baixa" },
-        { id: "p31", nome: "Bucha de Balança", categoria: "Suspensão & Direção", vidaUtilKm: 50000, prioridade: "Média" },
-        { id: "p32", nome: "Pivô de Direção", categoria: "Suspensão & Direção", vidaUtilKm: 60000, prioridade: "Alta" },
-        { id: "p33", nome: "Terminal de Direção", categoria: "Suspensão & Direção", vidaUtilKm: 50000, prioridade: "Alta" },
-        { id: "p34", nome: "Kit de Embreagem (Disco + Mola + Rolamento)", categoria: "Suspensão & Direção", vidaUtilKm: 60000, prioridade: "Crítica" }
-    ],
-    "eletrica": [
-        { id: "p35", nome: "Bateria 60Ah", categoria: "Elétrica", vidaUtilKm: 0, prioridade: "Alta", vidaUtilMeses: 48 },
-        { id: "p36", nome: "Alternador", categoria: "Elétrica", vidaUtilKm: 120000, prioridade: "Média" },
-        { id: "p37", nome: "Motor de Partida (Arranque)", categoria: "Elétrica", vidaUtilKm: 150000, prioridade: "Média" },
-        { id: "p38", nome: "Sensor de Temperatura (ECT)", categoria: "Elétrica", vidaUtilKm: 100000, prioridade: "Média" },
-        { id: "p39", nome: "Sensor O₂ (Sonda Lambda)", categoria: "Elétrica", vidaUtilKm: 80000, prioridade: "Alta" },
-        { id: "p40", nome: "Farol Dianteiro (Par)", categoria: "Elétrica", vidaUtilKm: 0, prioridade: "Baixa", vidaUtilMeses: 120 }
-    ]
+    "filtros": {
+        label: "Filtros & Fluidos",
+        subs: {
+            "Filtros": [
+                { id: "p1", nome: "Filtro de Óleo", vidaUtilKm: 10000, prioridade: "Alta" },
+                { id: "p2", nome: "Filtro de Ar do Motor", vidaUtilKm: 15000, prioridade: "Média" },
+                { id: "p3", nome: "Filtro de Combustível", vidaUtilKm: 10000, prioridade: "Alta" },
+                { id: "p4", nome: "Filtro de Cabine (Ar Cond.)", vidaUtilKm: 15000, prioridade: "Baixa" }
+            ],
+            "Fluidos": [
+                { id: "p5", nome: "Fluido de Arrefecimento", vidaUtilKm: 30000, prioridade: "Alta" },
+                { id: "p6", nome: "Fluido de Freio DOT4", vidaUtilKm: 20000, prioridade: "Alta" },
+                { id: "p7", nome: "Fluido de Direção Hidráulica", vidaUtilKm: 40000, prioridade: "Média" },
+                { id: "p8", nome: "Óleo de Transmissão", vidaUtilKm: 40000, prioridade: "Média" }
+            ]
+        }
+    },
+    "ignicao": {
+        label: "Ignição",
+        subs: {
+            "Velas": [
+                { id: "p9", nome: "Jogo de Velas de Ignição", vidaUtilKm: 40000, prioridade: "Alta" },
+                { id: "p11", nome: "Cabos de Vela (Jogo)", vidaUtilKm: 50000, prioridade: "Média" }
+            ],
+            "Bobinas": [
+                { id: "p10", nome: "Bobina de Ignição", vidaUtilKm: 80000, prioridade: "Média" }
+            ],
+            "Sensores": [
+                { id: "p12", nome: "Sensor CKP (Câmbio)", vidaUtilKm: 100000, prioridade: "Baixa" },
+                { id: "p13", nome: "Sensor MAP", vidaUtilKm: 100000, prioridade: "Média" },
+                { id: "p14", nome: "Sensor MAF / Fluxo de Ar", vidaUtilKm: 80000, prioridade: "Média" }
+            ]
+        }
+    },
+    "freios": {
+        label: "Freios",
+        subs: {
+            "Pastilhas": [
+                { id: "p15", nome: "Pastilha de Freio Dianteira", vidaUtilKm: 30000, prioridade: "Crítica" },
+                { id: "p17", nome: "Pastilha de Freio Traseira", vidaUtilKm: 40000, prioridade: "Alta" }
+            ],
+            "Discos": [
+                { id: "p16", nome: "Disco de Freio Dianteiro (Par)", vidaUtilKm: 60000, prioridade: "Média" },
+                { id: "p18", nome: "Disco de Freio Traseiro (Par)", vidaUtilKm: 80000, prioridade: "Média" }
+            ],
+            "Fluido e Mangueiras": [
+                { id: "p19", nome: "Mangueira de Freio", vidaUtilKm: 60000, prioridade: "Alta" },
+                { id: "p20", nome: "Líquido de Freio (Troca)", vidaUtilKm: 20000, prioridade: "Alta" }
+            ]
+        }
+    },
+    "motor": {
+        label: "Motor",
+        subs: {
+            "Óleo e Lubrificação": [
+                { id: "p21", nome: "Óleo de Motor 5W40 Sintético", vidaUtilKm: 10000, prioridade: "Alta" },
+                { id: "p26", nome: "Vedação de Tela do Óleo", vidaUtilKm: 40000, prioridade: "Média" },
+                { id: "p27", nome: "Retentor do Virabrequim", vidaUtilKm: 100000, prioridade: "Média" }
+            ],
+            "Correias": [
+                { id: "p22", nome: "Kit Correia Dentada e Tensor", vidaUtilKm: 60000, prioridade: "Crítica" },
+                { id: "p23", nome: "Correia Alternador / Acessórios", vidaUtilKm: 50000, prioridade: "Alta" }
+            ],
+            "Resfriamento": [
+                { id: "p24", nome: "Termostato do Motor", vidaUtilKm: 80000, prioridade: "Média" },
+                { id: "p25", nome: "Bomba de Água / Radiador", vidaUtilKm: 80000, prioridade: "Média" }
+            ]
+        }
+    },
+    "suspensao": {
+        label: "Suspensão & Embreagem",
+        subs: {
+            "Amortecedores": [
+                { id: "p28", nome: "Amortecedor Dianteiro (Par)", vidaUtilKm: 60000, prioridade: "Média" },
+                { id: "p29", nome: "Amortecedor Traseiro (Par)", vidaUtilKm: 60000, prioridade: "Média" },
+                { id: "p30", nome: "Mola Dianteira (Par)", vidaUtilKm: 80000, prioridade: "Baixa" }
+            ],
+            "Direção": [
+                { id: "p31", nome: "Bucha de Balança", vidaUtilKm: 50000, prioridade: "Média" },
+                { id: "p32", nome: "Pivô de Direção", vidaUtilKm: 60000, prioridade: "Alta" },
+                { id: "p33", nome: "Terminal de Direção", vidaUtilKm: 50000, prioridade: "Alta" }
+            ],
+            "Embreagem": [
+                { id: "p34", nome: "Kit de Embreagem (Disco + Mola + Rolamento)", vidaUtilKm: 60000, prioridade: "Crítica" }
+            ]
+        }
+    },
+    "eletrica": {
+        label: "Elétrica",
+        subs: {
+            "Bateria e Carga": [
+                { id: "p35", nome: "Bateria 60Ah", vidaUtilKm: 0, prioridade: "Alta", vidaUtilMeses: 48 },
+                { id: "p36", nome: "Alternador", vidaUtilKm: 120000, prioridade: "Média" },
+                { id: "p37", nome: "Motor de Partida (Arranque)", vidaUtilKm: 150000, prioridade: "Média" }
+            ],
+            "Sensores": [
+                { id: "p38", nome: "Sensor de Temperatura (ECT)", vidaUtilKm: 100000, prioridade: "Média" },
+                { id: "p39", nome: "Sensor O₂ (Sonda Lambda)", vidaUtilKm: 80000, prioridade: "Alta" }
+            ],
+            "Iluminação": [
+                { id: "p40", nome: "Farol Dianteiro (Par)", vidaUtilKm: 0, prioridade: "Baixa", vidaUtilMeses: 120 }
+            ]
+        }
+    }
 };
 
 const DIAGNOSTICO_PECAS = {
@@ -1656,11 +1708,27 @@ function alternarSubAbaPecas(aba) {
 }
 
 let buscaCatalogo = '';
+let subCategoriaAtual = '';
 
 function mudarCategoriaCatalogo(categoria) {
     categoriaAtualCatalogo = categoria;
+    subCategoriaAtual = '';
     buscaCatalogo = '';
     renderizarCatalogoInteligente();
+}
+
+function mudarSubCategoria(sub) {
+    subCategoriaAtual = sub;
+    renderizarCatalogoInteligente();
+}
+
+function calcularStatusPeca(peca, kmAtual, kmLastMaintenance) {
+    if (peca.vidaUtilKm <= 0) return { pct: 100, kmRestante: Infinity, vencida: false, proxima: false };
+    const lastKm = kmLastMaintenance[peca.nome] || 0;
+    const kmDesdeTroca = kmAtual - lastKm;
+    const kmRestante = peca.vidaUtilKm - kmDesdeTroca;
+    const pct = Math.max(0, Math.min(100, (kmRestante / peca.vidaUtilKm) * 100));
+    return { pct, kmRestante, vencida: kmRestante <= 0, proxima: kmRestante > 0 && kmRestante <= 3000 };
 }
 
 function renderizarCatalogoInteligente() {
@@ -1673,35 +1741,10 @@ function renderizarCatalogoInteligente() {
     const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
     const busca = buscaCatalogo.toLowerCase();
     
-    const categorias = [
-        { key: 'filtros', label: 'Filtros & Fluidos' },
-        { key: 'ignicao', label: 'Ignição' },
-        { key: 'freios', label: 'Freios' },
-        { key: 'motor', label: 'Motor' },
-        { key: 'suspensao', label: 'Suspensão & Embreagem' },
-        { key: 'eletrica', label: 'Elétrica' }
-    ];
-
-    let html = `
-        <div style="font-size: 11px; color: #94a3b8; margin-bottom: 5px; text-transform: uppercase;">
-            PEÇAS COMPATÍVEIS${marca ? `: <strong style="color: var(--accent);">${marca} ${modelo}</strong>` : ''}
-        </div>
-        <div style="position:relative; margin-bottom:12px;">
-            <input type="text" id="busca-peca" placeholder="Buscar peça..." value="${buscaCatalogo}" oninput="buscaCatalogo=this.value; renderizarCatalogoInteligente()" style="width:100%; padding:10px 12px 10px 32px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:12px; outline:none; box-sizing:border-box;">
-            <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#475569; font-size:11px;"></i>
-        </div>
-        <div style="display: flex; gap: 6px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 8px; flex-wrap: nowrap;">
-            ${categorias.map(c => `<button class="tab-btn ${categoria === c.key ? 'active' : ''}" onclick="mudarCategoriaCatalogo('${c.key}')" style="font-size:9px; padding:6px 10px; min-width:70px; white-space:nowrap;">${c.label}</button>`).join('')}
-        </div>
-    `;
-
-    const pecas = (BANCO_PECAS[categoria] || []).filter(p => !busca || p.nome.toLowerCase().includes(busca));
-    
-    if (pecas.length === 0) {
-        html += `<div style="text-align:center; padding:30px; color:#475569; font-size:12px;">Nenhuma peça encontrada.</div>`;
-        container.innerHTML = html;
-        return;
-    }
+    const catData = BANCO_PECAS[categoria];
+    if (!catData) return;
+    const subKeys = Object.keys(catData.subs);
+    const subAtiva = subCategoriaAtual || subKeys[0];
 
     const kmLastMaintenance = {};
     if (typeof registrosManutencao !== 'undefined') {
@@ -1710,39 +1753,86 @@ function renderizarCatalogoInteligente() {
         });
     }
 
-    pecas.forEach(peca => {
-        const lastKm = kmLastMaintenance[peca.nome] || 0;
-        const kmDesdeTroca = kmAtual - lastKm;
-        const kmRestante = peca.vidaUtilKm - kmDesdeTroca;
-        const pctVida = peca.vidaUtilKm > 0 ? Math.max(0, Math.min(100, ((kmRestante / peca.vidaUtilKm) * 100))) : 100;
+    let html = `
+        <div style="font-size:11px; color:#94a3b8; margin-bottom:5px; text-transform:uppercase;">
+            PEÇAS COMPATÍVEIS${marca ? `: <strong style="color:var(--accent);">${marca} ${modelo}</strong>` : ''}
+        </div>
+        <div style="position:relative; margin-bottom:12px;">
+            <input type="text" id="busca-peca" placeholder="Buscar peça..." value="${buscaCatalogo}" oninput="buscaCatalogo=this.value; renderizarCatalogoInteligente()" style="width:100%; padding:10px 12px 10px 32px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:12px; outline:none; box-sizing:border-box;">
+            <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#475569; font-size:11px;"></i>
+        </div>
+        <div style="display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:8px; flex-wrap:nowrap;">
+            ${Object.entries(BANCO_PECAS).map(([key, cat]) => `<button class="tab-btn ${categoria === key ? 'active' : ''}" onclick="mudarCategoriaCatalogo('${key}')" style="font-size:9px; padding:6px 10px; min-width:70px; white-space:nowrap;">${cat.label}</button>`).join('')}
+        </div>
+    `;
+
+    const subCounts = {};
+    subKeys.forEach(sk => {
+        const pecasSub = catData.subs[sk];
+        let count = 0;
+        pecasSub.forEach(p => {
+            const s = calcularStatusPeca(p, kmAtual, kmLastMaintenance);
+            if (s.vencida || s.proxima) count++;
+        });
+        subCounts[sk] = count;
+    });
+
+    html += `<div style="display:flex; gap:6px; margin-bottom:14px; overflow-x:auto; padding-bottom:6px; flex-wrap:nowrap;">`;
+    subKeys.forEach(sk => {
+        const cnt = subCounts[sk];
+        const isActive = subAtiva === sk;
+        html += `<button class="tab-btn ${isActive ? 'active' : ''}" onclick="mudarSubCategoria('${sk}')" style="font-size:9px; padding:6px 10px; white-space:nowrap; display:flex; align-items:center; gap:4px;">
+            ${sk}${cnt > 0 ? `<span style="background:${cnt > 2 ? 'var(--danger)' : 'var(--warning)'}; color:#000; font-size:7px; font-weight:900; padding:1px 5px; border-radius:8px; min-width:14px; text-align:center;">${cnt}</span>` : ''}
+        </button>`;
+    });
+    html += `</div>`;
+
+    let pecasFiltradas = catData.subs[subAtiva] || [];
+    if (busca) {
+        pecasFiltradas = [];
+        subKeys.forEach(sk => {
+            catData.subs[sk].forEach(p => {
+                if (p.nome.toLowerCase().includes(busca)) pecasFiltradas.push(p);
+            });
+        });
+    }
+
+    if (pecasFiltradas.length === 0) {
+        html += `<div style="text-align:center; padding:30px; color:#475569; font-size:12px;">Nenhuma peça encontrada.</div>`;
+        container.innerHTML = html;
+        return;
+    }
+
+    pecasFiltradas.forEach(peca => {
+        const status = calcularStatusPeca(peca, kmAtual, kmLastMaintenance);
         const jaNaLista = listaNecessidades.some(n => n.nome === peca.nome);
         
         let corBorda = 'rgba(255,255,255,0.05)';
         let badgeUrgencia = '';
-        if (pctVida <= 0 && peca.vidaUtilKm > 0) {
+        if (status.vencida) {
             corBorda = 'var(--danger)';
             badgeUrgencia = '<span style="background:var(--danger); color:#fff; font-size:7px; font-weight:900; padding:2px 5px; border-radius:3px; margin-left:6px;">TROCAR</span>';
-        } else if (pctVida <= 20 && peca.vidaUtilKm > 0) {
+        } else if (status.proxima) {
             corBorda = 'var(--warning)';
             badgeUrgencia = '<span style="background:var(--warning); color:#000; font-size:7px; font-weight:900; padding:2px 5px; border-radius:3px; margin-left:6px;">PRÓXIMO</span>';
         }
 
         const queryML = encodeURIComponent(`${peca.nome} ${marca} ${modelo}`);
         const urlML = `https://lista.mercadolivre.com.br/${queryML}`;
-        const kmLabel = peca.vidaUtilKm > 0 ? (kmRestante > 0 ? `Trocar em ~${kmRestante.toLocaleString()} km` : 'Troca atrasada!') : (peca.vidaUtilMeses ? `Vida útil: ${peca.vidaUtilMeses} meses` : '');
+        const kmLabel = peca.vidaUtilKm > 0 ? (status.kmRestante > 0 ? `Trocar em ~${status.kmRestante.toLocaleString()} km` : 'Troca atrasada!') : (peca.vidaUtilMeses ? `Vida útil: ${peca.vidaUtilMeses} meses` : '');
 
         container.innerHTML += `
-            <div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; padding: 14px; margin-bottom: 10px; border-left: 3px solid ${corBorda};">
-                <div style="flex: 1; padding-right: 10px;">
+            <div class="glass-card" style="display:flex; justify-content:space-between; align-items:center; padding:14px; margin-bottom:10px; border-left:3px solid ${corBorda};">
+                <div style="flex:1; padding-right:10px;">
                     <div style="display:flex; align-items:center; flex-wrap:wrap;">
-                        <span style="font-size: 9px; color: var(--accent); text-transform: uppercase;">Vida útil: ${peca.vidaUtilKm > 0 ? peca.vidaUtilKm.toLocaleString() + ' km' : (peca.vidaUtilMeses ? peca.vidaUtilMeses + ' meses' : '--')}</span>
+                        <span style="font-size:9px; color:var(--accent); text-transform:uppercase;">Vida útil: ${peca.vidaUtilKm > 0 ? peca.vidaUtilKm.toLocaleString() + ' km' : (peca.vidaUtilMeses ? peca.vidaUtilMeses + ' meses' : '--')}</span>
                         ${badgeUrgencia}
                     </div>
-                    <strong style="font-size: 13px; color: #fff;">${peca.nome}</strong>
-                    <span style="display: block; font-size: 10px; color: ${pctVida <= 0 ? 'var(--danger)' : pctVida <= 20 ? 'var(--warning)' : '#94a3b8'}; margin-top: 2px;">${kmLabel}</span>
+                    <strong style="font-size:13px; color:#fff;">${peca.nome}</strong>
+                    <span style="display:block; font-size:10px; color:${status.vencida ? 'var(--danger)' : status.proxima ? 'var(--warning)' : '#94a3b8'}; margin-top:2px;">${kmLabel}</span>
                 </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <a href="${urlML}" target="_blank" class="btn-main" style="width: auto; padding: 8px 10px; font-size: 9px; text-decoration: none; display: inline-block;">VER PREÇO</a>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <a href="${urlML}" target="_blank" class="btn-main" style="width:auto; padding:8px 10px; font-size:9px; text-decoration:none; display:inline-block;">VER PREÇO</a>
                     <button class="btn-main" ${jaNaLista ? 'disabled style="width:32px;height:32px;padding:0;font-size:14px;background:rgba(34,197,94,0.1);color:var(--success);border:1px solid var(--success);opacity:0.5;cursor:default;"' : 'style="width:32px;height:32px;padding:0;font-size:14px;background:rgba(0,242,255,0.1);color:var(--accent);border:1px solid var(--accent);" onclick="adicionarPecaComPreco(\'' + peca.nome.replace(/'/g, "\\'") + '\', \'' + (peca.prioridade || 'Média') + '\')"'}>
                         ${jaNaLista ? '<i class="fas fa-check"></i>' : '+'}
                     </button>
@@ -1880,13 +1970,12 @@ function verificarPecasVencidas() {
     }
     const vencidas = [];
     const proximas = [];
-    Object.values(BANCO_PECAS).flat().forEach(peca => {
-        if (peca.vidaUtilKm <= 0) return;
-        const lastKm = kmLastMaintenance[peca.nome] || 0;
-        const kmDesdeTroca = kmAtual - lastKm;
-        const kmRestante = peca.vidaUtilKm - kmDesdeTroca;
-        if (kmRestante <= 0) vencidas.push(peca.nome);
-        else if (kmRestante <= 3000) proximas.push(`${peca.nome} (${kmRestante.toLocaleString()} km)`);
+    Object.values(BANCO_PECAS).forEach(cat => {
+        Object.values(cat.subs).flat().forEach(peca => {
+            const s = calcularStatusPeca(peca, kmAtual, kmLastMaintenance);
+            if (s.vencida) vencidas.push(peca.nome);
+            else if (s.proxima) proximas.push(`${peca.nome} (${s.kmRestante.toLocaleString()} km)`);
+        });
     });
     if (vencidas.length > 0) {
         setTimeout(() => showToast(`⚠️ ${vencidas.length} peça(s) com troca atrasada: ${vencidas.slice(0, 3).join(', ')}${vencidas.length > 3 ? '...' : ''}`, "warning"), 3000);
