@@ -168,7 +168,7 @@
             <div id="scanner-main-ui" class="glass-card" style="text-align:center; padding:15px 10px; min-height: 120px; display: flex; flex-direction: column; justify-content: center; margin-top:10px;">
                 <div id="scan-idle">
                     <i class="fas fa-microchip" style="font-size:2rem; color:var(--accent); margin-bottom:10px; opacity:0.5"></i>
-                    <p style="font-size:11px; color:#94a3b8">Pronto para verificar falhas na ECU.</p>
+                    <button class="btn-main" onclick="runScanner()">Verificar Falhas</button>
                 </div>
                 <div id="scan-active" class="hidden">
                     <div class="loader-scanner"></div>
@@ -194,8 +194,6 @@
                 <div style="font-size:10px; color:var(--accent); text-transform:uppercase; font-weight:800; letter-spacing:1px; margin-bottom:12px;">Leituras em Tempo Real</div>
                 <div id="obd-sensores" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div>
             </div>
-
-            <button class="btn-main" onclick="runScanner()" style="margin-top:15px">Verificar Falhas</button>
         </div>
 
         <!-- LOJA DE PEÇAS -->
