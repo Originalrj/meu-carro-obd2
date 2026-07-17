@@ -393,7 +393,7 @@ async function inicializarPainelReal() {
             if(!modoSimulacao) {
                 if (isBle) {
                     (async () => {
-                        const cmds = ["0104","010D","0105","0142","010F","0111","0106","0107","010B","010E","0101","0103","0121","014D","014E","0114","0115","0116","0117"];
+                        const cmds = ["0104","010D","0105","0142","010F","0111","0106","0107","010B","010A","010E","0101","0103","0121","014D","014E","0114","0115","0116","0117","0146"];
                         for (const cmd of cmds) {
                             if (modoSimulacao) break;
                             await sendElmCommand(cmd);
@@ -410,16 +410,18 @@ async function inicializarPainelReal() {
                     setTimeout(() => sendElmCommand("0106"), 1800);
                     setTimeout(() => sendElmCommand("0107"), 2100);
                     setTimeout(() => sendElmCommand("010B"), 2400);
-                    setTimeout(() => sendElmCommand("010E"), 2700);
-                    setTimeout(() => sendElmCommand("0101"), 3000);
-                    setTimeout(() => sendElmCommand("0103"), 3300);
-                    setTimeout(() => sendElmCommand("0121"), 3600);
-                    setTimeout(() => sendElmCommand("014D"), 3900);
-                    setTimeout(() => sendElmCommand("014E"), 4200);
-                    setTimeout(() => sendElmCommand("0114"), 4500);
-                    setTimeout(() => sendElmCommand("0115"), 4800);
-                    setTimeout(() => sendElmCommand("0116"), 5100);
-                    setTimeout(() => sendElmCommand("0117"), 5400);
+                    setTimeout(() => sendElmCommand("010A"), 2700);
+                    setTimeout(() => sendElmCommand("010E"), 3000);
+                    setTimeout(() => sendElmCommand("0101"), 3300);
+                    setTimeout(() => sendElmCommand("0103"), 3600);
+                    setTimeout(() => sendElmCommand("0121"), 3900);
+                    setTimeout(() => sendElmCommand("014D"), 4200);
+                    setTimeout(() => sendElmCommand("014E"), 4500);
+                    setTimeout(() => sendElmCommand("0114"), 4800);
+                    setTimeout(() => sendElmCommand("0115"), 5100);
+                    setTimeout(() => sendElmCommand("0116"), 5400);
+                    setTimeout(() => sendElmCommand("0117"), 5700);
+                    setTimeout(() => sendElmCommand("0146"), 6000);
                 }
             }
         }, isBle ? 12000 : 6000);
@@ -705,6 +707,9 @@ function parseObdResponse(response) {
                     const pct = (rpm / 8000) * 314;
                     rpmFill.style.strokeDasharray = `${pct} 314`;
                 }
+                const rpmEsperado = leiturasOBD.velocidade > 5 ? (leiturasOBD.velocidade * 30 + 800) : 800;
+                const baseClutch = leiturasOBD.velocidade > 10 ? Math.max(0, ((rpm - rpmEsperado) / rpmEsperado) * 100) : 0;
+                leiturasOBD.deslizamentoEmbreagem = Math.min(30, baseClutch);
             }
         }
 
@@ -730,6 +735,9 @@ function parseObdResponse(response) {
             const match = line.match(/41 0D ([0-9A-F]{2})/);
             if (match) {
                 leiturasOBD.velocidade = parseInt(match[1], 16);
+                const rpmEsperado = leiturasOBD.velocidade > 5 ? (leiturasOBD.velocidade * 30 + 800) : 800;
+                const baseClutch = leiturasOBD.velocidade > 10 ? Math.max(0, ((leiturasOBD.rpm - rpmEsperado) / rpmEsperado) * 100) : 0;
+                leiturasOBD.deslizamentoEmbreagem = Math.min(30, baseClutch);
             }
         }
 
@@ -750,7 +758,7 @@ function parseObdResponse(response) {
         if (line.includes("41 11")) {
             const match = line.match(/41 11 ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.posicaoTBO = (parseInt(match[1], 16) / 2.55).toFixed(1);
+                leiturasOBD.posAcelerador = (parseInt(match[1], 16) / 2.55).toFixed(0);
             }
         }
 
@@ -775,10 +783,24 @@ function parseObdResponse(response) {
             }
         }
 
+        if (line.includes("41 0A")) {
+            const match = line.match(/41 0A ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.pressaoCombustivel = parseInt(match[1], 16) * 3;
+            }
+        }
+
         if (line.includes("41 0E")) {
             const match = line.match(/41 0E ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.tempoIgnicao = (parseInt(match[1], 16) / 2) - 64;
+                leiturasOBD.pontoIgnicao = (parseInt(match[1], 16) / 2) - 64;
+            }
+        }
+
+        if (line.includes("41 46")) {
+            const match = line.match(/41 46 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tempAmbiente = parseInt(match[1], 16) - 40;
             }
         }
 
@@ -828,6 +850,7 @@ function parseObdResponse(response) {
             const match = line.match(/41 14 ([0-9A-F]{2}) ([0-9A-F]{2})/);
             if (match) {
                 leiturasOBD.o2Sensor1 = (parseInt(match[2], 16) / 200).toFixed(2);
+                leiturasOBD.nivelO2 = parseFloat(leiturasOBD.o2Sensor1);
             }
         }
 
