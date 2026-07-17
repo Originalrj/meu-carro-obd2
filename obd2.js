@@ -99,6 +99,18 @@ function simularDadosOBD() {
     renderizarDiagnostico();
 }
 
+function editarOdometro() {
+    const atual = parseInt(localStorage.getItem("car_km")) || 0;
+    const novo = prompt("Digite a quilometragem atual do veículo:", atual);
+    if (novo !== null && !isNaN(novo) && parseInt(novo) > 0) {
+        localStorage.setItem("car_km", parseInt(novo));
+        const odoEl = document.getElementById('txt-odometro');
+        if (odoEl) odoEl.innerHTML = parseInt(novo).toLocaleString() + ' <span style="font-size: 0.9rem; color: #aaa;">KM</span>';
+        showToast("Odômetro atualizado para " + parseInt(novo).toLocaleString() + " KM", "success");
+        if (typeof renderizarDadosGlobais === 'function') renderizarDadosGlobais();
+    }
+}
+
 function atualizarPainelConsumo() {
     const elInst = document.getElementById('val-instant');
     const elMedio = document.getElementById('val-consumo-medio');
