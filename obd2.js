@@ -1,4 +1,4 @@
-// =============================================
+﻿// =============================================
 // obd2.js — Conexão ELM327, simulação e leitura de dados OBD2
 // =============================================
 
@@ -745,7 +745,7 @@ function parseObdResponse(response) {
         if (line.includes("41 04")) {
             const match = line.match(/41 04 ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.cargaMotor = (parseInt(match[1], 16) / 2.55).toFixed(1);
+                leiturasOBD.cargaMotor = parseInt(match[1], 16) / 2.55;
             }
         }
 
@@ -759,21 +759,21 @@ function parseObdResponse(response) {
         if (line.includes("41 11")) {
             const match = line.match(/41 11 ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.posAcelerador = (parseInt(match[1], 16) / 2.55).toFixed(0);
+                leiturasOBD.posAcelerador = parseInt(match[1], 16) / 2.55;
             }
         }
 
         if (line.includes("41 06")) {
             const match = line.match(/41 06 ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.fuelTrimSTFT = ((parseInt(match[1], 16) / 1.28) - 100).toFixed(1);
+                leiturasOBD.fuelTrimSTFT = (parseInt(match[1], 16) / 1.28) - 100;
             }
         }
 
         if (line.includes("41 07")) {
             const match = line.match(/41 07 ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.fuelTrimLTFT = ((parseInt(match[1], 16) / 1.28) - 100).toFixed(1);
+                leiturasOBD.fuelTrimLTFT = (parseInt(match[1], 16) / 1.28) - 100;
             }
         }
 
@@ -838,7 +838,7 @@ function parseObdResponse(response) {
                 const byteB = parseInt(match[2], 16);
                 const fuelStatus1 = (byteA >> 4) & 0x0F;
                 const fuelStatus2 = byteA & 0x0F;
-                const statuses = { 1: 'Open Loop (冷启动)', 2: 'Closed Loop', 3: 'Open Loop (贫油)', 4: 'Open Loop (富油)', 5: 'Closed Loop (falha)', 6: '--' };
+                const statuses = { 1: 'Open Loop (cold start)', 2: 'Closed Loop', 3: 'Open Loop (lean)', 4: 'Open Loop (rich)', 5: 'Closed Loop (fault)', 6: '--' };
                 leiturasOBD.statusSistemaComb = statuses[fuelStatus1] || '--';
             }
         }
@@ -867,7 +867,7 @@ function parseObdResponse(response) {
         if (line.includes("41 14")) {
             const match = line.match(/41 14 ([0-9A-F]{2}) ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.o2Sensor1 = (parseInt(match[2], 16) / 200).toFixed(2);
+                leiturasOBD.o2Sensor1 = parseInt(match[2], 16) / 200;
                 leiturasOBD.nivelO2 = parseFloat(leiturasOBD.o2Sensor1);
             }
         }
@@ -875,21 +875,21 @@ function parseObdResponse(response) {
         if (line.includes("41 15")) {
             const match = line.match(/41 15 ([0-9A-F]{2}) ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.o2Sensor2 = (parseInt(match[2], 16) / 200).toFixed(2);
+                leiturasOBD.o2Sensor2 = parseInt(match[2], 16) / 200;
             }
         }
 
         if (line.includes("41 16")) {
             const match = line.match(/41 16 ([0-9A-F]{2}) ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.o2Sensor3 = (parseInt(match[2], 16) / 200).toFixed(2);
+                leiturasOBD.o2Sensor3 = parseInt(match[2], 16) / 200;
             }
         }
 
         if (line.includes("41 17")) {
             const match = line.match(/41 17 ([0-9A-F]{2}) ([0-9A-F]{2})/);
             if (match) {
-                leiturasOBD.o2Sensor4 = (parseInt(match[2], 16) / 200).toFixed(2);
+                leiturasOBD.o2Sensor4 = parseInt(match[2], 16) / 200;
             }
         }
 
@@ -1199,13 +1199,13 @@ function renderizarDiagnostico() {
     }
 
     // --- Sistema de Combustível ---
-    if (L.statusSistemaComb === 'Open Loop (冷启动)' || L.statusSistemaComb === 'Open Loop (贫油)' || L.statusSistemaComb === 'Open Loop (富油)') {
+    if (L.statusSistemaComb === 'Open Loop (cold start)' || L.statusSistemaComb === 'Open Loop (lean)' || L.statusSistemaComb === 'Open Loop (rich)') {
         if (L.tempMotor > 80) {
             if (nivelGeral !== 'critico') nivelGeral = 'alerta';
             alertas.push({ nivel: 'alerta', msg: 'Sistema em Open Loop com motor quente.', detalhe: `Status: ${L.statusSistemaComb}` });
             sugestoes.push({ texto: 'Motor aquecido deveria estar em Closed Loop. Verificar sensores O₂ e sensor de temperatura.', prioridade: 'media' });
         }
-    } else if (L.statusSistemaComb === 'Closed Loop (falha)') {
+    } else if (L.statusSistemaComb === 'Closed Loop (fault)') {
         nivelGeral = 'critico';
         alertas.push({ nivel: 'critico', msg: 'Sistema de combustível com falha!', detalhe: 'Closed Loop com erro detectado' });
         sugestoes.push({ texto: 'Falha no controle de mistura. Verificar sensores O₂, injetores e sensor MAF.', prioridade: 'alta' });
