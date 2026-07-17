@@ -239,8 +239,8 @@
                 </div>
             </div>
 
-            <div class="glass-card" style="margin-top:10px;">
-                <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:15px;"><i class="fas fa-sliders-h"></i> Alterar Dados do Veículo</div>
+            <div class="glass-card" style="margin-top:10px;" id="card-form-veiculo">
+                <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:15px;"><i class="fas fa-sliders-h"></i> <span id="prof-form-titulo">Adicionar novo Veículo</span></div>
                 
                 <div style="margin-bottom:12px;">
                     <label>Quilometragem Atual (KM) *</label>
@@ -280,7 +280,7 @@
                     <input type="text" id="inp-prof-motor" placeholder="Ex: EA111 1.6 8V, Fire 1.0 8V">
                 </div>
 
-                <button class="btn-main" onclick="salvarPerfil()">Atualizar Configurações</button>
+                <button class="btn-main" onclick="salvarPerfil()" id="prof-btn-salvar">Salvar Veículo</button>
             </div>
 
             <div class="glass-card" style="margin-top:10px;">

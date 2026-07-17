@@ -458,8 +458,13 @@ function renderizarDadosGlobais() {
     document.getElementById("txt-odometro").innerText = km.toLocaleString() + " KM";
     document.getElementById("lbl-veiculo-nome").innerText = `${marcaNome} ${modeloNome}`.trim();
     document.getElementById("lbl-veiculo-ano").innerText = `Ano: ${ano}`;
-    
-    // Exibe placa no perfil (se o elemento existir)
+
+    const veiculoCadastrado = marcaNome && marcaNome !== "Não Configurado";
+    const formTitulo = document.getElementById("prof-form-titulo");
+    const btnSalvar = document.getElementById("prof-btn-salvar");
+    if (formTitulo) formTitulo.innerText = veiculoCadastrado ? "Atualizar Dados do Veículo" : "Adicionar novo Veículo";
+    if (btnSalvar) btnSalvar.innerText = veiculoCadastrado ? "Atualizar" : "Salvar Veículo";
+
     const lblPlaca = document.getElementById("lbl-placa");
     if (lblPlaca) {
         if (placa) {
