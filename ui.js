@@ -1813,7 +1813,7 @@ function renderizarCatalogoInteligente() {
         const urlML = `https://lista.mercadolivre.com.br/${queryML}`;
         const kmLabel = peca.vidaUtilKm > 0 ? (status.kmRestante > 0 ? `Trocar em ~${status.kmRestante.toLocaleString()} km` : 'Troca atrasada!') : (peca.vidaUtilMeses ? `Vida útil: ${peca.vidaUtilMeses} meses` : '');
 
-        container.innerHTML += `
+        html += `
             <div class="glass-card" style="display:flex; justify-content:space-between; align-items:center; padding:14px; margin-bottom:10px; border-left:3px solid ${corBorda};">
                 <div style="flex:1; padding-right:10px;">
                     <div style="display:flex; align-items:center; flex-wrap:wrap;">
@@ -1832,6 +1832,8 @@ function renderizarCatalogoInteligente() {
             </div>
         `;
     });
+
+    container.innerHTML = html;
 }
 
 function adicionarPecaComPreco(nome, prioridade) {
