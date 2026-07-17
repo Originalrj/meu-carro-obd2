@@ -6,7 +6,7 @@ const API_FIPE_V2 = "https://fipe.parallelum.com.br/api/v2/cars/brands";
 let marcasCache = [];
 let modelosCache = {};
 let anosPorModeloCache = {};
-let listaNecessidades = [];
+let listaNecessidades = JSON.parse(localStorage.getItem("car_lista_necessidades") || "[]");
 let categoriaAtualCatalogo = "filtros";
 
 function cacheGet(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
@@ -999,7 +999,18 @@ function saveMaintRecord() {
     }
     salvarRegistrosManutencao();
 
-    // Limpa o formulário para o próximo registro
+    const nomeLower = item.toLowerCase();
+    const removidos = [];
+    listaNecessidades = listaNecessidades.filter(n => {
+        const match = n.nome.toLowerCase().includes(nomeLower) || nomeLower.includes(n.nome.toLowerCase().split(' ')[0]);
+        if (match) removidos.push(n.nome);
+        return !match;
+    });
+    if (removidos.length > 0) {
+        localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+        showToast(`${removidos.join(', ')} removido(s) do Checklist de Peças (já registrado na manutenção).`, "info");
+    }
+
     ['maint-sistema', 'maint-item', 'maint-marca', 'maint-oficina', 'maint-data', 'maint-km', 'maint-custo-peca', 'maint-custo-mao', 'maint-notas'].forEach(id => {
         document.getElementById(id).value = '';
     });
@@ -1228,7 +1239,7 @@ function importarDadosJSON(inputEl) {
             });
             salvarRegistrosManutencao();
 
-            listaNecessidades = dados.planoAquisicao || [];
+            listaNecessidades = dados.checklistPecas || dados.planoAquisicao || [];
 
             if (dados.abastecimentos) {
                 abastecimentos = dados.abastecimentos;
@@ -1571,19 +1582,54 @@ const BANCO_PECAS = {
     "filtros": [
         { id: "p1", nome: "Filtro de Óleo", categoria: "Filtros & Alimentação", vidaUtilKm: 10000, prioridade: "Alta" },
         { id: "p2", nome: "Filtro de Ar do Motor", categoria: "Filtros & Alimentação", vidaUtilKm: 15000, prioridade: "Média" },
-        { id: "p3", nome: "Filtro de Combustível", categoria: "Filtros & Alimentação", vidaUtilKm: 10000, prioridade: "Alta" }
+        { id: "p3", nome: "Filtro de Combustível", categoria: "Filtros & Alimentação", vidaUtilKm: 10000, prioridade: "Alta" },
+        { id: "p4", nome: "Filtro de Cabine (Ar Cond.)", categoria: "Filtros & Alimentação", vidaUtilKm: 15000, prioridade: "Baixa" },
+        { id: "p5", nome: "Fluido de Arrefecimento", categoria: "Filtros & Alimentação", vidaUtilKm: 30000, prioridade: "Alta" },
+        { id: "p6", nome: "Fluido de Freio DOT4", categoria: "Filtros & Alimentação", vidaUtilKm: 20000, prioridade: "Alta" },
+        { id: "p7", nome: "Fluido de Direção Hidráulica", categoria: "Filtros & Alimentação", vidaUtilKm: 40000, prioridade: "Média" },
+        { id: "p8", nome: "Óleo de Transmissão", categoria: "Filtros & Alimentação", vidaUtilKm: 40000, prioridade: "Média" }
     ],
     "ignicao": [
-        { id: "p4", nome: "Jogo de Velas de Ignição", categoria: "Ignição", vidaUtilKm: 40000, prioridade: "Alta" },
-        { id: "p5", nome: "Bobina de Ignição", categoria: "Ignição", vidaUtilKm: 80000, prioridade: "Média" }
+        { id: "p9", nome: "Jogo de Velas de Ignição", categoria: "Ignição", vidaUtilKm: 40000, prioridade: "Alta" },
+        { id: "p10", nome: "Bobina de Ignição", categoria: "Ignição", vidaUtilKm: 80000, prioridade: "Média" },
+        { id: "p11", nome: "Cabos de Vela (Jogo)", categoria: "Ignição", vidaUtilKm: 50000, prioridade: "Média" },
+        { id: "p12", nome: "Sensor CKP (Câmbio)", categoria: "Ignição", vidaUtilKm: 100000, prioridade: "Baixa" },
+        { id: "p13", nome: "Sensor MAP", categoria: "Ignição", vidaUtilKm: 100000, prioridade: "Média" },
+        { id: "p14", nome: "Sensor MAF / Fluxo de Ar", categoria: "Ignição", vidaUtilKm: 80000, prioridade: "Média" }
     ],
     "freios": [
-        { id: "p6", nome: "Pastilha de Freio Dianteira", categoria: "Freios", vidaUtilKm: 30000, prioridade: "Crítica" },
-        { id: "p7", nome: "Disco de Freio (Par)", categoria: "Freios", vidaUtilKm: 60000, prioridade: "Média" }
+        { id: "p15", nome: "Pastilha de Freio Dianteira", categoria: "Freios", vidaUtilKm: 30000, prioridade: "Crítica" },
+        { id: "p16", nome: "Disco de Freio Dianteiro (Par)", categoria: "Freios", vidaUtilKm: 60000, prioridade: "Média" },
+        { id: "p17", nome: "Pastilha de Freio Traseira", categoria: "Freios", vidaUtilKm: 40000, prioridade: "Alta" },
+        { id: "p18", nome: "Disco de Freio Traseiro (Par)", categoria: "Freios", vidaUtilKm: 80000, prioridade: "Média" },
+        { id: "p19", nome: "Mangueira de Freio", categoria: "Freios", vidaUtilKm: 60000, prioridade: "Alta" },
+        { id: "p20", nome: "Líquido de Freio (Troca)", categoria: "Freios", vidaUtilKm: 20000, prioridade: "Alta" }
     ],
     "motor": [
-        { id: "p8", nome: "Óleo de Motor 5W40 Sintético", categoria: "Motor & Transmissão", vidaUtilKm: 10000, prioridade: "Alta" },
-        { id: "p9", nome: "Kit Correia Dentada e Tensor", categoria: "Motor & Transmissão", vidaUtilKm: 60000, prioridade: "Crítica" }
+        { id: "p21", nome: "Óleo de Motor 5W40 Sintético", categoria: "Motor & Transmissão", vidaUtilKm: 10000, prioridade: "Alta" },
+        { id: "p22", nome: "Kit Correia Dentada e Tensor", categoria: "Motor & Transmissão", vidaUtilKm: 60000, prioridade: "Crítica" },
+        { id: "p23", nome: "Correia Alternador / Acessórios", categoria: "Motor & Transmissão", vidaUtilKm: 50000, prioridade: "Alta" },
+        { id: "p24", nome: "Termostato do Motor", categoria: "Motor & Transmissão", vidaUtilKm: 80000, prioridade: "Média" },
+        { id: "p25", nome: "Bomba de Água / Radiador", categoria: "Motor & Transmissão", vidaUtilKm: 80000, prioridade: "Média" },
+        { id: "p26", nome: "Vedação de Tela do Óleo", categoria: "Motor & Transmissão", vidaUtilKm: 40000, prioridade: "Média" },
+        { id: "p27", nome: "Retentor do Virabrequim", categoria: "Motor & Transmissão", vidaUtilKm: 100000, prioridade: "Média" }
+    ],
+    "suspensao": [
+        { id: "p28", nome: "Amortecedor Dianteiro (Par)", categoria: "Suspensão & Direção", vidaUtilKm: 60000, prioridade: "Média" },
+        { id: "p29", nome: "Amortecedor Traseiro (Par)", categoria: "Suspensão & Direção", vidaUtilKm: 60000, prioridade: "Média" },
+        { id: "p30", nome: "Mola Dianteira (Par)", categoria: "Suspensão & Direção", vidaUtilKm: 80000, prioridade: "Baixa" },
+        { id: "p31", nome: "Bucha de Balança", categoria: "Suspensão & Direção", vidaUtilKm: 50000, prioridade: "Média" },
+        { id: "p32", nome: "Pivô de Direção", categoria: "Suspensão & Direção", vidaUtilKm: 60000, prioridade: "Alta" },
+        { id: "p33", nome: "Terminal de Direção", categoria: "Suspensão & Direção", vidaUtilKm: 50000, prioridade: "Alta" },
+        { id: "p34", nome: "Kit de Embreagem (Disco + Mola + Rolamento)", categoria: "Suspensão & Direção", vidaUtilKm: 60000, prioridade: "Crítica" }
+    ],
+    "eletrica": [
+        { id: "p35", nome: "Bateria 60Ah", categoria: "Elétrica", vidaUtilKm: 0, prioridade: "Alta", vidaUtilMeses: 48 },
+        { id: "p36", nome: "Alternador", categoria: "Elétrica", vidaUtilKm: 120000, prioridade: "Média" },
+        { id: "p37", nome: "Motor de Partida (Arranque)", categoria: "Elétrica", vidaUtilKm: 150000, prioridade: "Média" },
+        { id: "p38", nome: "Sensor de Temperatura (ECT)", categoria: "Elétrica", vidaUtilKm: 100000, prioridade: "Média" },
+        { id: "p39", nome: "Sensor O₂ (Sonda Lambda)", categoria: "Elétrica", vidaUtilKm: 80000, prioridade: "Alta" },
+        { id: "p40", nome: "Farol Dianteiro (Par)", categoria: "Elétrica", vidaUtilKm: 0, prioridade: "Baixa", vidaUtilMeses: 120 }
     ]
 };
 
@@ -1609,69 +1655,120 @@ function alternarSubAbaPecas(aba) {
     else if (aba === 'sacola') renderizarPlanoNecessidades();
 }
 
-// Muda a subcategoria dentro do catálogo inteligente
+let buscaCatalogo = '';
+
 function mudarCategoriaCatalogo(categoria) {
     categoriaAtualCatalogo = categoria;
+    buscaCatalogo = '';
     renderizarCatalogoInteligente();
 }
 
-// Renderiza o Catálogo com os Seletores de Categoria
 function renderizarCatalogoInteligente() {
     const container = document.getElementById('catalogo-container');
     if (!container) return;
     
-    const marca = localStorage.getItem("car_marca_nome") || "VW";
-    const modelo = localStorage.getItem("car_modelo_nome") || "GOL 8V";
+    const marca = localStorage.getItem("car_marca_nome") || "";
+    const modelo = localStorage.getItem("car_modelo_nome") || "";
     const categoria = (typeof categoriaAtualCatalogo !== 'undefined') ? categoriaAtualCatalogo : 'filtros';
+    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const busca = buscaCatalogo.toLowerCase();
     
-    container.innerHTML = `
+    const categorias = [
+        { key: 'filtros', label: 'Filtros & Fluidos' },
+        { key: 'ignicao', label: 'Ignição' },
+        { key: 'freios', label: 'Freios' },
+        { key: 'motor', label: 'Motor' },
+        { key: 'suspensao', label: 'Suspensão & Embreagem' },
+        { key: 'eletrica', label: 'Elétrica' }
+    ];
+
+    let html = `
         <div style="font-size: 11px; color: #94a3b8; margin-bottom: 5px; text-transform: uppercase;">
-            PEÇAS COMPATÍVEIS COM: <strong style="color: var(--accent);">${marca} ${modelo}</strong>
+            PEÇAS COMPATÍVEIS${marca ? `: <strong style="color: var(--accent);">${marca} ${modelo}</strong>` : ''}
         </div>
-        <div style="display: flex; gap: 6px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 8px;">
-            <button class="tab-btn ${categoria === 'filtros' ? 'active' : ''}" onclick="mudarCategoriaCatalogo('filtros')" style="font-size:10px; padding:8px 12px; min-width:80px;">Filtros</button>
-            <button class="tab-btn ${categoria === 'ignicao' ? 'active' : ''}" onclick="mudarCategoriaCatalogo('ignicao')" style="font-size:10px; padding:8px 12px; min-width:80px;">Ignição</button>
-            <button class="tab-btn ${categoria === 'freios' ? 'active' : ''}" onclick="mudarCategoriaCatalogo('freios')" style="font-size:10px; padding:8px 12px; min-width:80px;">Freios</button>
-            <button class="tab-btn ${categoria === 'motor' ? 'active' : ''}" onclick="mudarCategoriaCatalogo('motor')" style="font-size:10px; padding:8px 12px; min-width:80px;">Motor</button>
+        <div style="position:relative; margin-bottom:12px;">
+            <input type="text" id="busca-peca" placeholder="Buscar peça..." value="${buscaCatalogo}" oninput="buscaCatalogo=this.value; renderizarCatalogoInteligente()" style="width:100%; padding:10px 12px 10px 32px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:12px; outline:none; box-sizing:border-box;">
+            <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#475569; font-size:11px;"></i>
+        </div>
+        <div style="display: flex; gap: 6px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 8px; flex-wrap: nowrap;">
+            ${categorias.map(c => `<button class="tab-btn ${categoria === c.key ? 'active' : ''}" onclick="mudarCategoriaCatalogo('${c.key}')" style="font-size:9px; padding:6px 10px; min-width:70px; white-space:nowrap;">${c.label}</button>`).join('')}
         </div>
     `;
 
-    // Renderiza as peças da categoria selecionada
-    if (typeof BANCO_PECAS !== 'undefined' && BANCO_PECAS[categoria]) {
-        BANCO_PECAS[categoria].forEach(peca => {
-            const card = document.createElement('div');
-            card.className = 'glass-card';
-            card.style = 'display: flex; justify-content: space-between; align-items: center; padding: 14px; margin-bottom: 10px;';
-            
-            const queryML = encodeURIComponent(`${peca.nome} ${marca} ${modelo}`);
-            const urlML = `https://lista.mercadolivre.com.br/${queryML}`;
+    const pecas = (BANCO_PECAS[categoria] || []).filter(p => !busca || p.nome.toLowerCase().includes(busca));
+    
+    if (pecas.length === 0) {
+        html += `<div style="text-align:center; padding:30px; color:#475569; font-size:12px;">Nenhuma peça encontrada.</div>`;
+        container.innerHTML = html;
+        return;
+    }
 
-            card.innerHTML = `
-                <div style="flex: 1; padding-right: 10px;">
-                    <span style="font-size: 9px; color: var(--accent); display: block; text-transform: uppercase;">Vida útil estim.: ${peca.vidaUtilKm.toLocaleString()} km</span>
-                    <strong style="font-size: 13px; color: #fff;">${peca.nome}</strong>
-                    <span style="display: block; font-size: 11px; color: #94a3b8; margin-top: 2px;">Verificar valor real</span>
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <a href="${urlML}" target="_blank" class="btn-main" style="width: auto; padding: 8px 12px; font-size: 10px; text-decoration: none; display: inline-block;">
-                        VER PREÇO
-                    </a>
-                    <button class="btn-main" 
-                            style="width: 32px; height: 32px; padding: 0; font-size: 14px; background: rgba(0, 242, 255, 0.1); color: var(--accent); border: 1px solid var(--accent);" 
-                            onclick="adicionarAosNecessarios('${peca.nome}', 'Seleção Manual', 0, '${peca.prioridade}', 85)">
-                        +
-                    </button>
-                </div>
-            `;
-            container.appendChild(card);
+    const kmLastMaintenance = {};
+    if (typeof registrosManutencao !== 'undefined') {
+        registrosManutencao.forEach(r => {
+            if (r.item && r.km) kmLastMaintenance[r.item] = Math.max(kmLastMaintenance[r.item] || 0, r.km);
         });
     }
+
+    pecas.forEach(peca => {
+        const lastKm = kmLastMaintenance[peca.nome] || 0;
+        const kmDesdeTroca = kmAtual - lastKm;
+        const kmRestante = peca.vidaUtilKm - kmDesdeTroca;
+        const pctVida = peca.vidaUtilKm > 0 ? Math.max(0, Math.min(100, ((kmRestante / peca.vidaUtilKm) * 100))) : 100;
+        const jaNaLista = listaNecessidades.some(n => n.nome === peca.nome);
+        
+        let corBorda = 'rgba(255,255,255,0.05)';
+        let badgeUrgencia = '';
+        if (pctVida <= 0 && peca.vidaUtilKm > 0) {
+            corBorda = 'var(--danger)';
+            badgeUrgencia = '<span style="background:var(--danger); color:#fff; font-size:7px; font-weight:900; padding:2px 5px; border-radius:3px; margin-left:6px;">TROCAR</span>';
+        } else if (pctVida <= 20 && peca.vidaUtilKm > 0) {
+            corBorda = 'var(--warning)';
+            badgeUrgencia = '<span style="background:var(--warning); color:#000; font-size:7px; font-weight:900; padding:2px 5px; border-radius:3px; margin-left:6px;">PRÓXIMO</span>';
+        }
+
+        const queryML = encodeURIComponent(`${peca.nome} ${marca} ${modelo}`);
+        const urlML = `https://lista.mercadolivre.com.br/${queryML}`;
+        const kmLabel = peca.vidaUtilKm > 0 ? (kmRestante > 0 ? `Trocar em ~${kmRestante.toLocaleString()} km` : 'Troca atrasada!') : (peca.vidaUtilMeses ? `Vida útil: ${peca.vidaUtilMeses} meses` : '');
+
+        container.innerHTML += `
+            <div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; padding: 14px; margin-bottom: 10px; border-left: 3px solid ${corBorda};">
+                <div style="flex: 1; padding-right: 10px;">
+                    <div style="display:flex; align-items:center; flex-wrap:wrap;">
+                        <span style="font-size: 9px; color: var(--accent); text-transform: uppercase;">Vida útil: ${peca.vidaUtilKm > 0 ? peca.vidaUtilKm.toLocaleString() + ' km' : (peca.vidaUtilMeses ? peca.vidaUtilMeses + ' meses' : '--')}</span>
+                        ${badgeUrgencia}
+                    </div>
+                    <strong style="font-size: 13px; color: #fff;">${peca.nome}</strong>
+                    <span style="display: block; font-size: 10px; color: ${pctVida <= 0 ? 'var(--danger)' : pctVida <= 20 ? 'var(--warning)' : '#94a3b8'}; margin-top: 2px;">${kmLabel}</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <a href="${urlML}" target="_blank" class="btn-main" style="width: auto; padding: 8px 10px; font-size: 9px; text-decoration: none; display: inline-block;">VER PREÇO</a>
+                    <button class="btn-main" ${jaNaLista ? 'disabled style="width:32px;height:32px;padding:0;font-size:14px;background:rgba(34,197,94,0.1);color:var(--success);border:1px solid var(--success);opacity:0.5;cursor:default;"' : 'style="width:32px;height:32px;padding:0;font-size:14px;background:rgba(0,242,255,0.1);color:var(--accent);border:1px solid var(--accent);" onclick="adicionarPecaComPreco(\'' + peca.nome.replace(/'/g, "\\'") + '\', \'' + (peca.prioridade || 'Média') + '\')"'}>
+                        ${jaNaLista ? '<i class="fas fa-check"></i>' : '+'}
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+}
+
+function adicionarPecaComPreco(nome, prioridade) {
+    if (listaNecessidades.some(item => item.nome === nome)) return;
+    const precoStr = prompt(`Preço estimado para ${nome}:`, '');
+    if (precoStr === null) return;
+    const preco = parseFloat(precoStr.replace(',', '.')) || 0;
+    listaNecessidades.push({ nome, motivo: 'Seleção Manual', preco, prioridade, vidaUtilPct: 85 });
+    localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+    showToast(`${nome} adicionado ao Checklist de Peças!`, "success");
+    renderizarCatalogoInteligente();
+    if (!document.getElementById('sacola-container').classList.contains('hidden')) renderizarPlanoNecessidades();
 }
 
 function adicionarAosNecessarios(nome, motivo, preco = 0, prioridade = "Média", vidaUtilPct = 90) {
     if (listaNecessidades.some(item => item.nome === nome)) return;
     listaNecessidades.push({ nome, motivo, preco, prioridade, vidaUtilPct });
-    showToast(`${nome} adicionado ao seu Plano de Aquisição!`, "success");
+    localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+    showToast(`${nome} adicionado ao Checklist de Peças!`, "success");
     if (!document.getElementById('sacola-container').classList.contains('hidden')) renderizarPlanoNecessidades();
 }
 
@@ -1687,63 +1784,115 @@ function renderizarPlanoNecessidades() {
     const container = document.getElementById('sacola-container');
     if (!container) return;
     
-    container.innerHTML = '<div style="font-size:12px; font-weight: 800; color: var(--accent); margin-bottom: 15px; text-transform:uppercase;">Plano de Aquisição Ativo</div>';
+    container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <div style="font-size:12px; font-weight:800; color:var(--accent); text-transform:uppercase;">Checklist de Peças</div>
+            <button class="btn-main" style="font-size:10px; padding:6px 12px;" onclick="adicionarPecaCustom()"><i class="fas fa-plus"></i> Adicionar Peça</button>
+        </div>
+    `;
 
     if (listaNecessidades.length === 0) {
-        container.innerHTML += '<div style="text-align:center; padding:30px; color:#94a3b8; font-size:13px;">Nenhum item pendente no plano.</div>';
+        container.innerHTML += '<div style="text-align:center; padding:30px; color:#475569; font-size:12px;">Nenhuma peça no checklist.<br>Adicione do catálogo ou crie uma personalizada.</div>';
         return;
     }
 
     let totalEstimado = 0;
-    listaNecessidades.sort((a, b) => (a.prioridade === "Crítica" ? -1 : 1));
+    listaNecessidades.sort((a, b) => {
+        const ordem = { "Crítica": 0, "Alta": 1, "Média": 2, "Baixa": 3 };
+        return (ordem[a.prioridade] ?? 2) - (ordem[b.prioridade] ?? 2);
+    });
 
     listaNecessidades.forEach((item, index) => {
         totalEstimado += (item.preco || 0);
         const corAlerta = obterCorPrioridade(item.prioridade);
         
-        const card = document.createElement('div');
-        card.className = 'glass-card';
-        card.style = `border-left: 4px solid ${corAlerta}; padding: 14px; margin-bottom: 10px; position: relative;`;
-        card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
-                <div>
-                    <span style="background: ${corAlerta}; color: #000; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 3px; text-transform: uppercase;">Prioridade: ${item.prioridade}</span>
-                    <strong style="font-size: 14px; color: #fff; display: block; margin-top: 4px;">${item.nome}</strong>
-                    <span style="font-size: 10px; color: #94a3b8; display: block; margin-top: 2px;">Motivo: <strong>${item.motivo}</strong></span>
+        container.innerHTML += `
+            <div class="glass-card" style="border-left: 4px solid ${corAlerta}; padding: 14px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                    <div>
+                        <span style="background: ${corAlerta}; color: #000; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 3px; text-transform: uppercase;">${item.prioridade}</span>
+                        <strong style="font-size: 14px; color: #fff; display: block; margin-top: 4px;">${item.nome}</strong>
+                        <span style="font-size: 10px; color: #94a3b8; display: block; margin-top: 2px;">${item.motivo}</span>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <button style="background:none; border:none; color:#475569; cursor:pointer; font-size:12px;" onclick="editarPrecoPeca(${index})" title="Editar preço"><i class="fas fa-tag"></i></button>
+                        <button style="background:none; border:none; color:#475569; cursor:pointer;" onclick="removerDosNecessarios(${index})"><i class="fas fa-trash-alt"></i></button>
+                    </div>
                 </div>
-                <button style="background: none; border: none; color: #475569; cursor: pointer;" onclick="removerDosNecessarios(${index})">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
-            
-            <div style="margin-top: 10px;">
-                <div style="display: flex; justify-content: space-between; font-size: 9px; color: #64748b; margin-bottom: 3px;">
-                    <span>Vida Útil Restante:</span>
-                    <span style="color: ${item.vidaUtilPct <= 20 ? 'var(--danger)' : corAlerta}; font-weight: bold;">${item.vidaUtilPct}%</span>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                    <span style="font-size:9px; color:#64748b;">Vida útil restante:</span>
+                    <span style="font-size:10px; color:${item.vidaUtilPct <= 20 ? 'var(--danger)' : corAlerta}; font-weight:bold;">${item.vidaUtilPct}%</span>
                 </div>
-                <div style="width: 100%; background: #1e293b; height: 6px; border-radius: 3px; overflow: hidden;">
-                    <div style="width: ${item.vidaUtilPct}%; background: ${item.vidaUtilPct <= 20 ? 'var(--danger)' : corAlerta}; height: 100%;"></div>
+                <div style="width:100%; background:#1e293b; height:6px; border-radius:3px; overflow:hidden; margin-top:4px;">
+                    <div style="width:${item.vidaUtilPct}%; background:${item.vidaUtilPct <= 20 ? 'var(--danger)' : corAlerta}; height:100%;"></div>
                 </div>
+                ${item.preco > 0 ? `<div style="font-size:11px; color:var(--success); margin-top:6px; font-weight:700;">R$ ${item.preco.toFixed(2)}</div>` : `<div style="font-size:10px; color:#475569; margin-top:6px; cursor:pointer;" onclick="editarPrecoPeca(${index})">+ Adicionar preço</div>`}
             </div>
         `;
-        container.appendChild(card);
     });
 
     if (totalEstimado > 0) {
         container.innerHTML += `
-            <div class="glass-card" style="background: rgba(0, 255, 170, 0.02); border-color: rgba(0, 255, 170, 0.1); margin-top: 15px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8;">Orçamento Estimado:</span>
-                    <strong style="font-size: 1.3rem; color: var(--success);">R$ ${totalEstimado.toFixed(2)}</strong>
+            <div class="glass-card" style="background:rgba(0,255,170,0.02); border-color:rgba(0,255,170,0.1); margin-top:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:11px; text-transform:uppercase; color:#94a3b8;">Orçamento Estimado:</span>
+                    <strong style="font-size:1.3rem; color:var(--success);">R$ ${totalEstimado.toFixed(2)}</strong>
                 </div>
             </div>
         `;
     }
 }
 
+function adicionarPecaCustom() {
+    const nome = prompt("Nome da peça:", "");
+    if (!nome || !nome.trim()) return;
+    const motivo = prompt("Motivo / observação:", "Necessidade manual");
+    const precoStr = prompt("Preço estimado (R$):", "");
+    const preco = parseFloat((precoStr || '0').replace(',', '.')) || 0;
+    const prioridade = prompt("Prioridade (Crítica, Alta, Média, Baixa):", "Média") || "Média";
+    adicionarAosNecessarios(nome.trim(), motivo || "Necessidade manual", preco, prioridade, 85);
+}
+
+function editarPrecoPeca(index) {
+    if (!listaNecessidades[index]) return;
+    const atual = listaNecessidades[index].preco || 0;
+    const precoStr = prompt(`Preço para ${listaNecessidades[index].nome}:`, atual > 0 ? atual.toFixed(2) : '');
+    if (precoStr === null) return;
+    listaNecessidades[index].preco = parseFloat(precoStr.replace(',', '.')) || 0;
+    localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+    showToast("Preço atualizado!", "success");
+    renderizarPlanoNecessidades();
+}
+
 function removerDosNecessarios(index) {
     listaNecessidades.splice(index, 1);
+    localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
     renderizarPlanoNecessidades();
+}
+
+function verificarPecasVencidas() {
+    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const kmLastMaintenance = {};
+    if (typeof registrosManutencao !== 'undefined') {
+        registrosManutencao.forEach(r => {
+            if (r.item && r.km) kmLastMaintenance[r.item] = Math.max(kmLastMaintenance[r.item] || 0, r.km);
+        });
+    }
+    const vencidas = [];
+    const proximas = [];
+    Object.values(BANCO_PECAS).flat().forEach(peca => {
+        if (peca.vidaUtilKm <= 0) return;
+        const lastKm = kmLastMaintenance[peca.nome] || 0;
+        const kmDesdeTroca = kmAtual - lastKm;
+        const kmRestante = peca.vidaUtilKm - kmDesdeTroca;
+        if (kmRestante <= 0) vencidas.push(peca.nome);
+        else if (kmRestante <= 3000) proximas.push(`${peca.nome} (${kmRestante.toLocaleString()} km)`);
+    });
+    if (vencidas.length > 0) {
+        setTimeout(() => showToast(`⚠️ ${vencidas.length} peça(s) com troca atrasada: ${vencidas.slice(0, 3).join(', ')}${vencidas.length > 3 ? '...' : ''}`, "warning"), 3000);
+    } else if (proximas.length > 0) {
+        setTimeout(() => showToast(`🔧 Próximas de vencer: ${proximas.slice(0, 2).join(', ')}`, "info"), 3000);
+    }
 }
 
 
@@ -1752,6 +1901,9 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
         if (typeof alternarSubAbaPecas === "function") {
             alternarSubAbaPecas('catalogo');
+        }
+        if (typeof verificarPecasVencidas === "function") {
+            verificarPecasVencidas();
         }
     }, 150);
 });
