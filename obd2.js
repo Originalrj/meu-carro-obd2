@@ -393,7 +393,7 @@ async function inicializarPainelReal() {
             if(!modoSimulacao) {
                 if (isBle) {
                     (async () => {
-                        const cmds = ["0104","010D","0105","0142","010F","0111","0106","0107","010B","010A","010E","0101","0103","0121","014D","014E","0114","0115","0116","0117","0146"];
+                        const cmds = ["0104","010D","0105","0142","010F","0111","0106","0107","010B","010A","010E","0101","0103","0121","012F","014D","014E","0114","0115","0116","0117","0146"];
                         for (const cmd of cmds) {
                             if (modoSimulacao) break;
                             await sendElmCommand(cmd);
@@ -415,13 +415,14 @@ async function inicializarPainelReal() {
                     setTimeout(() => sendElmCommand("0101"), 3300);
                     setTimeout(() => sendElmCommand("0103"), 3600);
                     setTimeout(() => sendElmCommand("0121"), 3900);
-                    setTimeout(() => sendElmCommand("014D"), 4200);
-                    setTimeout(() => sendElmCommand("014E"), 4500);
-                    setTimeout(() => sendElmCommand("0114"), 4800);
-                    setTimeout(() => sendElmCommand("0115"), 5100);
-                    setTimeout(() => sendElmCommand("0116"), 5400);
-                    setTimeout(() => sendElmCommand("0117"), 5700);
-                    setTimeout(() => sendElmCommand("0146"), 6000);
+                    setTimeout(() => sendElmCommand("012F"), 4200);
+                    setTimeout(() => sendElmCommand("014D"), 4500);
+                    setTimeout(() => sendElmCommand("014E"), 4800);
+                    setTimeout(() => sendElmCommand("0114"), 5100);
+                    setTimeout(() => sendElmCommand("0115"), 5400);
+                    setTimeout(() => sendElmCommand("0116"), 5700);
+                    setTimeout(() => sendElmCommand("0117"), 6000);
+                    setTimeout(() => sendElmCommand("0146"), 6300);
                 }
             }
         }, isBle ? 12000 : 6000);
@@ -801,6 +802,23 @@ function parseObdResponse(response) {
             const match = line.match(/41 46 ([0-9A-F]{2})/);
             if (match) {
                 leiturasOBD.tempAmbiente = parseInt(match[1], 16) - 40;
+            }
+        }
+
+        if (line.includes("41 2F")) {
+            const match = line.match(/41 2F ([0-9A-F]{2})/);
+            if (match) {
+                const nivelAnterior = leiturasOBD.nivelCombustivel;
+                const novoNivel = parseInt(match[1], 16) / 2.55;
+                leiturasOBD.nivelCombustivel = novoNivel;
+                const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
+                const litrosRestante = ((novoNivel / 100) * tanqueCap).toFixed(1);
+                const elLiters = document.getElementById('val-liters');
+                if (elLiters) elLiters.innerText = litrosRestante;
+                if (!modoSimulacao && nivelAnterior > 0 && novoNivel > nivelAnterior + 10) {
+                    detectarAbastecimento(nivelAnterior, novoNivel);
+                }
+                nivelCombustivelAnterior = novoNivel;
             }
         }
 
