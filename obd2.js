@@ -94,8 +94,30 @@ function simularDadosOBD() {
     const litrosRestante = ((leiturasOBD.nivelCombustivel / 100) * tanqueCap).toFixed(1);
     if (elLiters) elLiters.innerText = litrosRestante;
 
+    atualizarPainelConsumo();
     renderizarSensores();
     renderizarDiagnostico();
+}
+
+function atualizarPainelConsumo() {
+    const elInst = document.getElementById('val-instant');
+    const elMedio = document.getElementById('val-consumo-medio');
+    const vel = leiturasOBD.velocidade || 0;
+    const consLh = leiturasOBD.consumoInstantaneo || 0;
+    if (elInst) {
+        if (consLh > 0 && vel > 5) {
+            const kmL = vel / consLh;
+            elInst.innerHTML = `${kmL.toFixed(1)} <small style="font-size:10px">km/L</small>`;
+        } else if (consLh > 0) {
+            elInst.innerHTML = `${consLh.toFixed(1)} <small style="font-size:10px">L/h</small>`;
+        } else {
+            elInst.innerHTML = `-- <small style="font-size:10px">km/L</small>`;
+        }
+    }
+    if (elMedio) {
+        const kmLitro = calcularKmPorLitro();
+        elMedio.innerHTML = kmLitro ? `${kmLitro} <small style="font-size:10px">km/L</small>` : `-- <small style="font-size:10px">km/L</small>`;
+    }
 }
 
 async function conectarVeiculoReal() {
@@ -829,18 +851,17 @@ function parseObdResponse(response) {
             }
         }
 
-    leiturasOBD.statusMIL = Math.random() > 0.97;
-    leiturasOBD.qtdDTCs = leiturasOBD.statusMIL ? Math.floor(Math.random() * 3) + 1 : 0;
-    leiturasOBD.statusSistemaComb = leiturasOBD.tensaoBateria < 11.5 ? 'Open Loop' : 'Closed Loop';
-    leiturasOBD.distDesdeDTC = Math.floor(Math.random() * 5000);
-    leiturasOBD.tempoDesdeUltimaPartida = Math.floor(Math.random() * 120);
-    leiturasOBD.tempoDesdeDTC = Math.floor(Math.random() * 10000);
-    leiturasOBD.o2Sensor1 = 0.1 + Math.random() * 0.9;
-    leiturasOBD.o2Sensor2 = 0.1 + Math.random() * 0.9;
-    leiturasOBD.o2Sensor3 = 0.1 + Math.random() * 0.9;
-    leiturasOBD.o2Sensor4 = 0.1 + Math.random() * 0.9;
-
-    renderizarSensores();
+        // --- FIX: Removed random overrides, added real consumption calculation ---
+        if (!leiturasOBD.statusSistemaComb || leiturasOBD.statusSistemaComb === '--') {
+            leiturasOBD.statusSistemaComb = leiturasOBD.tensaoBateria < 11.5 ? 'Open Loop' : 'Closed Loop';
+        }
+        const cargaReal = parseFloat(leiturasOBD.cargaMotor) || 0;
+        const rpmReal = leiturasOBD.rpm || 0;
+        const baseConsumo = 2 + (cargaReal / 100) * 6 + (rpmReal / 8000) * 3;
+        leiturasOBD.consumoEsperado = Math.max(1.5, baseConsumo);
+        leiturasOBD.consumoInstantaneo = leiturasOBD.consumoEsperado;
+        atualizarPainelConsumo();
+        renderizarSensores();
         renderizarDiagnostico();
     }
 }
