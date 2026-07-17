@@ -118,7 +118,8 @@ function atualizarPainelConsumo() {
     if (elMedio) {
         let kmLitro = calcularKmPorLitro();
         if (!kmLitro && consLh > 0 && vel > 5) {
-            kmLitro = (vel / consLh).toFixed(1);
+            const calc = vel / consLh;
+            if (calc >= 2 && calc <= 30) kmLitro = calc.toFixed(1);
         }
         elMedio.innerHTML = kmLitro ? `${kmLitro} <small style="font-size:10px">km/L</small>` : `-- <small style="font-size:10px">km/L</small>`;
     }
@@ -127,20 +128,16 @@ function atualizarPainelConsumo() {
         const nivel = leiturasOBD.nivelCombustivel || 0;
         const litrosRestante = (nivel / 100) * tanqueCap;
         let kmLitro = calcularKmPorLitro();
-        if (!kmLitro && consLh > 0 && vel > 5) kmLitro = vel / consLh;
+        if (!kmLitro && consLh > 0 && vel > 5) {
+            const calc = vel / consLh;
+            if (calc >= 2 && calc <= 30) kmLitro = calc;
+        }
         if (tanqueCap > 0 && litrosRestante > 0 && kmLitro > 0) {
             const kmRest = Math.round(litrosRestante * parseFloat(kmLitro));
             elKmRest.innerHTML = `${kmRest.toLocaleString()} <small style="font-size:10px">km</small>`;
         } else {
             elKmRest.innerHTML = `-- <small style="font-size:10px">km</small>`;
         }
-    }
-    const elAutonomia = document.getElementById('val-autonomia');
-    if (elAutonomia) {
-        const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 0;
-        const nivel = leiturasOBD.nivelCombustivel || 0;
-        const litrosRestante = ((nivel / 100) * tanqueCap).toFixed(1);
-        elAutonomia.innerHTML = tanqueCap > 0 ? `${litrosRestante} <small style="font-size:10px">L</small>` : `-- <small style="font-size:10px">L</small>`;
     }
 }
 
@@ -430,7 +427,7 @@ async function inicializarPainelReal() {
             if(!modoSimulacao) {
                 if (isBle) {
                     (async () => {
-                        const cmds = ["0104","010D","0105","0142","010F","0111","0106","0107","010B","010A","010E","0101","0103","0121","012F","014D","014E","0114","0115","0116","0117","0146"];
+                        const cmds = ["010C","0104","010D","0105","0142","010F","0111","0106","0107","010B","010A","010E","0101","0103","0121","012F","014D","014E","0114","0115","0116","0117","0146","01A6"];
                         for (const cmd of cmds) {
                             if (modoSimulacao) break;
                             await sendElmCommand(cmd);
@@ -460,6 +457,7 @@ async function inicializarPainelReal() {
                     setTimeout(() => sendElmCommand("0116"), 5700);
                     setTimeout(() => sendElmCommand("0117"), 6000);
                     setTimeout(() => sendElmCommand("0146"), 6300);
+                    setTimeout(() => sendElmCommand("01A6"), 6600);
                 }
             }
         }, isBle ? 12000 : 6000);
@@ -1506,7 +1504,10 @@ function calcularKmPorLitro() {
     const ordenado = [...abastecimentos].sort((a, b) => a.km - b.km);
     let totalKm = ordenado[ordenado.length - 1].km - ordenado[0].km;
     let totalLitros = ordenado.slice(1).reduce((sum, a) => sum + (a.litros || 0), 0);
-    return totalLitros > 0 ? (totalKm / totalLitros).toFixed(1) : null;
+    if (totalLitros < 1 || totalKm < 1) return null;
+    const kmL = totalKm / totalLitros;
+    if (kmL < 2 || kmL > 30) return null;
+    return kmL.toFixed(1);
 }
 
 function calcularPerfilPostos() {
