@@ -678,6 +678,7 @@ function parseObdResponse(response) {
             }
 
             html += `<button class="btn-main" style="background:var(--warning); color:#000; font-size:10px; padding:8px 12px; margin-top:8px;" onclick="nav('shop', document.querySelectorAll('.dock-item')[3]); alternarSubAbaPecas('sacola');">Buscar Peças</button>`;
+            html += `<button class="btn-main" style="background:var(--danger); color:#fff; font-size:10px; padding:8px 12px; margin-top:8px; margin-left:5px;" onclick="limparDTCs()">🗑 Limpar DTCs</button>`;
             resContent.innerHTML = html;
             renderizarPlanoNecessidades();
         }
@@ -872,6 +873,32 @@ function toggleObdMode(isSimulated) {
     document.getElementById('btn-obd-real').classList.toggle('active', !isSimulated);
 }
 
+function limparDTCs() {
+    const kmAtual = localStorage.getItem("car_km");
+    if (!confirm("Isso irá limpar todos os códigos de falha (DTCs) da ECU.\n\nDeseja continuar?")) return;
+
+    if (modoSimulacao) {
+        showToast("DTCs limpos com sucesso (simulado).", "success");
+        document.getElementById('scan-result').classList.add('hidden');
+        document.getElementById('scan-idle').classList.remove('hidden');
+        return;
+    }
+
+    showToast("Limpando DTCs da ECU...", "info");
+    sendElmCommand("04").then(() => {
+        setTimeout(() => {
+            if (kmAtual) localStorage.setItem("car_km", kmAtual);
+            showToast("DTCs limpos com sucesso!", "success");
+            document.getElementById('scan-result').classList.add('hidden');
+            document.getElementById('scan-idle').classList.remove('hidden');
+            sendElmCommand("0101");
+        }, 1000);
+    }).catch(() => {
+        if (kmAtual) localStorage.setItem("car_km", kmAtual);
+        showToast("Erro ao limpar DTCs.", "error");
+    });
+}
+
 // Nova versão do scanner acoplada ao novo layout preditivo
 function runScanner() {
     document.getElementById('scan-idle').classList.add('hidden');
@@ -891,6 +918,7 @@ function runScanner() {
         res.innerHTML = `<div style="color:var(--danger); font-weight:800; font-size:10px; margin-bottom:8px; text-transform:uppercase;"><i class="fas fa-exclamation-triangle"></i> Falhas Detectadas:</div>`;
         res.innerHTML += gerarHtmlErroTorque("P0300");
         res.innerHTML += `<button class="btn-main" style="background:var(--warning); color:#000; font-size:10px; padding:8px 12px; margin-top:8px;" onclick="nav('shop', document.querySelectorAll('.dock-item')[3]); alternarSubAbaPecas('sacola');">Buscar Peças</button>`;
+        res.innerHTML += `<button class="btn-main" style="background:var(--danger); color:#fff; font-size:10px; padding:8px 12px; margin-top:8px; margin-left:5px;" onclick="limparDTCs()">🗑 Limpar DTCs</button>`;
 
         adicionarAosNecessarios('Jogo de Velas de Ignição', 'Falha P0300 Detectada', 0, 'Crítica', 15);
         adicionarAosNecessarios('Bobina de Ignição', 'Falha P0300 Detectada', 0, 'Crítica', 15);
