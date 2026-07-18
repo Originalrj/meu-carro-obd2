@@ -19,20 +19,31 @@ function cacheSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val
 // Formato novo: array em "car_vehicles" + índice ativo em "car_active_idx"
 
 function migrarDadosLegadoSeNecessario() {
+    console.log("[PERFIL-DEBUG] migrarDadosLegadoSeNecessario INICIADO");
     try {
-        const vehicles = JSON.parse(localStorage.getItem("car_vehicles") || "null");
-        if (vehicles && Array.isArray(vehicles) && vehicles.length > 0) return;
+        const raw = localStorage.getItem("car_vehicles");
+        console.log("[PERFIL-DEBUG] car_vehicles raw:", raw);
+        const vehicles = JSON.parse(raw || "null");
+        console.log("[PERFIL-DEBUG] parsed vehicles:", vehicles, "isArray:", Array.isArray(vehicles), "length:", vehicles?.length);
+        if (vehicles && Array.isArray(vehicles) && vehicles.length > 0) {
+            console.log("[PERFIL-DEBUG] migração: já existem veículos, retornando");
+            return;
+        }
     } catch (e) {
+        console.warn("[PERFIL-DEBUG] migração: JSON parse erro, removendo car_vehicles", e);
         localStorage.removeItem("car_vehicles");
     }
 
     const km = localStorage.getItem("car_km");
+    console.log("[PERFIL-DEBUG] car_km:", km);
     if (!km || parseInt(km) <= 0) {
+        console.log("[PERFIL-DEBUG] migração: sem km, criando array vazio");
         localStorage.setItem("car_vehicles", JSON.stringify([]));
         localStorage.setItem("car_active_idx", "0");
         return;
     }
 
+    console.log("[PERFIL-DEBUG] migração: criando veículo a partir de dados legados");
     const novoVeiculo = {
         id: Date.now().toString(36),
         km: parseInt(km) || 0,
@@ -49,6 +60,7 @@ function migrarDadosLegadoSeNecessario() {
 
     localStorage.setItem("car_vehicles", JSON.stringify([novoVeiculo]));
     localStorage.setItem("car_active_idx", "0");
+    console.log("[PERFIL-DEBUG] migração concluída, veículo:", novoVeiculo);
 }
 
 function getVeiculos() {
@@ -76,8 +88,10 @@ function setIdxAtivo(idx) {
 }
 
 function trocarVeiculo(id) {
+    console.log("[PERFIL-DEBUG] trocarVeiculo:", id);
     const v = getVeiculos();
     const idx = v.findIndex(x => x.id === id);
+    console.log("[PERFIL-DEBUG] trocarVeiculo idx:", idx);
     if (idx < 0) return;
     setIdxAtivo(idx);
     sincronizarLegado();
@@ -89,12 +103,18 @@ function trocarVeiculo(id) {
 }
 
 function toggleFormVeiculo() {
+    console.log("[PERFIL-DEBUG] toggleFormVeiculo CHAMADO");
     const form = document.getElementById("card-form-veiculo");
     const btn = document.getElementById("btn-toggle-form");
     const txt = document.getElementById("btn-toggle-text");
-    if (!form || !btn || !txt) return;
+    console.log("[PERFIL-DEBUG] form:", !!form, "btn:", !!btn, "txt:", !!txt);
+    if (!form || !btn || !txt) {
+        console.warn("[PERFIL-DEBUG] toggleFormVeiculo: ELEMENTOS NÃO ENCONTRADOS");
+        return;
+    }
 
     const isHidden = form.classList.contains("hidden");
+    console.log("[PERFIL-DEBUG] isHidden:", isHidden);
 
     if (isHidden) {
         form.classList.remove("hidden");
@@ -103,9 +123,11 @@ function toggleFormVeiculo() {
     } else {
         form.classList.add("hidden");
         const v = getVeiculoAtivo();
+        console.log("[PERFIL-DEBUG] toggleForm: getVeiculoAtivo:", v);
         txt.innerText = v ? "Editar veículo" : "Adicionar novo Veículo";
         btn.querySelector("i").className = "fas fa-plus";
     }
+    console.log("[PERFIL-DEBUG] toggleFormVeiculo FINALIZADO");
 }
 
 function excluirVeiculoAtivo() {
@@ -135,9 +157,11 @@ function excluirVeiculoAtivo() {
 
 function popularSelectorVeiculos() {
     const sel = document.getElementById("inp-vehicle-selector");
+    console.log("[PERFIL-DEBUG] popularSelectorVeiculos: sel:", !!sel);
     if (!sel) return;
     const vehicles = getVeiculos();
     const idx = getIdxAtivo();
+    console.log("[PERFIL-DEBUG] popularSelectorVeiculos: vehicles:", vehicles.length, "idx:", idx);
 
     if (vehicles.length === 0) {
         sel.innerHTML = '<option value="">VEÍCULO NÃO CONFIGURADO</option>';
@@ -148,10 +172,12 @@ function popularSelectorVeiculos() {
         const nome = `${v.marca || 'Sem marca'} ${v.modelo || ''} ${v.ano || ''}`.trim();
         return `<option value="${v.id}" ${i === idx ? 'selected' : ''}>${nome || 'Veículo ' + (i + 1)}</option>`;
     }).join('');
+    console.log("[PERFIL-DEBUG] popularSelectorVeiculos: HTML atualizado:", sel.innerHTML.substring(0, 100));
 }
 
 function sincronizarLegado() {
     const v = getVeiculoAtivo();
+    console.log("[PERFIL-DEBUG] sincronizarLegado:", v ? `km=${v.km}, marca=${v.marca}` : "null");
     if (!v || !v.km) return;
     localStorage.setItem("car_km", v.km);
     localStorage.setItem("car_marca_nome", v.marca || "");
@@ -247,15 +273,29 @@ function popularDatalistManutencao() {
 
 // Inicialização do App e Verificação de Dados Dinâmicos
 document.addEventListener("DOMContentLoaded", async () => {
-    simulationIntervalId = setInterval(simularDadosOBD, 3000);
-    carregarRegistrosManutencao();
-    popularDatalistManutencao();
-    await initStaticSelects();
+    console.log("[PERFIL-DEBUG] DOMContentLoaded INICIADO");
+    try {
+        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        carregarRegistrosManutencao();
+        popularDatalistManutencao();
+        await initStaticSelects();
+        console.log("[PERFIL-DEBUG] initStaticSelects OK");
 
-    const btnToggle = document.getElementById("btn-toggle-form");
-    if (btnToggle) btnToggle.addEventListener("click", toggleFormVeiculo);
+        const btnToggle = document.getElementById("btn-toggle-form");
+        console.log("[PERFIL-DEBUG] btn-toggle-form encontrado:", !!btnToggle);
+        if (btnToggle) {
+            btnToggle.addEventListener("click", () => {
+                console.log("[PERFIL-DEBUG] BOTÃO TOGGLE CLICADO");
+                toggleFormVeiculo();
+            });
+        }
 
-    verificarOnboardingESincronizacao();
+        console.log("[PERFIL-DEBUG] Antes de verificarOnboardingESincronizacao");
+        verificarOnboardingESincronizacao();
+        console.log("[PERFIL-DEBUG] Depois de verificarOnboardingESincronizacao");
+    } catch(e) {
+        console.error("[PERFIL-DEBUG] ERRO NO DOMContentLoaded:", e);
+    }
 });
 
 const MARCAS_FIPE = [
@@ -515,19 +555,24 @@ async function onAnoChange(prefix) {
 }
 
 function verificarOnboardingESincronizacao() {
+    console.log("[PERFIL-DEBUG] verificarOnboardingESincronizacao INICIADO");
     migrarDadosLegadoSeNecessario();
     sincronizarLegado();
 
     const vehicles = getVeiculos();
     const km = parseInt(localStorage.getItem("car_km")) || 0;
+    console.log("[PERFIL-DEBUG] vehicles:", vehicles, "km:", km, "length:", vehicles.length);
 
     if (vehicles.length === 0 && km <= 0) {
+        console.log("[PERFIL-DEBUG] sem veículo → toast welcome");
         renderizarDadosGlobais();
         showToast("Bem-vindo! Preencha os dados do seu veículo na aba Perfil para ter acesso a todas as funcionalidades.", "info", 8000);
     } else {
+        console.log("[PERFIL-DEBUG] com veículo → processarEstimativa + renderizar");
         processarEstimativaDeQuilometragem();
         renderizarDadosGlobais();
     }
+    console.log("[PERFIL-DEBUG] verificarOnboardingESincronizacao FINALIZADO");
 }
 
 function concluirOnboarding() {
@@ -617,7 +662,9 @@ function confirmarEstimativa(usarSugerido) {
 }
 
 function renderizarDadosGlobais() {
+    console.log("[PERFIL-DEBUG] renderizarDadosGlobais INICIADO");
     const v = getVeiculoAtivo();
+    console.log("[PERFIL-DEBUG] veiculo ativo:", v);
     const temVeiculo = !!(v && v.marca);
 
     const km = v ? (parseInt(v.km) || 0) : 0;
@@ -629,8 +676,12 @@ function renderizarDadosGlobais() {
 
     popularSelectorVeiculos();
 
-    document.getElementById("txt-odometro").innerText = km.toLocaleString() + " KM";
-    document.getElementById("lbl-veiculo-ano").innerText = `Ano: ${ano}`;
+    try {
+        document.getElementById("txt-odometro").innerText = km.toLocaleString() + " KM";
+        document.getElementById("lbl-veiculo-ano").innerText = `Ano: ${ano}`;
+    } catch(e) {
+        console.error("[PERFIL-DEBUG] Erro ao preencher odomômetro/ano:", e);
+    }
 
     const lblPlaca = document.getElementById("lbl-placa");
     if (lblPlaca) {
@@ -677,6 +728,7 @@ function renderizarDadosGlobais() {
     }
 
     renderizarAlertasManutencao();
+    console.log("[PERFIL-DEBUG] renderizarDadosGlobais FINALIZADO");
 }
 
 async function preencherPerfil(marca, modelo, ano) {
@@ -1285,6 +1337,7 @@ function editarRegistroManutencao(index) {
 }
 
 function salvarPerfil() {
+    console.log("[PERFIL-DEBUG] salvarPerfil CHAMADO");
     const kmInput = document.getElementById("inp-prof-km").value;
     const mInput = document.getElementById("inp-prof-marca").value;
     const modSelect = document.getElementById("inp-prof-modelo");
@@ -1293,6 +1346,7 @@ function salvarPerfil() {
     const vinInput = document.getElementById("inp-prof-vin")?.value.trim() || "";
     const tanqueInput = document.getElementById("inp-prof-tanque")?.value || "";
     const kmDiaInput = document.getElementById("inp-prof-km-dia")?.value || "40";
+    console.log("[PERFIL-DEBUG] salvarPerfil inputs:", { kmInput, mInput, placaInput });
 
     if (!kmInput || kmInput <= 0) {
         showToast("Insira uma quilometragem válida.", "error");
@@ -1323,6 +1377,7 @@ function salvarPerfil() {
     const vehicles = getVeiculos();
     const idxAtivo = getIdxAtivo();
     const existente = vehicles[idxAtivo];
+    console.log("[PERFIL-DEBUG] salvarPerfil existente:", !!existente, "idx:", idxAtivo, "total:", vehicles.length);
 
     if (existente) {
         veiculoData.id = existente.id;
@@ -1338,6 +1393,7 @@ function salvarPerfil() {
     document.getElementById("card-form-veiculo").classList.add("hidden");
     renderizarDadosGlobais();
     showToast(existente ? "Veículo atualizado com sucesso!" : "Veículo adicionado com sucesso!", "success");
+    console.log("[PERFIL-DEBUG] salvarPerfil FINALIZADO");
 }
 
 // ==========================================
