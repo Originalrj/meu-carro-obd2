@@ -1540,6 +1540,7 @@ function renderizarAbastecimentos() {
     const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
     const nivelAtual = (typeof leiturasOBD !== 'undefined' && leiturasOBD.nivelCombustivel) || 50;
     const litrosRestante = ((nivelAtual / 100) * tanqueCap).toFixed(1);
+    const totalGasto = abastecimentos.reduce((sum, a) => sum + (a.custoTotal || 0), 0);
     const kmLitro = calcularKmPorLitro();
     const perfil = calcularPerfilPostos();
     const ordenado = [...abastecimentos].sort((a, b) => new Date(b.data) - new Date(a.data));
@@ -1550,7 +1551,7 @@ function renderizarAbastecimentos() {
             <button class="btn-main" style="font-size:10px; padding:6px 12px;" onclick="registrarAbastecimentoManual()"><i class="fas fa-plus"></i> Registrar Abastecimento</button>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:15px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-bottom:15px;">
             <div class="glass-card" style="padding:12px; text-align:center; border-bottom:3px solid var(--warning);">
                 <span style="font-size:8px; color:#94a3b8; text-transform:uppercase;">No Tanque</span>
                 <div style="font-size:1.1rem; font-weight:800; color:var(--warning);">${litrosRestante}L</div>
@@ -1568,6 +1569,11 @@ function renderizarAbastecimentos() {
                 <div style="font-size:1.1rem; font-weight:800; color:var(--accent);">${kmLitro || '--'} km/L</div>
                 <div style="font-size:8px; color:#94a3b8;">${abastecimentos.length} abast.</div>
             </div>
+            <div class="glass-card" style="padding:12px; text-align:center; border-bottom:3px solid #f472b6;">
+                <span style="font-size:8px; color:#94a3b8; text-transform:uppercase;">Total Gasto</span>
+                <div style="font-size:1.1rem; font-weight:800; color:#f472b6;">${totalGasto > 0 ? 'R$ ' + totalGasto.toFixed(0) : '--'}</div>
+                <div style="font-size:8px; color:#94a3b8;">combustível</div>
+            </div>
         </div>
     `;
 
@@ -1583,7 +1589,7 @@ function renderizarAbastecimentos() {
                     return `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; margin-bottom:6px; background:rgba(255,255,255,0.03); border-radius:8px; border-left:3px solid var(--accent);">
                             <div>
-                                <div style="font-size:11px; font-weight:700; color:#fff;">${dataFmt} — ${a.litros || '?'}L</div>
+                                <div style="font-size:11px; font-weight:700; color:#fff;">${dataFmt} — ${a.litros || '?'}L${a.precoLitro ? ' — R$ ' + a.precoLitro.toFixed(2) + '/L' : ''}${a.custoTotal ? ' (R$ ' + a.custoTotal.toFixed(2) + ')' : ''}</div>
                                 <div style="font-size:9px; color:#94a3b8;">${a.km?.toLocaleString()} KM${a.posto ? ' — ' + a.posto : ''}</div>
                                 ${kmLitroAbast ? `<div style="font-size:9px; color:var(--success);">${kmLitroAbast} km/L</div>` : ''}
                             </div>
@@ -1638,7 +1644,13 @@ function promptEditarAbastecimento(index) {
     if (novoPosto !== null) {
         const novosLitros = prompt("Litros abastecidos:", a.litros || "");
         if (novosLitros !== null) {
+            const novoPreco = prompt("Preço por litro (R$):", a.precoLitro || "");
             editarAbastecimento(index, novosLitros, novoPosto);
+            if (novoPreco !== null && !isNaN(novoPreco) && parseFloat(novoPreco) > 0 && abastecimentos[index]) {
+                abastecimentos[index].precoLitro = parseFloat(novoPreco);
+                abastecimentos[index].custoTotal = parseFloat((abastecimentos[index].litros * parseFloat(novoPreco)).toFixed(2));
+                salvarAbastecimentos();
+            }
             renderizarAbastecimentos();
         }
     }
@@ -2062,13 +2074,14 @@ function exportarRelatorioPDF() {
     const { jsPDF } = jspdf;
     const doc = new jsPDF();
 
-    const marca = localStorage.getItem("car_marca_nome") || "Não configurado";
-    const modelo = localStorage.getItem("car_modelo_nome") || "";
-    const ano = localStorage.getItem("car_ano") || "--";
-    const motor = localStorage.getItem("car_motor") || "";
-    const km = parseInt(localStorage.getItem("car_km")) || 0;
-    const placa = localStorage.getItem("car_placa") || "Não informada";
-    const vin = localStorage.getItem("car_vin") || "Não informado";
+    const v = getVeiculoAtivo();
+    const marca = v?.marca || localStorage.getItem("car_marca_nome") || "Não configurado";
+    const modelo = v?.modelo || localStorage.getItem("car_modelo_nome") || "";
+    const ano = v?.ano || localStorage.getItem("car_ano") || "--";
+    const motor = v?.motor || localStorage.getItem("car_motor") || "";
+    const km = v?.km || parseInt(localStorage.getItem("car_km")) || 0;
+    const placa = v?.placa || localStorage.getItem("car_placa") || "Não informada";
+    const vin = v?.vin || localStorage.getItem("car_vin") || "Não informado";
 
     let y = 20;
     const margemEsquerda = 14;
@@ -2308,6 +2321,60 @@ function exportarRelatorioPDF() {
     });
 
     // =============================================
+    // SEÇÃO: HISTÓRICO DE ABASTECIMENTOS
+    // =============================================
+    if (abastecimentos.length > 0) {
+        quebrarPaginaSeNecessario(25);
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.text("Histórico de Abastecimentos", margemEsquerda, y);
+        y += 8;
+
+        const totalCombusto = abastecimentos.reduce((s, a) => s + (a.custoTotal || 0), 0);
+        const totalLitros = abastecimentos.reduce((s, a) => s + (a.litros || 0), 0);
+        const mediaKmL = calcularKmPorLitro();
+
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(80);
+        doc.text(`Total gasto: R$ ${totalCombusto.toFixed(2)} | Total litros: ${totalLitros.toFixed(1)}L | Média: ${mediaKmL || '--'} km/L | ${abastecimentos.length} registro(s)`, margemEsquerda, y);
+        doc.setTextColor(0);
+        y += 6;
+
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(100);
+        doc.text("DATA", margemEsquerda, y);
+        doc.text("KM", margemEsquerda + 25, y);
+        doc.text("LITROS", margemEsquerda + 50, y);
+        doc.text("PREÇO/L", margemEsquerda + 72, y);
+        doc.text("TOTAL", margemEsquerda + 95, y);
+        doc.text("POSTO", margemEsquerda + 118, y);
+        doc.setTextColor(0);
+        y += 1;
+
+        doc.setDrawColor(180);
+        doc.line(margemEsquerda, y, margemEsquerda + larguraUtil, y);
+        y += 4;
+
+        doc.setFont(undefined, 'normal');
+        const ordenadoAbast = [...abastecimentos].sort((a, b) => b.km - a.km);
+        ordenadoAbast.forEach(a => {
+            quebrarPaginaSeNecessario(6);
+            doc.setFontSize(7);
+            doc.text(a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '-', margemEsquerda, y);
+            doc.text(`${(a.km || 0).toLocaleString()} KM`, margemEsquerda + 25, y);
+            doc.text(`${a.litros || '-'}L`, margemEsquerda + 50, y);
+            doc.text(a.precoLitro ? `R$${a.precoLitro.toFixed(2)}` : '-', margemEsquerda + 72, y);
+            doc.text(a.custoTotal ? `R$${a.custoTotal.toFixed(2)}` : '-', margemEsquerda + 95, y);
+            doc.text((a.posto || '-').substring(0, 18), margemEsquerda + 118, y);
+            y += 5;
+        });
+
+        y += 8;
+    }
+
+    // =============================================
     // RODAPÉ
     // =============================================
     const totalPaginas = doc.internal.getNumberOfPages();
@@ -2330,35 +2397,67 @@ function exportarRelatorioPDF() {
 }
 
 function exportarCSV() {
-    if (registrosManutencao.length === 0) {
+    if (registrosManutencao.length === 0 && abastecimentos.length === 0) {
         showToast("Nenhum registro para exportar.", "warning");
         return;
     }
 
-    const headers = ["Data", "Sistema", "Item", "Marca", "Oficina", "KM", "Custo Peça (R$)", "Mão de Obra (R$)", "Total (R$)", "Notas"];
-    const rows = registrosManutencao.map(r => [
-        r.data || '',
-        r.sistema || '',
-        r.item || '',
-        r.marca || '',
-        r.oficina || '',
-        r.km || '',
-        (r.custoPeca || 0).toFixed(2),
-        (r.custoMao || 0).toFixed(2),
-        ((r.custoPeca || 0) + (r.custoMao || 0)).toFixed(2),
-        (r.notas || '').replace(/"/g, '""')
-    ]);
+    const v = getVeiculoAtivo();
+    const marca = (v?.marca || localStorage.getItem("car_marca_nome") || 'veiculo').replace(/\s+/g, '_');
+    const placa = v?.placa || localStorage.getItem("car_placa") || 'sem-placa';
+    const dataArquivo = new Date().toISOString().slice(0, 10);
+    const csvParts = [];
 
-    const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    if (v) {
+        csvParts.push('--- DADOS DO VEICULO ---');
+        csvParts.push('Campo,Valor');
+        csvParts.push(`Marca,"${v.marca || ''}"`);
+        csvParts.push(`Modelo,"${v.modelo || ''}"`);
+        csvParts.push(`Ano,"${v.ano || ''}"`);
+        csvParts.push(`Placa,"${v.placa || ''}"`);
+        csvParts.push(`VIN,"${v.vin || ''}"`);
+        csvParts.push(`Motor,"${v.motor || ''}"`);
+        csvParts.push(`KM Atual,"${v.km || ''}"`);
+        csvParts.push(`Tanque (L),"${v.tanqueCapacidade || ''}"`);
+        csvParts.push(`Km/dia,"${v.mediaDiaria || ''}"`);
+        csvParts.push('');
+    }
+
+    if (registrosManutencao.length > 0) {
+        csvParts.push('--- MANUTENCAO ---');
+        const mHeaders = ["Data", "Sistema", "Item", "Marca/Peça", "Oficina", "KM", "Custo Peça (R$)", "Mão de Obra (R$)", "Total (R$)", "Notas"];
+        csvParts.push(mHeaders.map(h => `"${h}"`).join(','));
+        registrosManutencao.forEach(r => {
+            csvParts.push([
+                r.data || '', r.sistema || '', r.item || '', r.marca || '', r.oficina || '', r.km || '',
+                (r.custoPeca || 0).toFixed(2), (r.custoMao || 0).toFixed(2),
+                ((r.custoPeca || 0) + (r.custoMao || 0)).toFixed(2), (r.notas || '').replace(/"/g, '""')
+            ].map(c => `"${c}"`).join(','));
+        });
+        csvParts.push('');
+    }
+
+    if (abastecimentos.length > 0) {
+        csvParts.push('--- ABASTECIMENTOS ---');
+        const aHeaders = ["Data", "KM", "Litros", "Preço/L (R$)", "Custo Total (R$)", "Posto", "Nivel Antes (%)", "Nivel Depois (%)"];
+        csvParts.push(aHeaders.map(h => `"${h}"`).join(','));
+        const ordenado = [...abastecimentos].sort((a, b) => b.km - a.km);
+        ordenado.forEach(a => {
+            csvParts.push([
+                a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '', a.km || '', a.litros || '',
+                a.precoLitro ? a.precoLitro.toFixed(2) : '', a.custoTotal ? a.custoTotal.toFixed(2) : '',
+                a.posto || '', a.nivelAntes || '', a.nivelDepois || ''
+            ].map(c => `"${c}"`).join(','));
+        });
+    }
+
+    const csvContent = csvParts.join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const marca = (localStorage.getItem("car_marca_nome") || 'veiculo').replace(/\s+/g, '_');
-    const placa = localStorage.getItem("car_placa") || 'sem-placa';
-    const dataArquivo = new Date().toISOString().slice(0, 10);
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = `autogestaox_manutencoes_${marca}_${placa}_${dataArquivo}.csv`;
+    a.download = `autogestaox_${marca}_${placa}_${dataArquivo}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
