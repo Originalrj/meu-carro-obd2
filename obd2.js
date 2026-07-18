@@ -1236,7 +1236,6 @@ const SENSORES_OBD = [
     { id: 'fuelTrimSTFT', label: 'Fuel Trim STFT', icon: '🔧', unit: '%', decimals: 1, min: -30, max: 30, critico: [-30, -20], alerta: [-20, -10], criticoAlto: [20, 30], alertaAlto: [10, 20] },
     { id: 'fuelTrimLTFT', label: 'Fuel Trim LTFT', icon: '🔧', unit: '%', decimals: 1, min: -30, max: 30, critico: [-30, -20], alerta: [-20, -10], criticoAlto: [20, 30], alertaAlto: [10, 20] },
     { id: 'pressaoCombustivel', label: 'Pressão Comb.', icon: '⛽', unit: 'kPa', decimals: 0, min: 0, max: 600, critico: [150, 250], alerta: [250, 300], criticoAlto: [500, 600], alertaAlto: [450, 500] },
-    { id: 'tempPosCatalisador', label: 'Temp. Pós-Catalisador', icon: '🔥', unit: '°C', decimals: 0, min: 0, max: 1000, critico: [850, 1000], alerta: [750, 850] },
     { id: 'tempAmbiente', label: 'Temp. Ambiente', icon: '🌍', unit: '°C', decimals: 1, min: -20, max: 55, critico: [-20, -10], alerta: [-10, 0], criticoAlto: [45, 55], alertaAlto: [40, 45] },
     { id: 'deslizamentoEmbreagem', label: 'Embreagem', icon: '🔗', unit: '%', decimals: 1, min: 0, max: 30, critico: [15, 30], alerta: [8, 15] },
     { id: 'distDesdeDTC', label: 'Dist. desde DTCs', icon: '📏', unit: 'km', decimals: 0, min: 0, max: 65535, critico: [0, 100], alerta: [100, 500] },
@@ -1429,13 +1428,13 @@ function renderizarDiagnostico() {
     }
 
     // --- TEMP. PÓS-CATALISADOR ---
-    if (L.tempPosCatalisador > 850) {
+    if (L.tempCatalisador > 850) {
         nivelGeral = 'critico';
-        alertas.push({ nivel: 'critico', msg: 'Catalisador superaquecendo!', detalhe: `${L.tempPosCatalisador.toFixed(0)}°C (limite: 850°C)` });
+        alertas.push({ nivel: 'critico', msg: 'Catalisador superaquecendo!', detalhe: `${L.tempCatalisador.toFixed(0)}°C (limite: 850°C)` });
         sugestoes.push({ texto: 'Catalisador pode estar entupido ou queimando. Risco de danos ao motor. Verificar ignição e mistura.', prioridade: 'alta' });
-    } else if (L.tempPosCatalisador > 750) {
+    } else if (L.tempCatalisador > 750) {
         if (nivelGeral !== 'critico') nivelGeral = 'alerta';
-        alertas.push({ nivel: 'alerta', msg: 'Temperatura do catalisador elevada.', detalhe: `${L.tempPosCatalisador.toFixed(0)}°C` });
+        alertas.push({ nivel: 'alerta', msg: 'Temperatura do catalisador elevada.', detalhe: `${L.tempCatalisador.toFixed(0)}°C` });
         sugestoes.push({ texto: 'Catalisador pode estar degradando. Verificar se há misfire ou fuel trim anormal.', prioridade: 'media' });
     }
 
@@ -1544,9 +1543,9 @@ function renderizarDiagnostico() {
     }
 
     // --- 5. CATALISADOR × FUEL TRIM × O2 ---
-    if (L.tempPosCatalisador > 750 && (ftStft < -15 || ftLtft < -15) && L.nivelO2 > 0.7) {
+    if (L.tempCatalisador > 750 && (ftStft < -15 || ftLtft < -15) && L.nivelO2 > 0.7) {
         if (nivelGeral !== 'critico') nivelGeral = 'alerta';
-        alertas.push({ nivel: 'alerta', msg: 'Catalisador quente + mistura rica + O₂ alto!', detalhe: `Catalisador: ${L.tempPosCatalisador.toFixed(0)}°C | Fuel Trim: ${ftStft.toFixed(1)}% | O₂: ${L.nivelO2.toFixed(2)}V` });
+        alertas.push({ nivel: 'alerta', msg: 'Catalisador quente + mistura rica + O₂ alto!', detalhe: `Catalisador: ${L.tempCatalisador.toFixed(0)}°C | Fuel Trim: ${ftStft.toFixed(1)}% | O₂: ${L.nivelO2.toFixed(2)}V` });
         sugestoes.push({ texto: 'Combustível não queimado está chegando ao catalisador e superaquecendo-o. Causa provável: injetor(es) vazando(s), velas com defeito ou bobina de ignição com problema. Verifique cada injetor individualmente.', prioridade: 'alta' });
     }
 
@@ -1688,7 +1687,7 @@ function renderizarDiagnostico() {
             if (L.pressaoCombustivel < 300) causas.push({ texto: 'Pressão de combustível baixa — bomba ou filtro', icon: '⛽' });
             if (L.tempArAdmissao > 50) causas.push({ texto: 'Ar de admissão quente — intercooler ou dutos com problema', icon: '💨' });
             if (L.deslizamentoEmbreagem > 8) causas.push({ texto: 'Embreagem deslizando — RPM não converte em movimento', icon: '🔗' });
-            if (L.tempPosCatalisador > 750) causas.push({ texto: 'Catalisador quente demais — possível entupimento', icon: '🔥' });
+                if (L.tempCatalisador > 750) causas.push({ texto: 'Catalisador quente demais — possível entupimento', icon: '🔥' });
             if (causas.length === 0) {
                 causas.push({ texto: 'Filtro de ar sujo ou obstruído', icon: '🌬️' });
                 causas.push({ texto: 'Velas de ignição com desgaste', icon: '⚡' });
@@ -1784,7 +1783,7 @@ function detectarAbastecimento(nivelAntes, nivelDepois) {
                 fuelTrimLTFT: parseFloat(leiturasOBD.fuelTrimLTFT.toFixed(1)),
                 consumo: parseFloat(leiturasOBD.consumoInstantaneo.toFixed(1)),
                 nivelO2: parseFloat(leiturasOBD.nivelO2.toFixed(2)),
-                tempCatalisador: parseFloat(leiturasOBD.tempPosCatalisador.toFixed(0)),
+                tempCatalisador: parseFloat(leiturasOBD.tempCatalisador.toFixed(0)),
                 tempMotor: parseFloat(leiturasOBD.tempMotor.toFixed(1))
             }
         };
@@ -1814,7 +1813,7 @@ function registrarAbastecimentoManual() {
             fuelTrimLTFT: parseFloat(leiturasOBD.fuelTrimLTFT.toFixed(1)),
             consumo: parseFloat(leiturasOBD.consumoInstantaneo.toFixed(1)),
             nivelO2: parseFloat(leiturasOBD.nivelO2.toFixed(2)),
-            tempCatalisador: parseFloat(leiturasOBD.tempPosCatalisador.toFixed(0)),
+            tempCatalisador: parseFloat((leiturasOBD.tempCatalisador || leiturasOBD.tempPosCatalisador || 0).toFixed(0)),
             tempMotor: parseFloat(leiturasOBD.tempMotor.toFixed(1))
         }
     };
