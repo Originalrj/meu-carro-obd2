@@ -153,24 +153,32 @@ function renderizarRecentes() {
         const isActive = idx === getIdxAtivo();
         const div = document.createElement('div');
         div.style.cssText = `display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; transition:all 0.2s; ${isActive ? 'background:rgba(0,242,255,0.08); border:1px solid rgba(0,242,255,0.2);' : 'background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05);'}`;
+        const displayName = (v.marca || v.modelo) ? `${v.marca || '?'} ${v.modelo || ''}` : (v.placa ? v.placa : `Veículo ${idx + 1}`);
+        const displayAno = v.ano || '--';
+        const displayPlaca = (v.marca && v.placa) ? `| ${v.placa}` : '';
         div.innerHTML = `
             <div style="width:32px;height:32px;border-radius:50%;background:${isActive?'rgba(0,242,255,0.15)':'rgba(255,255,255,0.05)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <i class="fas fa-car" style="color:${isActive?'var(--accent)':'#64748b'};font-size:12px;"></i>
             </div>
             <div style="flex:1;min-width:0;">
-                <div style="font-size:11px;font-weight:700;color:${isActive?'var(--accent)':'var(--text)'};text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${v.marca || '--'} ${v.modelo || '--'}</div>
-                <div style="font-size:9px;color:#64748b;">${v.ano || '--'} ${v.placa ? '| ' + v.placa : ''}</div>
+                <div style="font-size:11px;font-weight:700;color:${isActive?'var(--accent)':'var(--text)'};text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>
+                <div style="font-size:9px;color:#64748b;">${displayAno} ${displayPlaca}${!v.marca ? ' · <span style="color:var(--accent);">incompleto</span>' : ''}</div>
             </div>
             ${isActive ? '<div style="font-size:8px;color:var(--accent);font-weight:700;">ATIVO</div>' : ''}
-            <button onclick="event.stopPropagation(); excluirVeiculoRecente(${idx})" style="background:none;border:none;color:#64748b;cursor:pointer;padding:4px;border-radius:4px;font-size:10px;opacity:0.6;transition:all 0.2s;" title="Excluir ${v.marca || ''} ${v.modelo || ''}" onmouseenter="this.style.color='var(--danger)';this.style.opacity='1'" onmouseleave="this.style.color='#64748b';this.style.opacity='0.6'">
+            <button onclick="event.stopPropagation(); excluirVeiculoRecente(${idx})" style="background:none;border:none;color:#64748b;cursor:pointer;padding:4px;border-radius:4px;font-size:10px;opacity:0.6;transition:all 0.2s;" title="Excluir ${displayName}" onmouseenter="this.style.color='var(--danger)';this.style.opacity='1'" onmouseleave="this.style.color='#64748b';this.style.opacity='0.6'">
                 <i class="fas fa-times"></i>
             </button>
         `;
         div.onclick = () => {
             setIdxAtivo(idx);
-            preencherPerfil(v.marca, v.modelo, v.ano);
-            renderizarPerfil();
+            renderizarDadosGlobais();
+            renderizarSaudeVeiculo();
+            renderizarHistoricoManutencao();
+            renderizarPlanoNecessidades();
             renderizarRecentes();
+            if (!v.marca) {
+                setTimeout(() => editarVeiculoAtivo(), 200);
+            }
         };
         div.onmouseenter = () => { if (!isActive) div.style.background = 'rgba(255,255,255,0.05)'; };
         div.onmouseleave = () => { if (!isActive) div.style.background = 'rgba(255,255,255,0.02)'; };
@@ -447,8 +455,10 @@ function popularSelectorVeiculos() {
     }
 
     sel.innerHTML = vehicles.map((v, i) => {
-        const nome = `${v.marca || 'Sem marca'} ${v.modelo || ''} ${v.ano || ''}`.trim();
-        return `<option value="${v.id}" ${i === idx ? 'selected' : ''}>${nome || 'Veículo ' + (i + 1)}</option>`;
+        const nome = (v.marca || v.modelo)
+            ? `${v.marca || ''} ${v.modelo || ''} ${v.ano || ''}`.trim()
+            : (v.placa ? v.placa : `Veículo ${i + 1} (incompleto)`);
+        return `<option value="${v.id}" ${i === idx ? 'selected' : ''}>${nome}</option>`;
     }).join('');
     console.log("[PERFIL-DEBUG] popularSelectorVeiculos: HTML atualizado:", sel.innerHTML.substring(0, 100));
 }
@@ -1127,7 +1137,7 @@ function renderizarDadosGlobais() {
     console.log("[PERFIL-DEBUG] renderizarDadosGlobais INICIADO");
     const v = getVeiculoAtivo();
     console.log("[PERFIL-DEBUG] veiculo ativo:", v);
-    const temVeiculo = !!(v && v.marca);
+    const temVeiculo = !!v;
 
     const km = v ? (parseInt(v.km) || 0) : 0;
     const marcaNome = v ? (v.marca || "") : "";
