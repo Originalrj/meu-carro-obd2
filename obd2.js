@@ -1296,6 +1296,100 @@ function renderizarDiagnostico() {
         }
     }
 
+    // ====================================================================
+    // CROSS-CORRELATION: Análise cruzada de sensores
+    // ====================================================================
+
+    // --- 1. TEMP. MOTOR × TEMP. AMBIENTE ---
+    if (L.tempMotor > 100 && L.tempAmbiente < 25 && L.tempAmbiente > 0) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Motor quente com ambiente fresco!', detalhe: `Motor: ${L.tempMotor.toFixed(1)}°C | Ambiente: ${L.tempAmbiente.toFixed(1)}°C` });
+        sugestoes.push({ texto: 'O motor está quente mas o ambiente está normal — isso descarta calor externo como causa. Verifique líquido de arrefecimento, termostato, bomba d\'água e ventilador.', prioridade: 'alta' });
+    }
+
+    // --- 2. TEMP. AR ADMISSÃO × TEMP. AMBIENTE (intercooler check) ---
+    if (L.tempArAdmissao > 0 && L.tempAmbiente > 0) {
+        const deltaAdmissao = L.tempArAdmissao - L.tempAmbiente;
+        if (deltaAdmissao > 25) {
+            if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+            alertas.push({ nivel: 'alerta', msg: 'Ar de admissão muito mais quente que o ambiente!', detalhe: `Admissão: ${L.tempArAdmissao.toFixed(1)}°C | Ambiente: ${L.tempAmbiente.toFixed(1)}°C (+${deltaAdmissao.toFixed(0)}°C)` });
+            sugestoes.push({ texto: 'Ar de admissão deveria estar próximo da temperatura ambiente (com intercooler). Diferença >25°C indica intercooler com defeito, dutos vazando ou motor de arrefecimento do intercooler parado.', prioridade: 'alta' });
+        } else if (deltaAdmissao > 15) {
+            sugestoes.push({ texto: `Ar de admissão ${deltaAdmissao.toFixed(0)}°C mais quente que o ambiente — intercooler pode estar parcialmente obstruído ou com效能 reduzida.`, prioridade: 'media' });
+        }
+    }
+
+    // --- 3. MAP × CARGA DO MOTOR ---
+    if (L.pressaoMAP > 95 && L.cargaMotor < 30) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'MAP alto com carga baixa!', detalhe: `MAP: ${L.pressaoMAP.toFixed(0)} kPa | Carga: ${L.cargaMotor.toFixed(0)}%` });
+        sugestoes.push({ texto: 'Com carga baixa (marcha lenta/pouca aceleração), a pressão MAP deveria ser baixa (~30-50 kPa). Valor alto indica obstrução na admissão, válvula EGR travada aberta ou sensor MAP descalibrado.', prioridade: 'alta' });
+    } else if (L.pressaoMAP < 25 && L.cargaMotor > 70) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'MAP muito baixo com carga alta!', detalhe: `MAP: ${L.pressaoMAP.toFixed(0)} kPa | Carga: ${L.cargaMotor.toFixed(0)}%` });
+        sugestoes.push({ texto: 'Com carga alta, a pressão MAP deveria ser mais alta (~80-100 kPa). Valor muito baixo pode indicar vazamento grande na admissão ou sensor MAP com defeito.', prioridade: 'alta' });
+    }
+
+    // --- 4. PRESSÃO COMBUSTÍVEL × FUEL TRIM ---
+    if (L.pressaoCombustivel > 0 && L.pressaoCombustivel < 300 && (ftStft > 15 || ftLtft > 15)) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Pressão de combustível baixa + Fuel Trim pobre!', detalhe: `Combustível: ${L.pressaoCombustivel.toFixed(0)} kPa | STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}%` });
+        sugestoes.push({ texto: 'Pressão de combustível abaixo do ideal (mínimo 300 kPa) combinada com fuel trim pobre indica que a ECU está compensando falta de combustível. Causa provável: bomba de combustível fraca ou filtro entupido.', prioridade: 'alta' });
+    }
+
+    // --- 5. CATALISADOR × FUEL TRIM × O2 ---
+    if (L.tempPosCatalisador > 750 && (ftStft < -15 || ftLtft < -15) && L.nivelO2 > 0.7) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Catalisador quente + mistura rica + O₂ alto!', detalhe: `Catalisador: ${L.tempPosCatalisador.toFixed(0)}°C | Fuel Trim: ${ftStft.toFixed(1)}% | O₂: ${L.nivelO2.toFixed(2)}V` });
+        sugestoes.push({ texto: 'Combustível não queimado está chegando ao catalisador e superaquecendo-o. Causa provável: injetor(es) vazando(s), velas com defeito ou bobina de ignição com problema. Verifique cada injetor individualmente.', prioridade: 'alta' });
+    }
+
+    // --- 6. OPEN LOOP × TEMP. MOTOR ---
+    if (L.statusSistemaComb && L.statusSistemaComb.includes('Open Loop') && L.tempMotor > 85) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Open Loop persistente com motor quente!', detalhe: `Status: ${L.statusSistemaComb} | Motor: ${L.tempMotor.toFixed(1)}°C` });
+        sugestoes.push({ texto: 'O motor já atingiu temperatura operacional (>85°C) mas o sistema continua em Open Loop. A ECU não está recebendo dados corretos dos sensores. Verifique sensor de temperatura do motor (ECT) e sensor O2.', prioridade: 'alta' });
+    }
+
+    // --- 7. TENSÃO BAIXA × QUALIDADE DAS LEITURAS ---
+    if (L.tensaoBateria > 0 && L.tensaoBateria < 12.0) {
+        const leiturasQuestionaveis = [];
+        if (L.tempAmbiente > 45) leiturasQuestionaveis.push('tempAmbiente');
+        if (L.nivelO2 > 0.9 || L.nivelO2 < 0.05) leiturasQuestionaveis.push('sensorO2');
+        if (L.pressaoMAP > 100) leiturasQuestionaveis.push('pressaoMAP');
+        if (L.fuelTrimSTFT > 25 || L.fuelTrimSTFT < -25) leiturasQuestionaveis.push('fuelTrim');
+        if (leiturasQuestionaveis.length > 0) {
+            if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+            alertas.push({ nivel: 'alerta', msg: 'Bateria fraca pode estar causando leituras erráticas!', detalhe: `Tensão: ${L.tensaoBateria.toFixed(1)}V | Sensores afetados: ${leiturasQuestionaveis.join(', ')}` });
+            sugestoes.push({ texto: `Tensão abaixo de 12V pode causar leituras incorretas nos sensores (${leiturasQuestionaveis.join(', ')}). Corrija a bateria/alternador PRIMEIRO e refaça o diagnóstico.`, prioridade: 'alta' });
+        }
+    }
+
+    // --- 8. RPM × VELOCIDADE × EMBREAGEM ---
+    if (L.rpm > 3000 && L.velocidade > 60 && L.deslizamentoEmbreagem > 5) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Embreagem deslizando em velocidade!', detalhe: `RPM: ${Math.round(L.rpm)} | Vel: ${L.velocidade.toFixed(0)} km/h | Deslizamento: ${L.deslizamentoEmbreagem.toFixed(1)}%` });
+        sugestoes.push({ texto: 'Embreagem deslizando em alta velocidade consome mais combustível e sobrecarrega o motor. Substitua o kit de embreagem o quanto antes.', prioridade: 'alta' });
+    }
+
+    // --- 9. O2 Pobre + FUEL TRIM Rico (contradição) ---
+    if (L.nivelO2 < 0.2 && (ftStft < -15 || ftLtft < -15)) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Sensor O₂ pobre mas Fuel Trim rico!', detalhe: `O₂: ${L.nivelO2.toFixed(2)}V (pobre) | STFT: ${ftStft.toFixed(1)}% (rico)` });
+        sugestoes.push({ texto: 'Leitura contraditória: O₂ indica mistura pobre mas ECU está reduzendo injeção (rico). Possível sensor O₂ descalibrado ou com atraso de resposta. Verifique o sensor O₂ com scanner avançado.', prioridade: 'alta' });
+    }
+
+    // --- 10. TEMP. MOTOR × FUEL TRIM (motor quente + lean = perigo) ---
+    if (L.tempMotor > 100 && (ftStft > 20 || ftLtft > 20)) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Motor quente + mistura pobre!', detalhe: `Motor: ${L.tempMotor.toFixed(1)}°C | STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}%` });
+        sugestoes.push({ texto: 'Mistura pobre em motor quente é perigosa — reduz a lubrificação e pode causar superaquecimento adicional. Verifique vazamentos de ar na admissão e bomba de combustível IMEDIATAMENTE.', prioridade: 'alta' });
+    }
+
+    // ====================================================================
+    // FIM CROSS-CORRELATION
+    // ====================================================================
+
     // --- Status Geral ---
     if (nivelGeral === 'critico') {
         statusIcon.textContent = '🚨';
