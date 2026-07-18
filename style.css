@@ -97,6 +97,9 @@
         .spec-value { font-size: 10px; color: #e2e8f0; font-weight: 600; text-align: right; }
         @media (max-width: 480px) { .specs-grid { grid-template-columns: 1fr; } }
 
+        #recentes-list > div { transition: all 0.2s ease; }
+        #recentes-list > div:hover { transform: translateX(4px); }
+
         /* Toast Notifications */
         .toast-container {
             position: fixed;

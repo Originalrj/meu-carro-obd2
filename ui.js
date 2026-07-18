@@ -136,6 +136,72 @@ function renderizarSpecs(specs, container) {
 }
 
 // ==========================================
+// VEÍCULOS RECENTES — Acesso Rápido
+// ==========================================
+
+function renderizarRecentes() {
+    const container = document.getElementById('recentes-container');
+    const list = document.getElementById('recentes-list');
+    if (!container || !list) return;
+
+    const vehicles = getVeiculos();
+    if (vehicles.length < 2) { container.classList.add('hidden'); return; }
+
+    list.innerHTML = '';
+    const recentes = vehicles.slice(0, 5);
+    recentes.forEach((v, idx) => {
+        const isActive = idx === getIdxAtivo();
+        const div = document.createElement('div');
+        div.style.cssText = `display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; transition:all 0.2s; ${isActive ? 'background:rgba(0,242,255,0.08); border:1px solid rgba(0,242,255,0.2);' : 'background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05);'}`;
+        div.innerHTML = `
+            <div style="width:32px;height:32px;border-radius:50%;background:${isActive?'rgba(0,242,255,0.15)':'rgba(255,255,255,0.05)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas fa-car" style="color:${isActive?'var(--accent)':'#64748b'};font-size:12px;"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:11px;font-weight:700;color:${isActive?'var(--accent)':'var(--text)'};text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${v.marca || '--'} ${v.modelo || '--'}</div>
+                <div style="font-size:9px;color:#64748b;">${v.ano || '--'} ${v.placa ? '| ' + v.placa : ''}</div>
+            </div>
+            ${isActive ? '<div style="font-size:8px;color:var(--accent);font-weight:700;">ATIVO</div>' : ''}
+        `;
+        div.onclick = () => {
+            setIdxAtivo(idx);
+            preencherPerfil(v.marca, v.modelo, v.ano);
+            renderizarPerfil();
+            renderizarRecentes();
+        };
+        div.onmouseenter = () => { if (!isActive) div.style.background = 'rgba(255,255,255,0.05)'; };
+        div.onmouseleave = () => { if (!isActive) div.style.background = 'rgba(255,255,255,0.02)'; };
+        list.appendChild(div);
+    });
+    container.classList.remove('hidden');
+}
+
+function preenchimentoInteligente() {
+    const marcaInput = document.getElementById('inp-prof-marca');
+    const modeloSelect = document.getElementById('inp-prof-modelo');
+    const anoSelect = document.getElementById('inp-prof-ano');
+    const tanqueInput = document.getElementById('inp-prof-tanque');
+    const kmInput = document.getElementById('inp-prof-km');
+    const kmDiaInput = document.getElementById('inp-prof-km-dia');
+
+    if (marcaInput && !marcaInput.value) {
+        const vehicles = getVeiculos();
+        const last = vehicles[getIdxAtivo()];
+        if (last && last.marca) {
+            showToast(`Dica: Seu último veículo era ${last.marca} ${last.modelo || ''}`, 'info', 3000);
+        }
+    }
+
+    if (tanqueInput && !tanqueInput.value) {
+        tanqueInput.placeholder = 'Auto-preenchido ao selecionar modelo';
+    }
+
+    if (kmInput && !kmInput.value) {
+        kmInput.focus();
+    }
+}
+
+// ==========================================
 // MULTI-VEÍCULO — Camada de dados
 // ==========================================
 // Formato antigo (legado): chaves individuais car_km, car_marca_nome, etc.
@@ -252,6 +318,7 @@ function toggleFormVeiculo() {
         form.classList.remove("hidden");
         txt.innerText = "Cancelar";
         btn.querySelector("i").className = "fas fa-times";
+        setTimeout(() => preenchimentoInteligente(), 300);
     } else {
         form.classList.add("hidden");
         txt.innerText = "Adicionar novo Veículo";
@@ -1099,6 +1166,7 @@ function renderizarDadosGlobais() {
     }
 
     renderizarAlertasManutencao();
+    renderizarRecentes();
     console.log("[PERFIL-DEBUG] renderizarDadosGlobais FINALIZADO");
 }
 
