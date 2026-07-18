@@ -308,6 +308,112 @@ function validarVIN(vin) {
     return /^[A-Z0-9]{17}$/.test(vin.toUpperCase());
 }
 
+// ==========================================
+// DECODIFICADOR VIN (Chassi) — Brasil
+// Extrai fabricante (WMI) e ano/modelo (posição 10)
+// ==========================================
+const WMI_BRASIL = {
+    '9BW': { marca: 'Volkswagen', tipo: 'Carro' },
+    '9BG': { marca: 'GM (Chevrolet)', tipo: 'Carro' },
+    '9BF': { marca: 'Ford', tipo: 'Caminhão' },
+    '9BD': { marca: 'Fiat', tipo: 'Carro' },
+    '9BS': { marca: 'Peugeot', tipo: 'Carro' },
+    '9BM': { marca: 'Citroën', tipo: 'Carro' },
+    '9BR': { marca: 'Toyota', tipo: 'Carro' },
+    '9BY': { marca: 'Audi', tipo: 'Carro' },
+    '93K': { marca: 'Mercedes-Benz', tipo: 'Carro' },
+    '93R': { marca: 'Land Rover', tipo: 'Carro' },
+    '934': { marca: 'Jeep', tipo: 'Carro' },
+    '9DY': { marca: 'Mitsubishi', tipo: 'Carro' },
+    '9C2': { marca: 'Honda', tipo: 'Moto' },
+    '9C6': { marca: 'Yamaha', tipo: 'Moto' },
+    '9C8': { marca: 'Agrale', tipo: 'Caminhão' },
+    '932': { marca: 'Harley-Davidson', tipo: 'Moto' },
+    '9BV': { marca: 'Volvo', tipo: 'Caminhão' },
+    '93M': { marca: 'International', tipo: 'Caminhão' },
+    '9DB': { marca: 'Mercedes-Benz', tipo: 'Caminhão' },
+    '99L': { marca: 'BYD', tipo: 'Carro' },
+    '9C5': { marca: 'Kasinski', tipo: 'Moto' },
+    '93X': { marca: 'Trolley', tipo: 'Ônibus' },
+    '94M': { marca: 'Busscar', tipo: 'Ônibus' }
+};
+
+const ANO_VIN = {
+    'A': [1980, 2010], 'B': [1981, 2011], 'C': [1982, 2012],
+    'D': [1983, 2013], 'E': [1984, 2014], 'F': [1985, 2015],
+    'G': [1986, 2016], 'H': [1987, 2017], 'J': [1988, 2018],
+    'K': [1989, 2019], 'L': [1990, 2020], 'M': [1991, 2021],
+    'N': [1992, 2022], 'P': [1993, 2023], 'R': [1994, 2024],
+    'S': [1995, 2025], 'T': [1996, 2026], 'V': [1997, 2027],
+    'W': [1998, 2028], 'X': [1999, 2029], 'Y': [2000, 2030],
+    '1': [2001, 2001], '2': [2002, 2002], '3': [2003, 2003],
+    '4': [2004, 2004], '5': [2005, 2005], '6': [2006, 2006],
+    '7': [2007, 2007], '8': [2008, 2008], '9': [2009, 2009]
+};
+
+function decodificarVIN(vin) {
+    if (!vin || vin.length !== 17) return null;
+    vin = vin.toUpperCase();
+
+    const wmi = vin.substring(0, 3);
+    const info = WMI_BRASIL[wmi] || null;
+
+    const codigoAno = vin[9];
+    const anos = ANO_VIN[codigoAno];
+    let anoModelo = null;
+    if (anos) {
+        anoModelo = anos[1] >= 2010 ? anos[1] : anos[0];
+    }
+
+    const paisCodigo = vin[0];
+    const paisMap = { '9': 'Brasil', '1': 'EUA', '2': 'Canadá', '3': 'México', 'J': 'Japão', 'W': 'Alemanha', 'S': 'Inglaterra', 'K': 'Coreia', 'Z': 'Itália' };
+    const pais = paisMap[paisCodigo] || 'Desconhecido';
+
+    return {
+        wmi: wmi,
+        fabricante: info ? info.marca : null,
+        tipo: info ? info.tipo : null,
+        pais: pais,
+        anoModelo: anoModelo,
+        codigoAno: codigoAno,
+        serial: vin.substring(11, 17)
+    };
+}
+
+function aplicarDecodificacaoVIN() {
+    const inpVin = document.getElementById("inp-prof-vin");
+    const vin = inpVin ? inpVin.value.trim().toUpperCase() : "";
+    if (!vin || vin.length !== 17) return;
+
+    const dados = decodificarVIN(vin);
+    if (!dados) return;
+
+    console.log("[VIN-DEBUG] Decodificado:", dados);
+
+    if (dados.fabricante) {
+        const inpMarca = document.getElementById("inp-prof-marca");
+        if (inpMarca && !inpMarca.value.trim()) {
+            inpMarca.value = dados.fabricante;
+            showToast(`VIN detectado: ${dados.fabricante} (${dados.pais})`, "info");
+        }
+    }
+
+    if (dados.anoModelo) {
+        const anoSelect = document.getElementById("inp-prof-ano");
+        if (anoSelect) {
+            const existeOpcao = Array.from(anoSelect.options).some(o => o.value === String(dados.anoModelo));
+            if (!existeOpcao && dados.fabricante) {
+                preencherPerfil(dados.fabricante, "", String(dados.anoModelo)).then(() => {
+                    const anoSel = document.getElementById("inp-prof-ano");
+                    if (anoSel) anoSel.value = String(dados.anoModelo);
+                });
+            } else if (existeOpcao) {
+                anoSelect.value = String(dados.anoModelo);
+            }
+        }
+    }
+}
+
 function showToast(message, type = 'info', duration = 3000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -348,6 +454,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             btnToggle.addEventListener("click", () => {
                 console.log("[PERFIL-DEBUG] BOTÃO TOGGLE CLICADO");
                 toggleFormVeiculo();
+            });
+        }
+
+        const inpVin = document.getElementById("inp-prof-vin");
+        if (inpVin) {
+            inpVin.addEventListener("input", () => {
+                const v = inpVin.value.trim().toUpperCase();
+                if (v.length === 17) aplicarDecodificacaoVIN();
             });
         }
 
