@@ -162,6 +162,9 @@ function renderizarRecentes() {
                 <div style="font-size:9px;color:#64748b;">${v.ano || '--'} ${v.placa ? '| ' + v.placa : ''}</div>
             </div>
             ${isActive ? '<div style="font-size:8px;color:var(--accent);font-weight:700;">ATIVO</div>' : ''}
+            <button onclick="event.stopPropagation(); excluirVeiculoRecente(${idx})" style="background:none;border:none;color:#64748b;cursor:pointer;padding:4px;border-radius:4px;font-size:10px;opacity:0.6;transition:all 0.2s;" title="Excluir ${v.marca || ''} ${v.modelo || ''}" onmouseenter="this.style.color='var(--danger)';this.style.opacity='1'" onmouseleave="this.style.color='#64748b';this.style.opacity='0.6'">
+                <i class="fas fa-times"></i>
+            </button>
         `;
         div.onclick = () => {
             setIdxAtivo(idx);
@@ -174,6 +177,29 @@ function renderizarRecentes() {
         list.appendChild(div);
     });
     container.classList.remove('hidden');
+}
+
+function excluirVeiculoRecente(idx) {
+    const vehicles = getVeiculos();
+    const v = vehicles[idx];
+    if (!v) return;
+    const nome = `${v.marca || ''} ${v.modelo || ''}`.trim() || 'este veículo';
+    if (!confirm(`Excluir "${nome}"?\n\nTodos os dados locais deste veículo serão removidos.`)) return;
+
+    vehicles.splice(idx, 1);
+    if (vehicles.length === 0) {
+        localStorage.removeItem("car_vehicles");
+        localStorage.removeItem("car_active_idx");
+    } else {
+        setIdxAtivo(Math.min(idx, vehicles.length - 1));
+        salvarVeiculos(vehicles);
+    }
+
+    renderizarDadosGlobais();
+    renderizarSaudeVeiculo();
+    renderizarHistoricoManutencao();
+    renderizarPlanoNecessidades();
+    showToast(`"${nome}" excluído.`, "info");
 }
 
 function preenchimentoInteligente() {

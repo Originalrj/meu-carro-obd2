@@ -100,6 +100,14 @@
         #recentes-list > div { transition: all 0.2s ease; }
         #recentes-list > div:hover { transform: translateX(4px); }
 
+        #btn-editar-veiculo, #btn-excluir-veiculo {
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        #btn-editar-veiculo:hover { background: rgba(0,242,255,0.1) !important; }
+        #btn-excluir-veiculo:hover { background: rgba(239,68,68,0.15) !important; border-color: rgba(239,68,68,0.5) !important; }
+        @media (max-width: 480px) { .hidden-mobile { display: none !important; } }
+
         /* Toast Notifications */
         .toast-container {
             position: fixed;
