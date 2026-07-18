@@ -1650,10 +1650,7 @@ function renderizarAlertasManutencao() {
         const registrosDoItem = registrosManutencao.filter(r => r.item === catalogo.nome);
         const ultimoRegistro = registrosDoItem.sort((a, b) => new Date(b.data) - new Date(a.data))[0];
 
-        if (!ultimoRegistro) {
-            alertas.push({ nome: catalogo.nome, tipo: 'info', msg: 'Original de fábrica', cor: 'var(--accent)' });
-            return;
-        }
+        if (!ultimoRegistro) return;
 
         let pct = 100;
         if (catalogo.intervaloKm) {
@@ -1672,7 +1669,7 @@ function renderizarAlertasManutencao() {
             alertas.push({ nome: catalogo.nome, tipo: 'critico', msg: 'VENCIDO', cor: 'var(--danger)' });
         } else if (pct <= 20) {
             alertas.push({ nome: catalogo.nome, tipo: 'urgente', msg: `${pct.toFixed(0)}% restante`, cor: 'var(--danger)' });
-        } else if (pct <= 50) {
+        } else if (pct <= 30) {
             alertas.push({ nome: catalogo.nome, tipo: 'atencao', msg: `${pct.toFixed(0)}% restante`, cor: 'var(--warning)' });
         }
     });
