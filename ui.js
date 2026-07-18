@@ -381,6 +381,8 @@ function editarVeiculoAtivo() {
     if (tanqueInp) tanqueInp.value = v.tanqueCapacidade || "";
     const kmDiaInp = document.getElementById("inp-prof-km-dia");
     if (kmDiaInp) kmDiaInp.value = v.mediaDiaria || "40";
+    const motorInp = document.getElementById("inp-prof-motor");
+    if (motorInp) motorInp.value = v.motor || "";
 
     const form = document.getElementById("card-form-veiculo");
     const txt = document.getElementById("btn-toggle-text");
@@ -409,6 +411,8 @@ function limparFormularioVeiculo() {
     if (tanqueInp) tanqueInp.value = "";
     const kmDiaInp = document.getElementById("inp-prof-km-dia");
     if (kmDiaInp) kmDiaInp.value = "40";
+    const motorInp = document.getElementById("inp-prof-motor");
+    if (motorInp) motorInp.value = "";
     const modSelect = document.getElementById("inp-prof-modelo");
     if (modSelect) modSelect.innerHTML = '<option value="">Modelo...</option>';
     const anoSelect = document.getElementById("inp-prof-ano");
@@ -438,6 +442,7 @@ function excluirVeiculoAtivo() {
     renderizarSaudeVeiculo();
     renderizarHistoricoManutencao();
     renderizarPlanoNecessidades();
+    if (typeof sincronizarLegado === 'function') sincronizarLegado();
     showToast("Veículo excluído.", "info");
 }
 
@@ -1080,7 +1085,8 @@ function concluirOnboarding() {
         placa: placaInput.toUpperCase(),
         vin: vinInput.toUpperCase(),
         tanqueCapacidade: document.getElementById("onb-tanque")?.value || "",
-        mediaDiaria: "40"
+        mediaDiaria: "40",
+        motor: document.getElementById("onb-motor")?.value?.trim() || ""
     };
 
     const vehicles = getVeiculos();
@@ -1767,7 +1773,7 @@ function renderizarHistoricoManutencao() {
     }
 
     if (registrosManutencao.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding:20px;">Nenhum registro ainda. Adicione sua primeira manutenção.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:20px;">Nenhum registro ainda. Adicione sua primeira manutenção.</td></tr>';
         return;
     }
 
@@ -1857,6 +1863,7 @@ function salvarPerfil() {
     const vinInput = document.getElementById("inp-prof-vin")?.value.trim() || "";
     const tanqueInput = document.getElementById("inp-prof-tanque")?.value || "";
     const kmDiaInput = document.getElementById("inp-prof-km-dia")?.value || "40";
+    const motorInput = document.getElementById("inp-prof-motor")?.value?.trim() || "";
     console.log("[PERFIL-DEBUG] salvarPerfil inputs:", { kmInput, mInput, placaInput });
 
     if (!kmInput || kmInput <= 0) {
@@ -1882,7 +1889,8 @@ function salvarPerfil() {
         placa: placaInput.toUpperCase(),
         vin: vinInput.toUpperCase(),
         tanqueCapacidade: tanqueInput,
-        mediaDiaria: kmDiaInput || "40"
+        mediaDiaria: kmDiaInput || "40",
+        motor: motorInput
     };
 
     const vehicles = getVeiculos();

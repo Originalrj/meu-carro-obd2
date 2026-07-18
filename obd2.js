@@ -14,6 +14,7 @@ let bleCharacteristic = null;
 let bleTxCharacteristic = null;
 let bleWriteType = 'writeWithoutResponse';
 let bleBuffer = '';
+let bleDevice = null;
 let tipoConexao = null; // 'serial' ou 'ble'
 
 // Pre-load OBDex DTC database (lazy, non-blocking)
@@ -45,7 +46,7 @@ let leiturasOBD = {
     torqueSolicitado: 0, torqueReal: 0
 };
 
-let nivelCombustivelAnterior = 50;
+let nivelCombustivelAnterior = null;
 let detectandoAbastecimento = false;
 
 function simularDadosOBD() {
@@ -128,6 +129,7 @@ function editarOdometro() {
     if (novo !== null && !isNaN(novo) && parseInt(novo) > 0) {
         const kmNovo = parseInt(novo);
         localStorage.setItem("car_km", kmNovo);
+        localStorage.setItem("car_ultima_data", new Date().toISOString().split('T')[0]);
 
         if (typeof getVeiculos === 'function') {
             const vehicles = getVeiculos();
@@ -302,6 +304,7 @@ async function conectarVeiculoBluetooth() {
             optionalServices: ELM327_ALL_OPTIONAL_SERVICES
         });
 
+        bleDevice = device;
         showToast("Conectando ao dispositivo...", "info");
 
         device.addEventListener('gattserverdisconnected', onBleDisconnect);
@@ -454,6 +457,8 @@ async function inicializarPainelReal() {
     try {
         modoSimulacao = false;
         clearInterval(simulationIntervalId);
+        if (pollingIntervalId) { clearInterval(pollingIntervalId); pollingIntervalId = null; }
+        if (pollingTelemetriaId) { clearInterval(pollingTelemetriaId); pollingTelemetriaId = null; }
 
         await sendElmCommand("ATD"); await delay(baseDelay);
         await sendElmCommand("ATZ"); await delay(isBle ? 2000 : 1000);
@@ -683,7 +688,6 @@ const DICIONARIO_DTC_FALLBACK = {
     "P0120": { description: "Throttle/Pedal Position Sensor A Circuit Malfunction", cause: "TPS sensor, wiring, throttle body", severity: "medium" },
     "P0130": { description: "O2 Sensor Circuit Malfunction (Bank 1 Sensor 1)", cause: "O2 sensor, wiring, exhaust leak", severity: "medium" },
     "P0135": { description: "O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1)", cause: "O2 sensor heater, wiring", severity: "medium" },
-    "P0171": { description: "System Too Lean (Bank 1)", cause: "Vacuum leak, weak fuel pump, dirty MAF", severity: "medium" },
     "P0201": { description: "Injector Circuit Malfunction - Cylinder 1", cause: "Fuel injector, wiring, ECM", severity: "high" },
     "P0335": { description: "Crankshaft Position Sensor A Circuit Malfunction", cause: "CKP sensor, wiring, timing belt", severity: "high" },
     "P0340": { description: "Camshaft Position Sensor A Circuit Malfunction", cause: "CMP sensor, wiring, timing chain", severity: "high" },
@@ -1153,6 +1157,26 @@ function parseObdResponse(response) {
 function toggleObdMode(isSimulated) {
     document.getElementById('btn-obd-sim').classList.toggle('active', isSimulated);
     document.getElementById('btn-obd-real').classList.toggle('active', !isSimulated);
+
+    if (isSimulated && !modoSimulacao) {
+        if (pollingIntervalId) { clearInterval(pollingIntervalId); pollingIntervalId = null; }
+        if (pollingTelemetriaId) { clearInterval(pollingTelemetriaId); pollingTelemetriaId = null; }
+        modoSimulacao = true;
+        tipoConexao = null;
+        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        showToast("Modo simulado ativado.", "info");
+    } else if (!isSimulated && modoSimulacao) {
+        if (!bleCharacteristic && !tipoConexao) {
+            showToast("Nenhum adaptador conectado. Use Conectar para vincular.", "error");
+            document.getElementById('btn-obd-sim').classList.add('active');
+            document.getElementById('btn-obd-real').classList.remove('active');
+            return;
+        }
+        clearInterval(simulationIntervalId);
+        modoSimulacao = false;
+        inicializarPainelReal();
+        showToast("Modo real ativado.", "success");
+    }
 }
 
 function limparDTCs() {
@@ -1528,7 +1552,7 @@ function renderizarDiagnostico() {
             alertas.push({ nivel: 'alerta', msg: 'Ar de admissão muito mais quente que o ambiente!', detalhe: `Admissão: ${L.tempArAdmissao.toFixed(1)}°C | Ambiente: ${L.tempAmbiente.toFixed(1)}°C (+${deltaAdmissao.toFixed(0)}°C)` });
             sugestoes.push({ texto: 'Ar de admissão deveria estar próximo da temperatura ambiente (com intercooler). Diferença >25°C indica intercooler com defeito, dutos vazando ou motor de arrefecimento do intercooler parado.', prioridade: 'alta' });
         } else if (deltaAdmissao > 15) {
-            sugestoes.push({ texto: `Ar de admissão ${deltaAdmissao.toFixed(0)}°C mais quente que o ambiente — intercooler pode estar parcialmente obstruído ou com效能 reduzida.`, prioridade: 'media' });
+            sugestoes.push({ texto: `Ar de admissão ${deltaAdmissao.toFixed(0)}°C mais quente que o ambiente — intercooler pode estar parcialmente obstruído ou com eficiência reduzida.`, prioridade: 'media' });
         }
     }
 
@@ -1774,6 +1798,7 @@ function salvarAbastecimentos() {
 }
 
 function detectarAbastecimento(nivelAntes, nivelDepois) {
+    if (nivelAntes === null || nivelAntes === undefined) return;
     if (nivelDepois > nivelAntes + 10) {
         const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
         const litros = ((nivelDepois - nivelAntes) / 100) * tanqueCap;
@@ -1855,7 +1880,7 @@ function calcularKmPorLitro() {
     if (totalLitros < 1 || totalKm < 1) return null;
     const kmL = totalKm / totalLitros;
     if (kmL < 2 || kmL > 30) return null;
-    return kmL.toFixed(1);
+    return parseFloat(kmL.toFixed(1));
 }
 
 function calcularPerfilPostos() {
