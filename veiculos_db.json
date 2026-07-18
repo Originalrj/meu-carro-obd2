@@ -1,0 +1,574 @@
+{
+  "strada_endurance_13_2025": {
+    "marca": "Fiat",
+    "modelo": "Strada",
+    "versao": "Endurance 1.3",
+    "ano": 2025,
+    "motor": {
+      "codigo": "GSE Firefly",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 1299,
+      "cilindros": 4,
+      "valvulas": 16,
+      "potenciaCv": 107,
+      "potenciaRpm": 6000,
+      "torqueKgfm": 13.7,
+      "torqueRpm": 3500,
+      "fabricanteMotor": "Stellantis"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 5
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 4480,
+      "entreEixos": 2733,
+      "portaMalas": 1146,
+      "peso": 1104
+    },
+    "tanque": 58,
+    "consumo": {
+      "urbano": 11.7,
+      "rodoviario": 14.1,
+      "misto": 12.9
+    },
+    "configuracao": "Pick-up leve",
+    "porte": "Van/Leve",
+    "portas": 2
+  },
+  "pulse_drive_13_2025": {
+    "marca": "Fiat",
+    "modelo": "Pulse",
+    "versao": "Drive 1.3",
+    "ano": 2025,
+    "motor": {
+      "codigo": "GSE Firefly",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 999,
+      "cilindros": 4,
+      "valvulas": 16,
+      "potenciaCv": 107,
+      "potenciaRpm": 6000,
+      "torqueKgfm": 13.7,
+      "torqueRpm": 3500,
+      "fabricanteMotor": "Stellantis"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 5
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 4093,
+      "entreEixos": 2514,
+      "portaMalas": 384,
+      "peso": 1205
+    },
+    "tanque": 47,
+    "consumo": {
+      "urbano": 11.7,
+      "rodoviario": 14.2,
+      "misto": 12.8
+    },
+    "configuracao": "SUV compacto",
+    "porte": "Pequeno",
+    "portas": 4
+  },
+  "argo_drive_10_2025": {
+    "marca": "Fiat",
+    "modelo": "Argo",
+    "versao": "Drive 1.0",
+    "ano": 2025,
+    "motor": {
+      "codigo": "GSE EVO Fire",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 75,
+      "potenciaRpm": 6000,
+      "torqueKgfm": 10.7,
+      "torqueRpm": 3250,
+      "fabricanteMotor": "Stellantis"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 5
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 4142,
+      "entreEixos": 2526,
+      "portaMalas": 430,
+      "peso": 1110
+    },
+    "tanque": 48,
+    "consumo": {
+      "urbano": 12.8,
+      "rodoviario": 15.0,
+      "misto": 13.7
+    },
+    "configuracao": "Hatchback",
+    "porte": "Pequeno",
+    "portas": 5
+  },
+  "mobi_like_10_2025": {
+    "marca": "Fiat",
+    "modelo": "Mobi",
+    "versao": "Like 1.0",
+    "ano": 2025,
+    "motor": {
+      "codigo": "GSE EVO Fire",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 75,
+      "potenciaRpm": 6000,
+      "torqueKgfm": 10.7,
+      "torqueRpm": 3250,
+      "fabricanteMotor": "Stellantis"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 5
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 3814,
+      "entreEixos": 2373,
+      "portaMalas": 253,
+      "peso": 973
+    },
+    "tanque": 47,
+    "consumo": {
+      "urbano": 12.2,
+      "rodoviario": 14.4,
+      "misto": 13.1
+    },
+    "configuracao": "Hatchback",
+    "porte": "Compacto",
+    "portas": 5
+  },
+  "cronos_drive_13_2025": {
+    "marca": "Fiat",
+    "modelo": "Cronos",
+    "versao": "Drive 1.3",
+    "ano": 2025,
+    "motor": {
+      "codigo": "GSE Firefly",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 999,
+      "cilindros": 4,
+      "valvulas": 16,
+      "potenciaCv": 107,
+      "potenciaRpm": 6000,
+      "torqueKgfm": 13.7,
+      "torqueRpm": 3500,
+      "fabricanteMotor": "Stellantis"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 5
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 4570,
+      "entreEixos": 2604,
+      "portaMalas": 526,
+      "peso": 1220
+    },
+    "tanque": 48,
+    "consumo": {
+      "urbano": 11.3,
+      "rodoviario": 13.8,
+      "misto": 12.4
+    },
+    "configuracao": "Sedan",
+    "porte": "Médio",
+    "portas": 4
+  },
+  "gol_10_2021": {
+    "marca": "Volkswagen",
+    "modelo": "Gol",
+    "versao": "1.0",
+    "ano": 2021,
+    "motor": {
+      "codigo": "EA211",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 84,
+      "potenciaRpm": 6250,
+      "torqueKgfm": 10.4,
+      "torqueRpm": 3500,
+      "fabricanteMotor": "Volkswagen"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 5
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 4081,
+      "entreEixos": 2470,
+      "portaMalas": 385,
+      "peso": 1039
+    },
+    "tanque": 55,
+    "consumo": {
+      "urbano": 11.4,
+      "rodoviario": 13.8,
+      "misto": 12.5
+    },
+    "configuracao": "Hatchback",
+    "porte": "Pequeno",
+    "portas": 4
+  },
+  "polo_comfortline_10_tsi_2024": {
+    "marca": "Volkswagen",
+    "modelo": "Polo",
+    "versao": "Comfortline 1.0 TSi",
+    "ano": 2024,
+    "motor": {
+      "codigo": "EA211",
+      "aspiracao": "Turbo",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 128,
+      "potenciaRpm": 5600,
+      "torqueKgfm": 20.4,
+      "torqueRpm": 2000,
+      "fabricanteMotor": "Volkswagen"
+    },
+    "alimentacao": "Direct Injection + Turbo",
+    "cambio": {
+      "tipo": "Automático",
+      "marchas": 6
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Disco"
+    },
+    "dimensoes": {
+      "comprimento": 4053,
+      "entreEixos": 2552,
+      "portaMalas": 300,
+      "peso": 1198
+    },
+    "tanque": 52,
+    "consumo": {
+      "urbano": 11.8,
+      "rodoviario": 14.5,
+      "misto": 12.9
+    },
+    "configuracao": "Hatchback",
+    "porte": "Pequeno",
+    "portas": 5
+  },
+  "tcross_comfortline_10_tsi_2024": {
+    "marca": "Volkswagen",
+    "modelo": "T-Cross",
+    "versao": "Comfortline 1.0 TSi",
+    "ano": 2024,
+    "motor": {
+      "codigo": "EA211",
+      "aspiracao": "Turbo",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 128,
+      "potenciaRpm": 5600,
+      "torqueKgfm": 20.4,
+      "torqueRpm": 2000,
+      "fabricanteMotor": "Volkswagen"
+    },
+    "alimentacao": "Direct Injection + Turbo",
+    "cambio": {
+      "tipo": "Automático",
+      "marchas": 6
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Disco"
+    },
+    "dimensoes": {
+      "comprimento": 4218,
+      "entreEixos": 2651,
+      "portaMalas": 420,
+      "peso": 1281
+    },
+    "tanque": 52,
+    "consumo": {
+      "urbano": 10.8,
+      "rodoviario": 13.2,
+      "misto": 11.8
+    },
+    "configuracao": "SUV compacto",
+    "porte": "Médio",
+    "portas": 5
+  },
+  "onix_lt_10_2024": {
+    "marca": "Chevrolet",
+    "modelo": "Onix",
+    "versao": "LT 1.0",
+    "ano": 2024,
+    "motor": {
+      "codigo": "B10X",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 82,
+      "potenciaRpm": 6200,
+      "torqueKgfm": 10.6,
+      "torqueRpm": 3400,
+      "fabricanteMotor": "General Motors"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 6
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 4372,
+      "entreEixos": 2540,
+      "portaMalas": 392,
+      "peso": 1140
+    },
+    "tanque": 44,
+    "consumo": {
+      "urbano": 11.5,
+      "rodoviario": 14.1,
+      "misto": 12.6
+    },
+    "configuracao": "Sedan",
+    "porte": "Médio",
+    "portas": 4
+  },
+  "onix_lt_10_turbo_2024": {
+    "marca": "Chevrolet",
+    "modelo": "Onix",
+    "versao": "LT 1.0 Turbo",
+    "ano": 2024,
+    "motor": {
+      "codigo": "B14D",
+      "aspiracao": "Turbo",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 116,
+      "potenciaRpm": 5800,
+      "torqueKgfm": 16.8,
+      "torqueRpm": 2000,
+      "fabricanteMotor": "General Motors"
+    },
+    "alimentacao": "Direct Injection + Turbo",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 6
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 4372,
+      "entreEixos": 2540,
+      "portaMalas": 392,
+      "peso": 1160
+    },
+    "tanque": 44,
+    "consumo": {
+      "urbano": 10.9,
+      "rodoviario": 13.3,
+      "misto": 12.0
+    },
+    "configuracao": "Sedan",
+    "porte": "Médio",
+    "portas": 4
+  },
+  "hb20_sense_10_2023": {
+    "marca": "Hyundai",
+    "modelo": "HB20",
+    "versao": "Sense 1.0",
+    "ano": 2023,
+    "motor": {
+      "codigo": "Kappa",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 998,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 80,
+      "potenciaRpm": 6200,
+      "torqueKgfm": 10.2,
+      "torqueRpm": 3200,
+      "fabricanteMotor": "Hyundai"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 5
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 3937,
+      "entreEixos": 2528,
+      "portaMalas": 300,
+      "peso": 1056
+    },
+    "tanque": 50,
+    "consumo": {
+      "urbano": 11.8,
+      "rodoviario": 14.2,
+      "misto": 12.8
+    },
+    "configuracao": "Hatchback",
+    "porte": "Pequeno",
+    "portas": 5
+  },
+  "polo_track_10_2023": {
+    "marca": "Volkswagen",
+    "modelo": "Polo",
+    "versao": "Track 1.0",
+    "ano": 2023,
+    "motor": {
+      "codigo": "EA211",
+      "aspiracao": "Naturally Aspirated",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 84,
+      "potenciaRpm": 6250,
+      "torqueKgfm": 10.4,
+      "torqueRpm": 3500,
+      "fabricanteMotor": "Volkswagen"
+    },
+    "alimentacao": "Multi-point Injection",
+    "cambio": {
+      "tipo": "Manual",
+      "marchas": 5
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Tambor"
+    },
+    "dimensoes": {
+      "comprimento": 4053,
+      "entreEixos": 2552,
+      "portaMalas": 300,
+      "peso": 1144
+    },
+    "tanque": 52,
+    "consumo": {
+      "urbano": 12.2,
+      "rodoviario": 14.7,
+      "misto": 13.2
+    },
+    "configuracao": "Hatchback",
+    "porte": "Pequeno",
+    "portas": 5
+  },
+  "virtus_comfortline_10_tsi_2026": {
+    "marca": "Volkswagen",
+    "modelo": "Virtus",
+    "versao": "Comfortline 1.0 TSi",
+    "ano": 2026,
+    "motor": {
+      "codigo": "EA211",
+      "aspiracao": "Turbo",
+      "cilindrada": 999,
+      "cilindros": 3,
+      "valvulas": 12,
+      "potenciaCv": 116,
+      "potenciaRpm": 5500,
+      "torqueKgfm": 20.4,
+      "torqueRpm": 2000,
+      "fabricanteMotor": "Volkswagen"
+    },
+    "alimentacao": "Direct Injection + Turbo",
+    "cambio": {
+      "tipo": "Automático",
+      "marchas": 6
+    },
+    "tracao": "Dianteira",
+    "direcao": "Elétrica",
+    "freios": {
+      "dianteiros": "Disco ventilado",
+      "traseiros": "Disco"
+    },
+    "dimensoes": {
+      "comprimento": 4493,
+      "entreEixos": 2604,
+      "portaMalas": 525,
+      "peso": 1245
+    },
+    "tanque": 52,
+    "consumo": {
+      "urbano": 11.2,
+      "rodoviario": 13.5,
+      "misto": 12.2
+    },
+    "configuracao": "Sedan",
+    "porte": "Médio",
+    "portas": 4
+  }
+}

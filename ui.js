@@ -15,22 +15,125 @@ function cacheGet(key) { try { return JSON.parse(localStorage.getItem(key)); } c
 function cacheSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
 
 const TANQUE_POR_MODELO = {
-    'gol': 52, 'voyage': 52, 'polo': 52, 'virtus': 52, 't-cross': 52, 'nivus': 52,
-    'saveiro': 52, 'up!': 40, 'taos': 52, 'terran': 52,
+    'gol': 55, 'voyage': 55, 'polo': 52, 'virtus': 52, 't-cross': 52, 'nivus': 52,
+    'saveiro': 52, 'up!': 40, 'taos': 52, 'terracan': 52,
     'fox': 50, 'spacefox': 52, 'crossfox': 50, 'fusca': 52,
-    'onix': 44, 'tracker': 48, 's10': 76, 'montana': 55, 'spin': 52,
-    'argo': 48, 'pulse': 48, 'fastback': 52, 'strada': 52, 'toro': 60, 'mobi': 48,
-    'cronos': 48, 'doblo': 52, 'fiorino': 50,
-    'hb20': 50, 'creta': 55, 'tucson': 60, 'sportage': 60,
-    'corolla': 50, 'corolla cross': 55, 'yaris': 42, 'hilux': 80, 'sw4': 80, 'rav4': 60,
+    'onix': 48, 'tracker': 48, 's10': 76, 'montana': 49, 'spin': 54,
+    'argo': 48, 'pulse': 47, 'fastback': 52, 'strada': 58, 'toro': 60, 'mobi': 47,
+    'cronos': 48, 'doblo': 60, 'fiorino': 58,
+    'hb20': 50, 'creta': 55, 'tucson': 60, 'sportage': 62,
+    'corolla': 50, 'corolla cross': 55, 'yaris': 42, 'hilux': 80, 'sw4': 80, 'rav4': 55,
     'renegade': 60, 'compass': 60, 'commander': 70,
-    'duster': 50, 'captur': 50, 'kicks': 48,
+    'duster': 50, 'captur': 50, 'kicks': 41,
     'territory': 62, 'ecosport': 52, 'kuga': 58,
-    'sandero': 50, 'logan': 50, 'kwid': 35,
+    'sandero': 50, 'logan': 50, 'kwid': 38,
     'c3': 50, 'c4': 60, 'aircross': 50,
-    'maverick': 62, 'frontier': 80,
-    'dolphin': 44, 'seal': 55, 'song plus': 60, 'yuan': 60
+    'maverick': 62, 'frontier': 80
 };
+
+// ==========================================
+// BANCO DE FICHAS TÉCNICAS (veiculos_db.json)
+// ==========================================
+let _veiculosDB = null;
+let _veiculosDBLoading = false;
+
+function normalizarChave(str) {
+    return str.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+}
+
+async function loadVeiculosDB() {
+    if (_veiculosDB || _veiculosDBLoading) return _veiculosDB;
+    _veiculosDBLoading = true;
+    try {
+        const resp = await fetch('veiculos_db.json');
+        if (!resp.ok) return null;
+        _veiculosDB = await resp.json();
+    } catch { _veiculosDB = null; }
+    _veiculosDBLoading = false;
+    return _veiculosDB;
+}
+
+function buscarSpecs(marca, modelo, ano) {
+    if (!_veiculosDB) return null;
+    const anoNum = parseInt(ano);
+    const mk = normalizarChave(marca);
+    const md = normalizarChave(modelo);
+
+    let bestMatch = null;
+    let bestScore = 0;
+
+    for (const [chave, specs] of Object.entries(_veiculosDB)) {
+        const parts = chave.split('_');
+        const specsAno = specs.ano || parseInt(parts[parts.length - 1]);
+        if (specsAno !== anoNum) continue;
+        const chaveLower = chave.toLowerCase();
+        let score = 0;
+        if (chaveLower.includes(mk)) score += 10;
+        if (chaveLower.includes(md)) score += 10;
+        if (score > bestScore) { bestScore = score; bestMatch = specs; }
+    }
+    return bestMatch;
+}
+
+function renderizarSpecs(specs, container) {
+    if (!specs || !container) return;
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    if (!specs.motor && !specs.cambio) return;
+
+    const m = specs.motor || {};
+    const c = specs.cambio || {};
+    const d = specs.dimensoes || {};
+    const f = specs.freios || {};
+    const co = specs.consumo || {};
+
+    const rows = [];
+    if (m.codigo) rows.push({ label: 'Motor', value: m.codigo });
+    if (m.cilindrada) rows.push({ label: 'Cilindrada', value: `${m.cilindrada}cc` });
+    if (m.cilindros) rows.push({ label: 'Cilindros', value: m.cilindros });
+    if (m.potenciaCv) {
+        let p = `${m.potenciaCv}cv`;
+        if (m.potenciaRpm) p += ` @ ${m.potenciaRpm}rpm`;
+        rows.push({ label: 'Potência', value: p });
+    }
+    if (m.torqueKgfm) {
+        let t = `${m.torqueKgfm}kgfm`;
+        if (m.torqueRpm) t += ` @ ${m.torqueRpm}rpm`;
+        rows.push({ label: 'Torque', value: t });
+    }
+    if (m.aspiracao) rows.push({ label: 'Aspiração', value: m.aspiracao });
+    if (specs.alimentacao) rows.push({ label: 'Alimentação', value: specs.alimentacao });
+    if (c.tipo) {
+        let camb = c.tipo;
+        if (c.marchas) camb += ` ${c.marchas}v`;
+        rows.push({ label: 'Câmbio', value: camb });
+    }
+    if (specs.tracao) rows.push({ label: 'Tração', value: specs.tracao });
+    if (specs.direcao) rows.push({ label: 'Direção', value: specs.direcao });
+    if (f.dianteiros) rows.push({ label: 'Freios Dianteiros', value: f.dianteiros });
+    if (f.traseiros) rows.push({ label: 'Freios Traseiros', value: f.traseiros });
+    if (d.comprimento) rows.push({ label: 'Comprimento', value: `${d.comprimento}mm` });
+    if (d.peso) rows.push({ label: 'Peso', value: `${d.peso}kg` });
+    if (specs.tanque) rows.push({ label: 'Tanque', value: `${specs.tanque}L` });
+    if (d.portaMalas) rows.push({ label: 'Porta-malas', value: `${d.portaMalas}L` });
+    if (co.urbano) rows.push({ label: 'Consumo Urbano', value: `${co.urbano} km/L` });
+    if (co.rodoviario) rows.push({ label: 'Consumo Rodoviário', value: `${co.rodoviario} km/L` });
+    if (co.misto) rows.push({ label: 'Consumo Misto', value: `${co.misto} km/L` });
+
+    if (rows.length === 0) return;
+
+    let html = `<div style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700; letter-spacing:1px; margin-bottom:6px;"><i class="fas fa-cogs"></i> Ficha Técnica</div>`;
+    html += `<div class="specs-grid">`;
+    for (const r of rows) {
+        html += `<div class="spec-item"><span class="spec-label">${r.label}</span><span class="spec-value">${r.value}</span></div>`;
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+}
 
 // ==========================================
 // MULTI-VEÍCULO — Camada de dados
@@ -806,6 +909,17 @@ async function onModeloChange() {
                 break;
             }
         }
+    }
+
+    const specsContainer = document.getElementById('specs-display');
+    if (specsContainer) {
+        try {
+            const db = await loadVeiculosDB();
+            if (db) {
+                const specs = buscarSpecs(brand.nome, modeloNome, anoNum);
+                renderizarSpecs(specs, specsContainer);
+            }
+        } catch {}
     }
 }
 
