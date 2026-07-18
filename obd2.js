@@ -109,6 +109,14 @@ function simularDadosOBD() {
     const litrosRestante = ((leiturasOBD.nivelCombustivel / 100) * tanqueCap).toFixed(1);
     if (elLiters) elLiters.innerText = litrosRestante;
 
+    const rpmEl = document.getElementById('rpm-num');
+    if (rpmEl) rpmEl.innerText = Math.round(leiturasOBD.rpm);
+    const rpmFill = document.getElementById('rpm-fill');
+    if (rpmFill) {
+        const pct = (leiturasOBD.rpm / 8000) * 314;
+        rpmFill.style.strokeDasharray = `${pct} 314`;
+    }
+
     atualizarPainelConsumo();
     renderizarSensores();
     renderizarDiagnostico();
@@ -131,7 +139,7 @@ function editarOdometro() {
         }
 
         const odoEl = document.getElementById('txt-odometro');
-        if (odoEl) odoEl.innerHTML = kmNovo.toLocaleString() + ' <span style="font-size: 0.9rem; color: #aaa;">KM</span>';
+        if (odoEl) odoEl.innerHTML = kmNovo.toLocaleString() + ' <span style="font-size:0.9rem;color:#aaa;">KM</span><button onclick="editarOdometro()" style="background:rgba(0,242,255,0.1);border:1px solid var(--accent);color:var(--accent);border-radius:50%;width:28px;height:28px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:6px;vertical-align:middle;" title="Atualizar odometro"><i class="fas fa-pen"></i></button>';
         showToast("Odômetro atualizado para " + kmNovo.toLocaleString() + " KM", "success");
         if (typeof renderizarDadosGlobais === 'function') renderizarDadosGlobais();
     }

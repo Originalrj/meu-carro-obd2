@@ -1149,7 +1149,8 @@ function renderizarDadosGlobais() {
     popularSelectorVeiculos();
 
     try {
-        document.getElementById("txt-odometro").innerText = km.toLocaleString() + " KM";
+        const odoEl = document.getElementById("txt-odometro");
+        if (odoEl) odoEl.innerHTML = km.toLocaleString() + ' <span style="font-size:0.9rem;color:#aaa;">KM</span><button onclick="editarOdometro()" style="background:rgba(0,242,255,0.1);border:1px solid var(--accent);color:var(--accent);border-radius:50%;width:28px;height:28px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:6px;vertical-align:middle;" title="Atualizar odometro"><i class="fas fa-pen"></i></button>';
         document.getElementById("lbl-veiculo-ano").innerText = `Ano: ${ano}`;
     } catch(e) {
         console.error("[PERFIL-DEBUG] Erro ao preencher odomômetro/ano:", e);
