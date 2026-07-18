@@ -19,11 +19,19 @@ function cacheSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val
 // Formato novo: array em "car_vehicles" + índice ativo em "car_active_idx"
 
 function migrarDadosLegadoSeNecessario() {
-    const vehicles = JSON.parse(localStorage.getItem("car_vehicles") || "null");
-    if (vehicles && Array.isArray(vehicles)) return;
+    try {
+        const vehicles = JSON.parse(localStorage.getItem("car_vehicles") || "null");
+        if (vehicles && Array.isArray(vehicles) && vehicles.length > 0) return;
+    } catch (e) {
+        localStorage.removeItem("car_vehicles");
+    }
 
     const km = localStorage.getItem("car_km");
-    if (!km) return;
+    if (!km || parseInt(km) <= 0) {
+        localStorage.setItem("car_vehicles", JSON.stringify([]));
+        localStorage.setItem("car_active_idx", "0");
+        return;
+    }
 
     const novoVeiculo = {
         id: Date.now().toString(36),
@@ -41,7 +49,6 @@ function migrarDadosLegadoSeNecessario() {
 
     localStorage.setItem("car_vehicles", JSON.stringify([novoVeiculo]));
     localStorage.setItem("car_active_idx", "0");
-    sincronizarLegado();
 }
 
 function getVeiculos() {
@@ -85,23 +92,19 @@ function toggleFormVeiculo() {
     const form = document.getElementById("card-form-veiculo");
     const btn = document.getElementById("btn-toggle-form");
     const txt = document.getElementById("btn-toggle-text");
+    if (!form || !btn || !txt) return;
+
     const isHidden = form.classList.contains("hidden");
 
     if (isHidden) {
         form.classList.remove("hidden");
-        const v = getVeiculoAtivo();
-        if (v) {
-            txt.innerText = "Cancelar";
-            document.getElementById("btn-toggle-form").querySelector("i").className = "fas fa-times";
-        } else {
-            txt.innerText = "Cancelar";
-            document.getElementById("btn-toggle-form").querySelector("i").className = "fas fa-times";
-        }
+        txt.innerText = "Cancelar";
+        btn.querySelector("i").className = "fas fa-times";
     } else {
         form.classList.add("hidden");
         const v = getVeiculoAtivo();
         txt.innerText = v ? "Editar veículo" : "Adicionar novo Veículo";
-        document.getElementById("btn-toggle-form").querySelector("i").className = "fas fa-plus";
+        btn.querySelector("i").className = "fas fa-plus";
     }
 }
 
@@ -149,7 +152,7 @@ function popularSelectorVeiculos() {
 
 function sincronizarLegado() {
     const v = getVeiculoAtivo();
-    if (!v) return;
+    if (!v || !v.km) return;
     localStorage.setItem("car_km", v.km);
     localStorage.setItem("car_marca_nome", v.marca || "");
     localStorage.setItem("car_modelo_nome", v.modelo || "");
@@ -159,6 +162,7 @@ function sincronizarLegado() {
     localStorage.setItem("car_vin", v.vin || "");
     localStorage.setItem("car_tanque_capacidade", v.tanqueCapacidade || "");
     localStorage.setItem("car_media_diaria", v.mediaDiaria || "40");
+    localStorage.setItem("car_ultima_data", new Date().toISOString());
 }
 
 // ==========================================
@@ -243,10 +247,14 @@ function popularDatalistManutencao() {
 
 // Inicialização do App e Verificação de Dados Dinâmicos
 document.addEventListener("DOMContentLoaded", async () => {
-    simulationIntervalId = setInterval(simularDadosOBD, 3000); // Inicia a simulação
+    simulationIntervalId = setInterval(simularDadosOBD, 3000);
     carregarRegistrosManutencao();
     popularDatalistManutencao();
     await initStaticSelects();
+
+    const btnToggle = document.getElementById("btn-toggle-form");
+    if (btnToggle) btnToggle.addEventListener("click", toggleFormVeiculo);
+
     verificarOnboardingESincronizacao();
 });
 
@@ -511,8 +519,9 @@ function verificarOnboardingESincronizacao() {
     sincronizarLegado();
 
     const vehicles = getVeiculos();
-    
-    if (vehicles.length === 0) {
+    const km = parseInt(localStorage.getItem("car_km")) || 0;
+
+    if (vehicles.length === 0 && km <= 0) {
         renderizarDadosGlobais();
         showToast("Bem-vindo! Preencha os dados do seu veículo na aba Perfil para ter acesso a todas as funcionalidades.", "info", 8000);
     } else {
