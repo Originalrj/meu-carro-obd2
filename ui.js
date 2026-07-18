@@ -1266,6 +1266,38 @@ function getTanqueCapacidade() {
     return v ? (parseInt(v.tanqueCapacidade) || 50) : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
 }
 
+function registrarTrocaItem(nomeItem, categoria) {
+    const kmAtual = getKmAtual();
+    const hoje = new Date().toISOString().split('T')[0];
+
+    const selSistema = document.getElementById('maint-sistema');
+    if (selSistema) {
+        for (let i = 0; i < selSistema.options.length; i++) {
+            if (selSistema.options[i].value === categoria) {
+                selSistema.selectedIndex = i;
+                break;
+            }
+        }
+    }
+
+    const inpItem = document.getElementById('maint-item');
+    if (inpItem) inpItem.value = nomeItem;
+
+    const inpData = document.getElementById('maint-data');
+    if (inpData) inpData.value = hoje;
+
+    const inpKm = document.getElementById('maint-km');
+    if (inpKm) inpKm.value = kmAtual || '';
+
+    editandoManutencaoIndex = null;
+    const tit = document.getElementById('maint-modal-titulo');
+    if (tit) tit.textContent = 'NOVO REGISTRO — ' + nomeItem.toUpperCase();
+    const btn = document.getElementById('maint-save-btn');
+    if (btn) btn.textContent = 'Salvar';
+
+    openMaintModal();
+}
+
 function renderizarSaudeVeiculo() {
     const container = document.getElementById('maint-saude');
     if (!container) return;
@@ -1284,13 +1316,14 @@ function renderizarSaudeVeiculo() {
         card.style = 'margin-bottom: 12px; padding: 14px;';
 
         if (!ultimoRegistro) {
-            // Nunca foi registrado: não inventa dado, avisa o usuário
+            card.style.cursor = 'pointer';
+            card.onclick = () => registrarTrocaItem(catalogo.nome, catalogo.categoria);
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                     <strong style="font-size:13px; color:#fff;">${catalogo.nome}</strong>
                     <span style="color:var(--accent); font-weight:700; font-size:10px; text-transform:uppercase;">Original de fábrica</span>
                 </div>
-                <div style="font-size:9px; color:#64748b;">Nenhum serviço registrado. Pode ser a peça original de fábrica.</div>
+                <div style="font-size:9px; color:#64748b;">Nenhum serviço registrado. Clique para registrar troca.</div>
             `;
             container.appendChild(card);
             return;
@@ -1324,6 +1357,8 @@ function renderizarSaudeVeiculo() {
             ? `Próxima Troca: <strong style="color:#fff;">${limiteKm.toLocaleString()} KM</strong>`
             : `Último Registro: <strong style="color:#fff;">${formatarDataBR(ultimoRegistro.data)}</strong>`;
 
+        card.style.cursor = 'pointer';
+        card.onclick = () => registrarTrocaItem(catalogo.nome, catalogo.categoria);
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <strong style="font-size:13px; color:#fff;">${catalogo.nome}</strong>

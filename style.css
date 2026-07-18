@@ -108,6 +108,9 @@
         #btn-excluir-veiculo:hover { background: rgba(239,68,68,0.15) !important; border-color: rgba(239,68,68,0.5) !important; }
         @media (max-width: 480px) { .hidden-mobile { display: none !important; } }
 
+        #maint-saude .glass-card { transition: all 0.2s ease; }
+        #maint-saude .glass-card:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,242,255,0.1); border-color: rgba(0,242,255,0.2); }
+
         /* Toast Notifications */
         .toast-container {
             position: fixed;
