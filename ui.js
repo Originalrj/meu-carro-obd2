@@ -3,6 +3,7 @@
 // =============================================
 
 const API_FIPE_V2 = "https://fipe.parallelum.com.br/api/v2/cars/brands";
+const API_FIPE_V1 = "https://parallelum.com.br/fipe/api/v1/carros/marcas";
 let marcasCache = [];
 let modelosCache = {};
 let anosPorModeloCache = {};
@@ -12,6 +13,24 @@ let editandoVeiculoId = null;
 
 function cacheGet(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
 function cacheSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+
+const TANQUE_POR_MODELO = {
+    'gol': 52, 'voyage': 52, 'polo': 52, 'virtus': 52, 't-cross': 52, 'nivus': 52,
+    'saveiro': 52, 'up!': 40, 'taos': 52, 'terran': 52,
+    'fox': 50, 'spacefox': 52, 'crossfox': 50, 'fusca': 52,
+    'onix': 44, 'tracker': 48, 's10': 76, 'montana': 55, 'spin': 52,
+    'argo': 48, 'pulse': 48, 'fastback': 52, 'strada': 52, 'toro': 60, 'mobi': 48,
+    'cronos': 48, 'doblo': 52, 'fiorino': 50,
+    'hb20': 50, 'creta': 55, 'tucson': 60, 'sportage': 60,
+    'corolla': 50, 'corolla cross': 55, 'yaris': 42, 'hilux': 80, 'sw4': 80, 'rav4': 60,
+    'renegade': 60, 'compass': 60, 'commander': 70,
+    'duster': 50, 'captur': 50, 'kicks': 48,
+    'territory': 62, 'ecosport': 52, 'kuga': 58,
+    'sandero': 50, 'logan': 50, 'kwid': 35,
+    'c3': 50, 'c4': 60, 'aircross': 50,
+    'maverick': 62, 'frontier': 80,
+    'dolphin': 44, 'seal': 55, 'song plus': 60, 'yuan': 60
+};
 
 // ==========================================
 // MULTI-VEÍCULO — Camada de dados
@@ -121,6 +140,8 @@ function toggleFormVeiculo() {
     if (isHidden) {
         editandoVeiculoId = null;
         limparFormularioVeiculo();
+        const fipeInfo = document.getElementById("fipe-info-display");
+        if (fipeInfo) { fipeInfo.innerHTML = ''; fipeInfo.classList.add('hidden'); }
         const tit = document.getElementById("prof-form-titulo");
         if (tit) tit.textContent = "Dados do Veículo";
         const btnSave = document.getElementById("prof-btn-salvar");
@@ -403,12 +424,10 @@ function aplicarDecodificacaoVIN() {
         if (anoSelect) {
             const existeOpcao = Array.from(anoSelect.options).some(o => o.value === String(dados.anoModelo));
             if (!existeOpcao && dados.fabricante) {
-                preencherPerfil(dados.fabricante, "", String(dados.anoModelo)).then(() => {
-                    const anoSel = document.getElementById("inp-prof-ano");
-                    if (anoSel) anoSel.value = String(dados.anoModelo);
-                });
+                preencherPerfil(dados.fabricante, "", String(dados.anoModelo));
             } else if (existeOpcao) {
                 anoSelect.value = String(dados.anoModelo);
+                onAnoChange('inp-prof');
             }
         }
     }
@@ -729,6 +748,67 @@ async function onAnoChange(prefix) {
     });
 }
 
+async function onModeloChange() {
+    const brand = resolverMarca(document.getElementById('inp-prof-marca').value);
+    const anoSelect = document.getElementById('inp-prof-ano');
+    const modSelect = document.getElementById('inp-prof-modelo');
+    const fipeInfo = document.getElementById('fipe-info-display');
+
+    if (!brand || !anoSelect.value || !modSelect.value) {
+        if (fipeInfo) fipeInfo.classList.add('hidden');
+        return;
+    }
+
+    const modeloCode = modSelect.value;
+    const modeloNome = modSelect.options[modSelect.selectedIndex].text;
+    const anoNum = anoSelect.value;
+
+    const versoesDoAno = anosPorModeloCache['inp_prof_years']?.[anoNum] || [];
+    const codigosAno = versoesDoAno.map(v => v.code);
+
+    let dados = null;
+    for (const anoCode of codigosAno) {
+        const cacheKey = `fipe_v1_price_${brand.codigo}_${modeloCode}_${anoCode}`;
+        dados = cacheGet(cacheKey);
+        if (dados) break;
+        try {
+            const resp = await fetch(`${API_FIPE_V1}/marcas/${brand.codigo}/modelos/${modeloCode}/anos/${anoCode}`);
+            if (!resp.ok) continue;
+            dados = await resp.json();
+            cacheSet(cacheKey, dados);
+            break;
+        } catch { continue; }
+    }
+
+    if (fipeInfo && dados && dados.Valor) {
+        const combustivel = dados.Combustivel || '';
+        const valor = dados.Valor || '';
+        const codigoFipe = dados.CodigoFipe || '';
+        fipeInfo.innerHTML = `
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                ${valor ? `<span style="font-size:11px; color:var(--success); font-weight:700;"><i class="fas fa-tag"></i> ${valor}</span>` : ''}
+                ${combustivel ? `<span style="font-size:10px; color:#94a3b8;"><i class="fas fa-gas-pump"></i> ${combustivel}</span>` : ''}
+                ${codigoFipe ? `<span style="font-size:9px; color:#64748b;">FIPE: ${codigoFipe}</span>` : ''}
+            </div>
+        `;
+        fipeInfo.classList.remove('hidden');
+    } else {
+        if (fipeInfo) fipeInfo.classList.add('hidden');
+    }
+
+    const tanqueInput = document.getElementById('inp-prof-tanque');
+    if (tanqueInput && !tanqueInput.value) {
+        const nomeLower = modeloNome.toLowerCase();
+        for (const [key, litros] of Object.entries(TANQUE_POR_MODELO)) {
+            if (nomeLower.includes(key)) {
+                tanqueInput.value = litros;
+                tanqueInput.placeholder = `${litros}L (auto)`;
+                break;
+            }
+        }
+    }
+}
+
 function verificarOnboardingESincronizacao() {
     console.log("[PERFIL-DEBUG] verificarOnboardingESincronizacao INICIADO");
     migrarDadosLegadoSeNecessario();
@@ -949,7 +1029,10 @@ async function preencherPerfil(marca, modelo, ano) {
         if (modelo) {
             const modelOpts = Array.from(modSelect.options);
             const match = modelOpts.find(o => o.text.toLowerCase() === modelo.toLowerCase());
-            if (match) modSelect.value = match.value;
+            if (match) {
+                modSelect.value = match.value;
+                onModeloChange();
+            }
         }
     }
 }

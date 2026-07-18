@@ -268,9 +268,10 @@
                         </div>
                         <div>
                             <label>Modelo</label>
-                            <select id="inp-prof-modelo"><option value="">Modelo...</option></select>
+                            <select id="inp-prof-modelo" onchange="onModeloChange()"><option value="">Modelo...</option></select>
                         </div>
                     </div>
+                    <div id="fipe-info-display" class="hidden" style="background:rgba(0,242,255,0.05); border:1px solid rgba(0,242,255,0.1); border-radius:8px; padding:8px 12px; margin-bottom:12px;"></div>
 
                     <!-- DOCUMENTAÇÃO -->
                     <div style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700; letter-spacing:1px; margin-bottom:8px;">Documentação</div>
