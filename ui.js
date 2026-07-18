@@ -13,6 +13,155 @@ function cacheGet(key) { try { return JSON.parse(localStorage.getItem(key)); } c
 function cacheSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
 
 // ==========================================
+// MULTI-VEÍCULO — Camada de dados
+// ==========================================
+// Formato antigo (legado): chaves individuais car_km, car_marca_nome, etc.
+// Formato novo: array em "car_vehicles" + índice ativo em "car_active_idx"
+
+function migrarDadosLegadoSeNecessario() {
+    const vehicles = JSON.parse(localStorage.getItem("car_vehicles") || "null");
+    if (vehicles && Array.isArray(vehicles)) return;
+
+    const km = localStorage.getItem("car_km");
+    if (!km) return;
+
+    const novoVeiculo = {
+        id: Date.now().toString(36),
+        km: parseInt(km) || 0,
+        marca: localStorage.getItem("car_marca_nome") || "",
+        modelo: localStorage.getItem("car_modelo_nome") || "",
+        ano: localStorage.getItem("car_ano") || "",
+        anoCodigo: localStorage.getItem("car_ano_codigo") || "",
+        placa: localStorage.getItem("car_placa") || "",
+        vin: localStorage.getItem("car_vin") || "",
+        tanqueCapacidade: localStorage.getItem("car_tanque_capacidade") || "",
+        motor: localStorage.getItem("car_motor") || "",
+        mediaDiaria: localStorage.getItem("car_media_diaria") || "40"
+    };
+
+    localStorage.setItem("car_vehicles", JSON.stringify([novoVeiculo]));
+    localStorage.setItem("car_active_idx", "0");
+    sincronizarLegado();
+}
+
+function getVeiculos() {
+    migrarDadosLegadoSeNecessario();
+    return JSON.parse(localStorage.getItem("car_vehicles") || "[]");
+}
+
+function getIdxAtivo() {
+    return parseInt(localStorage.getItem("car_active_idx") || "0") || 0;
+}
+
+function getVeiculoAtivo() {
+    const v = getVeiculos();
+    const idx = getIdxAtivo();
+    return v[idx] || null;
+}
+
+function salvarVeiculos(arr) {
+    localStorage.setItem("car_vehicles", JSON.stringify(arr));
+}
+
+function setIdxAtivo(idx) {
+    localStorage.setItem("car_active_idx", String(idx));
+    localStorage.setItem("car_ultima_data", new Date().toISOString());
+}
+
+function trocarVeiculo(id) {
+    const v = getVeiculos();
+    const idx = v.findIndex(x => x.id === id);
+    if (idx < 0) return;
+    setIdxAtivo(idx);
+    sincronizarLegado();
+    renderizarDadosGlobais();
+    renderizarSaudeVeiculo();
+    renderizarHistoricoManutencao();
+    renderizarPlanoNecessidades();
+    showToast("Veículo trocado com sucesso.", "info");
+}
+
+function toggleFormVeiculo() {
+    const form = document.getElementById("card-form-veiculo");
+    const btn = document.getElementById("btn-toggle-form");
+    const txt = document.getElementById("btn-toggle-text");
+    const isHidden = form.classList.contains("hidden");
+
+    if (isHidden) {
+        form.classList.remove("hidden");
+        const v = getVeiculoAtivo();
+        if (v) {
+            txt.innerText = "Cancelar";
+            document.getElementById("btn-toggle-form").querySelector("i").className = "fas fa-times";
+        } else {
+            txt.innerText = "Cancelar";
+            document.getElementById("btn-toggle-form").querySelector("i").className = "fas fa-times";
+        }
+    } else {
+        form.classList.add("hidden");
+        const v = getVeiculoAtivo();
+        txt.innerText = v ? "Editar veículo" : "Adicionar novo Veículo";
+        document.getElementById("btn-toggle-form").querySelector("i").className = "fas fa-plus";
+    }
+}
+
+function excluirVeiculoAtivo() {
+    const v = getVeiculoAtivo();
+    if (!v) return;
+    const nome = `${v.marca} ${v.modelo}`.trim() || "este veículo";
+    if (!confirm(`Excluir "${nome}"?\n\nTodos os dados locais deste veículo serão removidos. Esta ação não pode ser desfeita.`)) return;
+
+    const vehicles = getVeiculos();
+    const idx = getIdxAtivo();
+    vehicles.splice(idx, 1);
+
+    if (vehicles.length === 0) {
+        localStorage.removeItem("car_vehicles");
+        localStorage.removeItem("car_active_idx");
+    } else {
+        setIdxAtivo(Math.min(idx, vehicles.length - 1));
+        salvarVeiculos(vehicles);
+    }
+
+    renderizarDadosGlobais();
+    renderizarSaudeVeiculo();
+    renderizarHistoricoManutencao();
+    renderizarPlanoNecessidades();
+    showToast("Veículo excluído.", "info");
+}
+
+function popularSelectorVeiculos() {
+    const sel = document.getElementById("inp-vehicle-selector");
+    if (!sel) return;
+    const vehicles = getVeiculos();
+    const idx = getIdxAtivo();
+
+    if (vehicles.length === 0) {
+        sel.innerHTML = '<option value="">VEÍCULO NÃO CONFIGURADO</option>';
+        return;
+    }
+
+    sel.innerHTML = vehicles.map((v, i) => {
+        const nome = `${v.marca || 'Sem marca'} ${v.modelo || ''} ${v.ano || ''}`.trim();
+        return `<option value="${v.id}" ${i === idx ? 'selected' : ''}>${nome || 'Veículo ' + (i + 1)}</option>`;
+    }).join('');
+}
+
+function sincronizarLegado() {
+    const v = getVeiculoAtivo();
+    if (!v) return;
+    localStorage.setItem("car_km", v.km);
+    localStorage.setItem("car_marca_nome", v.marca || "");
+    localStorage.setItem("car_modelo_nome", v.modelo || "");
+    localStorage.setItem("car_ano", v.ano || "");
+    localStorage.setItem("car_ano_codigo", v.anoCodigo || "");
+    localStorage.setItem("car_placa", v.placa || "");
+    localStorage.setItem("car_vin", v.vin || "");
+    localStorage.setItem("car_tanque_capacidade", v.tanqueCapacidade || "");
+    localStorage.setItem("car_media_diaria", v.mediaDiaria || "40");
+}
+
+// ==========================================
 // CATÁLOGO MESTRE DE MANUTENÇÃO
 // Referência genérica (não é dado de nenhum veículo específico).
 // Cada item pode vencer por KM, por tempo (meses), ou pelos dois —
@@ -358,9 +507,12 @@ async function onAnoChange(prefix) {
 }
 
 function verificarOnboardingESincronizacao() {
-    let kmAtual = localStorage.getItem("car_km");
+    migrarDadosLegadoSeNecessario();
+    sincronizarLegado();
+
+    const vehicles = getVeiculos();
     
-    if (!kmAtual) {
+    if (vehicles.length === 0) {
         renderizarDadosGlobais();
         showToast("Bem-vindo! Preencha os dados do seu veículo na aba Perfil para ter acesso a todas as funcionalidades.", "info", 8000);
     } else {
@@ -392,22 +544,24 @@ function concluirOnboarding() {
         return;
     }
 
-    localStorage.setItem("car_km", kmInput);
-    localStorage.setItem("car_marca_nome", mSel);
-    localStorage.setItem("car_modelo_nome", modSelect.options[modSelect.selectedIndex]?.text || "");
-    localStorage.setItem("car_ano", anoSelect.options[anoSelect.selectedIndex]?.text || anoSelect.value);
-    localStorage.setItem("car_ano_codigo", anoSelect.value);
-    localStorage.setItem("car_ultima_data", new Date().toISOString());
-    localStorage.setItem("car_media_diaria", "40");
-    if (placaInput) localStorage.setItem("car_placa", placaInput.toUpperCase());
-    if (vinInput) localStorage.setItem("car_vin", vinInput.toUpperCase());
+    const novoVeiculo = {
+        id: Date.now().toString(36),
+        km: parseInt(kmInput) || 0,
+        marca: mSel || "",
+        modelo: modSelect.selectedIndex > 0 ? modSelect.options[modSelect.selectedIndex].text : "",
+        ano: anoSelect.selectedIndex > 0 ? anoSelect.options[anoSelect.selectedIndex].text : "",
+        anoCodigo: anoSelect.value || "",
+        placa: placaInput.toUpperCase(),
+        vin: vinInput.toUpperCase(),
+        tanqueCapacidade: document.getElementById("onb-tanque")?.value || "",
+        mediaDiaria: "40"
+    };
 
-    const tanqueInput = document.getElementById("onb-tanque").value;
-    const motorInput = document.getElementById("onb-motor").value.trim();
-    if (tanqueInput && parseInt(tanqueInput) > 0) {
-        localStorage.setItem("car_tanque_capacidade", tanqueInput);
-    }
-    if (motorInput) localStorage.setItem("car_motor", motorInput);
+    const vehicles = getVeiculos();
+    vehicles.push(novoVeiculo);
+    salvarVeiculos(vehicles);
+    setIdxAtivo(vehicles.length - 1);
+    sincronizarLegado();
 
     document.getElementById("modal-onboarding").classList.add("hidden");
     renderizarDadosGlobais();
@@ -424,8 +578,9 @@ function processarEstimativaDeQuilometragem() {
     let diferencaDias = Math.floor(diferencaTempo / (1000 * 3600 * 24));
 
     if (diferencaDias >= 1) {
-        let kmAtual = parseInt(localStorage.getItem("car_km"));
-        let mediaDiaria = parseInt(localStorage.getItem("car_media_diaria")) || 40;
+        let kmAtual = getKmAtual();
+        let v = getVeiculoAtivo();
+        let mediaDiaria = v ? (parseInt(v.mediaDiaria) || 40) : 40;
         let kmSugerida = kmAtual + (diferencaDias * mediaDiaria);
 
         document.getElementById("lbl-estimativa-dias").innerText = `Faz ${diferencaDias} dia(s) desde sua última sincronização.`;
@@ -440,30 +595,33 @@ function confirmarEstimativa(usarSugerido) {
     let kmFinal = parseInt(document.getElementById("inp-km-estimada-editavel").value);
 
     if (kmFinal && kmFinal > 0) {
-        localStorage.setItem("car_km", kmFinal);
-        localStorage.setItem("car_ultima_data", new Date().toISOString());
+        const vehicles = getVeiculos();
+        const idx = getIdxAtivo();
+        if (vehicles[idx]) {
+            vehicles[idx].km = kmFinal;
+            salvarVeiculos(vehicles);
+            sincronizarLegado();
+        }
         renderizarDadosGlobais();
     }
     document.getElementById("modal-estimativa").classList.add("hidden");
 }
 
 function renderizarDadosGlobais() {
-    let km = parseInt(localStorage.getItem("car_km")) || 0;
-    let marcaNome = localStorage.getItem("car_marca_nome") || "Não Configurado";
-    let modeloNome = localStorage.getItem("car_modelo_nome") || "";
-    let ano = localStorage.getItem("car_ano") || "--";
-    let placa = localStorage.getItem("car_placa") || "";
-    let vin = localStorage.getItem("car_vin") || "";
+    const v = getVeiculoAtivo();
+    const temVeiculo = !!(v && v.marca);
+
+    const km = v ? (parseInt(v.km) || 0) : 0;
+    const marcaNome = v ? (v.marca || "") : "";
+    const modeloNome = v ? (v.modelo || "") : "";
+    const ano = v ? (v.ano || "--") : "--";
+    const placa = v ? (v.placa || "") : "";
+    const vin = v ? (v.vin || "") : "";
+
+    popularSelectorVeiculos();
 
     document.getElementById("txt-odometro").innerText = km.toLocaleString() + " KM";
-    document.getElementById("lbl-veiculo-nome").innerText = `${marcaNome} ${modeloNome}`.trim();
     document.getElementById("lbl-veiculo-ano").innerText = `Ano: ${ano}`;
-
-    const veiculoCadastrado = marcaNome && marcaNome !== "Não Configurado";
-    const formTitulo = document.getElementById("prof-form-titulo");
-    const btnSalvar = document.getElementById("prof-btn-salvar");
-    if (formTitulo) formTitulo.innerText = veiculoCadastrado ? "Atualizar Dados do Veículo" : "Adicionar novo Veículo";
-    if (btnSalvar) btnSalvar.innerText = veiculoCadastrado ? "Atualizar" : "Salvar Veículo";
 
     const lblPlaca = document.getElementById("lbl-placa");
     if (lblPlaca) {
@@ -475,7 +633,6 @@ function renderizarDadosGlobais() {
         }
     }
 
-    // Exibe chassi no perfil (se o elemento existir)
     const lblVin = document.getElementById("lbl-vin");
     if (lblVin) {
         if (vin) {
@@ -486,26 +643,21 @@ function renderizarDadosGlobais() {
         }
     }
 
-    // Exibe motor no perfil (se o elemento existir)
-    const motor = localStorage.getItem("car_motor") || "";
-    const lblMotor = document.getElementById("lbl-motor");
-    if (lblMotor) {
-        if (motor) {
-            lblMotor.innerText = motor;
-            document.getElementById("lbl-motor-container").classList.remove("hidden");
-        } else {
-            document.getElementById("lbl-motor-container").classList.add("hidden");
-        }
-    }
-    
-    // Configura os valores nos inputs do perfil para o usuário ver o atual
-    document.getElementById("inp-prof-km").value = km;
+    const btnExcluir = document.getElementById("btn-excluir-veiculo");
+    if (btnExcluir) btnExcluir.classList.toggle("hidden", !temVeiculo);
+
+    const txtToggle = document.getElementById("btn-toggle-text");
+    if (txtToggle) txtToggle.innerText = temVeiculo ? "Editar veículo" : "Adicionar novo Veículo";
+
+    document.getElementById("inp-prof-km").value = km || "";
     const inpPlaca = document.getElementById("inp-prof-placa");
     if (inpPlaca) inpPlaca.value = placa;
     const inpVin = document.getElementById("inp-prof-vin");
     if (inpVin) inpVin.value = vin;
     const inpTanque = document.getElementById("inp-prof-tanque");
-    if (inpTanque) inpTanque.value = localStorage.getItem("car_tanque_capacidade") || "";
+    if (inpTanque) inpTanque.value = v ? (v.tanqueCapacidade || "") : "";
+    const inpKmDia = document.getElementById("inp-prof-km-dia");
+    if (inpKmDia) inpKmDia.value = v ? (v.mediaDiaria || "40") : "";
 
     preencherPerfil(marcaNome, modeloNome, ano);
 
@@ -562,16 +714,23 @@ async function preencherPerfil(marca, modelo, ano) {
             if (match) modSelect.value = match.value;
         }
     }
+}
 
-    const motorInput = document.getElementById("inp-prof-motor");
-    if (motorInput) motorInput.value = localStorage.getItem("car_motor") || "";
+function getKmAtual() {
+    const v = getVeiculoAtivo();
+    return v ? (parseInt(v.km) || 0) : (parseInt(localStorage.getItem("car_km")) || 0);
+}
+
+function getTanqueCapacidade() {
+    const v = getVeiculoAtivo();
+    return v ? (parseInt(v.tanqueCapacidade) || 50) : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
 }
 
 function renderizarSaudeVeiculo() {
     const container = document.getElementById('maint-saude');
     if (!container) return;
 
-    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const kmAtual = getKmAtual();
     const hoje = new Date();
     container.innerHTML = '<div style="font-size:10px; color:var(--accent); text-transform:uppercase; margin-bottom:10px; font-weight:800; letter-spacing:1px;">Painel de Saúde do Veículo</div>';
 
@@ -1124,37 +1283,52 @@ function salvarPerfil() {
     const placaInput = document.getElementById("inp-prof-placa")?.value.trim() || "";
     const vinInput = document.getElementById("inp-prof-vin")?.value.trim() || "";
     const tanqueInput = document.getElementById("inp-prof-tanque")?.value || "";
-    const motorInput = document.getElementById("inp-prof-motor")?.value.trim() || "";
+    const kmDiaInput = document.getElementById("inp-prof-km-dia")?.value || "40";
 
-    if (kmInput && kmInput > 0) {
-        if (placaInput && !validarPlaca(placaInput)) {
-            showToast("Placa inválida. Formato correto: ABC1D23 (7 caracteres, letras e números).", "error");
-            return;
-        }
-
-        if (vinInput && !validarVIN(vinInput)) {
-            showToast("Chassi/VIN inválido. Deve conter exatamente 17 caracteres (letras e números).", "error");
-            return;
-        }
-
-        localStorage.setItem("car_km", kmInput);
-        if(mInput) localStorage.setItem("car_marca_nome", mInput);
-        if(modSelect.selectedIndex > 0) localStorage.setItem("car_modelo_nome", modSelect.options[modSelect.selectedIndex].text);
-        if(anoSelect.selectedIndex > 0) {
-            localStorage.setItem("car_ano", anoSelect.options[anoSelect.selectedIndex].text);
-            localStorage.setItem("car_ano_codigo", anoSelect.value);
-        }
-        localStorage.setItem("car_placa", placaInput.toUpperCase());
-        localStorage.setItem("car_vin", vinInput.toUpperCase());
-        if(tanqueInput) localStorage.setItem("car_tanque_capacidade", tanqueInput);
-        if(motorInput) localStorage.setItem("car_motor", motorInput);
-        localStorage.setItem("car_ultima_data", new Date().toISOString());
-        
-        renderizarDadosGlobais();
-        showToast("Configurações atualizadas com sucesso!", "success");
-    } else {
+    if (!kmInput || kmInput <= 0) {
         showToast("Insira uma quilometragem válida.", "error");
+        return;
     }
+    if (placaInput && !validarPlaca(placaInput)) {
+        showToast("Placa inválida. Formato correto: ABC1D23 (7 caracteres, letras e números).", "error");
+        return;
+    }
+    if (vinInput && !validarVIN(vinInput)) {
+        showToast("Chassi/VIN inválido. Deve conter exatamente 17 caracteres.", "error");
+        return;
+    }
+
+    const veiculoData = {
+        id: Date.now().toString(36),
+        km: parseInt(kmInput) || 0,
+        marca: mInput || "",
+        modelo: modSelect.selectedIndex > 0 ? modSelect.options[modSelect.selectedIndex].text : "",
+        ano: anoSelect.selectedIndex > 0 ? anoSelect.options[anoSelect.selectedIndex].text : "",
+        anoCodigo: anoSelect.value || "",
+        placa: placaInput.toUpperCase(),
+        vin: vinInput.toUpperCase(),
+        tanqueCapacidade: tanqueInput,
+        mediaDiaria: kmDiaInput || "40"
+    };
+
+    const vehicles = getVeiculos();
+    const idxAtivo = getIdxAtivo();
+    const existente = vehicles[idxAtivo];
+
+    if (existente) {
+        veiculoData.id = existente.id;
+        vehicles[idxAtivo] = veiculoData;
+    } else {
+        vehicles.push(veiculoData);
+        setIdxAtivo(vehicles.length - 1);
+    }
+
+    salvarVeiculos(vehicles);
+    sincronizarLegado();
+
+    document.getElementById("card-form-veiculo").classList.add("hidden");
+    renderizarDadosGlobais();
+    showToast(existente ? "Veículo atualizado com sucesso!" : "Veículo adicionado com sucesso!", "success");
 }
 
 // ==========================================
@@ -1165,14 +1339,15 @@ function salvarPerfil() {
 function coletarDadosCompletos() {
     return {
         appNome: "AutoGestão X",
-        versaoFormato: 6,
+        versaoFormato: 7,
         exportadoEm: new Date().toISOString(),
+        vehicles: getVeiculos(),
+        activeIdx: getIdxAtivo(),
         veiculo: {
             km: localStorage.getItem("car_km"),
             marca: localStorage.getItem("car_marca_nome"),
             modelo: localStorage.getItem("car_modelo_nome"),
             ano: localStorage.getItem("car_ano"),
-            motor: localStorage.getItem("car_motor"),
             placa: localStorage.getItem("car_placa"),
             vin: localStorage.getItem("car_vin"),
             tanqueCapacidade: localStorage.getItem("car_tanque_capacidade"),
@@ -1212,27 +1387,47 @@ function importarDadosJSON(inputEl) {
     reader.onload = (e) => {
         try {
             const dados = JSON.parse(e.target.result);
-            if (!dados.veiculo || !Array.isArray(dados.registrosManutencao)) {
+            if (!dados.veiculo && !dados.vehicles) {
                 throw new Error("Formato de arquivo inválido.");
             }
 
-            const resumo = `${dados.veiculo.marca || '?'} ${dados.veiculo.modelo || ''} — ${dados.registrosManutencao.length} registro(s) de manutenção`;
+            const resumo = dados.vehicles
+                ? `${dados.vehicles.length} veículo(s) importado(s)`
+                : `${dados.veiculo?.marca || '?'} ${dados.veiculo?.modelo || ''}`;
             if (!confirm(`Isso vai substituir os dados atuais deste dispositivo por:\n\n${resumo}\n\nDeseja continuar?`)) {
                 inputEl.value = '';
                 return;
             }
 
-            const v = dados.veiculo;
-            if (v.km) localStorage.setItem("car_km", v.km);
-            if (v.marca) localStorage.setItem("car_marca_nome", v.marca);
-            if (v.modelo) localStorage.setItem("car_modelo_nome", v.modelo);
-            if (v.ano) localStorage.setItem("car_ano", v.ano);
-            if (v.motor) localStorage.setItem("car_motor", v.motor);
-            if (v.placa) localStorage.setItem("car_placa", v.placa);
-            if (v.vin) localStorage.setItem("car_vin", v.vin);
-            if (v.tanqueCapacidade) localStorage.setItem("car_tanque_capacidade", v.tanqueCapacidade);
-            if (v.ultimaData) localStorage.setItem("car_ultima_data", v.ultimaData);
-            if (v.mediaDiaria) localStorage.setItem("car_media_diaria", v.mediaDiaria);
+            if (dados.vehicles && Array.isArray(dados.vehicles)) {
+                salvarVeiculos(dados.vehicles);
+                if (typeof dados.activeIdx === 'number') setIdxAtivo(dados.activeIdx);
+            } else {
+                const v = dados.veiculo;
+                const novoVeiculo = {
+                    id: Date.now().toString(36),
+                    km: parseInt(v.km) || 0,
+                    marca: v.marca || "",
+                    modelo: v.modelo || "",
+                    ano: v.ano || "",
+                    anoCodigo: "",
+                    placa: v.placa || "",
+                    vin: v.vin || "",
+                    tanqueCapacidade: v.tanqueCapacidade || "",
+                    motor: v.motor || "",
+                    mediaDiaria: v.mediaDiaria || "40"
+                };
+                const vehicles = getVeiculos();
+                const idxAtivo = getIdxAtivo();
+                if (vehicles[idxAtivo]) {
+                    vehicles[idxAtivo] = { ...vehicles[idxAtivo], ...novoVeiculo, id: vehicles[idxAtivo].id };
+                } else {
+                    vehicles.push(novoVeiculo);
+                    setIdxAtivo(vehicles.length - 1);
+                }
+                salvarVeiculos(vehicles);
+            }
+            sincronizarLegado();
 
             registrosManutencao = dados.registrosManutencao || [];
             registrosManutencao.forEach(r => {

@@ -219,76 +219,103 @@
         <!-- PERFIL -->
         <div id="scr-profile" class="screen">
             <h3>Perfil do Veículo</h3>
+
+            <!-- SELETOR DE VEÍCULO -->
             <div class="glass-card" style="border-left:4px solid var(--accent)">
                 <div style="display:flex; align-items:center; gap:15px">
-                    <div style="width:50px; height:50px; border-radius:50%; background:rgba(0,242,255,0.1); display:flex; align-items:center; justify-content:center">
+                    <div style="width:50px; height:50px; border-radius:50%; background:rgba(0,242,255,0.1); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                         <i class="fas fa-car" style="color:var(--accent); font-size:1.3rem"></i>
                     </div>
-                    <div>
-                        <div style="font-weight:800; font-size:1.2rem; text-transform:uppercase" id="lbl-veiculo-nome">VEÍCULO NÃO CONFIGURADO</div>
+                    <div style="flex:1; min-width:0;">
+                        <select id="inp-vehicle-selector" onchange="trocarVeiculo(this.value)" style="width:100%; background:transparent; border:none; color:var(--text); font-weight:800; font-size:1.1rem; text-transform:uppercase; cursor:pointer; padding:2px 0; appearance:none; -webkit-appearance:none;">
+                            <option value="">VEÍCULO NÃO CONFIGURADO</option>
+                        </select>
                         <div style="font-size:11px; opacity:0.6" id="lbl-veiculo-ano">Ano: --</div>
                         <div style="font-size:9px; color:var(--warning); margin-top:4px;" id="lbl-placa-container" class="hidden">Placa: <span id="lbl-placa" style="font-weight:700;">--</span></div>
                         <div style="font-size:9px; color:var(--accent); margin-top:2px;" id="lbl-vin-container" class="hidden">VIN: <span id="lbl-vin" style="font-family:monospace">--</span></div>
-                        <div style="font-size:9px; color:var(--accent); margin-top:2px;" id="lbl-motor-container" class="hidden">Motor: <span id="lbl-motor" style="font-weight:700;">--</span></div>
+                    </div>
+                    <div style="flex-shrink:0;">
+                        <button onclick="excluirVeiculoAtivo()" id="btn-excluir-veiculo" class="hidden" style="background:none; border:1px solid rgba(239,68,68,0.3); color:var(--danger); border-radius:8px; padding:6px 10px; cursor:pointer; font-size:10px;" title="Excluir veículo">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <div class="glass-card" style="margin-top:10px;" id="card-form-veiculo">
-                <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:15px;"><i class="fas fa-sliders-h"></i> <span id="prof-form-titulo">Adicionar novo Veículo</span></div>
-                
-                <div style="margin-bottom:12px;">
-                    <label>Quilometragem Atual (KM) *</label>
-                    <input type="number" id="inp-prof-km" min="1" placeholder="Ex: 50000">
-                </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
-                    <div>
-                        <label>Placa</label>
-                        <input type="text" id="inp-prof-placa" placeholder="ABC1D23" maxlength="7" style="text-transform:uppercase;">
+            <!-- BOTÃO ADICIONAR / FECHAR -->
+            <button class="btn-main" onclick="toggleFormVeiculo()" id="btn-toggle-form" style="width:100%; margin-top:10px; background:var(--glass); color:var(--accent); border:1px solid rgba(0,242,255,0.2);">
+                <i class="fas fa-plus"></i> <span id="btn-toggle-text">Adicionar novo Veículo</span>
+            </button>
+
+            <!-- FORMULÁRIO (oculto por padrão) -->
+            <div id="card-form-veiculo" class="hidden" style="margin-top:10px;">
+                <div class="glass-card">
+                    <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:15px;"><i class="fas fa-sliders-h"></i> <span id="prof-form-titulo">Dados do Veículo</span></div>
+
+                    <!-- FIPE -->
+                    <div style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700; letter-spacing:1px; margin-bottom:8px;">Identificação (FIPE)</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label>Marca</label>
+                            <input type="text" id="inp-prof-marca" placeholder="Marca">
+                        </div>
+                        <div>
+                            <label>Ano</label>
+                            <select id="inp-prof-ano" onchange="onAnoChange('inp-prof')"><option value="">Ano...</option></select>
+                        </div>
+                        <div>
+                            <label>Modelo</label>
+                            <select id="inp-prof-modelo"><option value="">Modelo...</option></select>
+                        </div>
                     </div>
-                    <div>
-                        <label>Chassi / VIN</label>
-                        <input type="text" id="inp-prof-vin" placeholder="17 caracteres" maxlength="17" style="text-transform:uppercase;">
+
+                    <!-- DOCUMENTAÇÃO -->
+                    <div style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700; letter-spacing:1px; margin-bottom:8px;">Documentação</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label>Placa</label>
+                            <input type="text" id="inp-prof-placa" placeholder="ABC1D23" maxlength="7" style="text-transform:uppercase;">
+                        </div>
+                        <div>
+                            <label>Chassi / VIN</label>
+                            <input type="text" id="inp-prof-vin" placeholder="17 caracteres" maxlength="17" style="text-transform:uppercase;">
+                        </div>
                     </div>
-                </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
-                    <div>
+
+                    <!-- OPERACIONAL -->
+                    <div style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700; letter-spacing:1px; margin-bottom:8px;">Dados Operacionais</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label>KM Atual *</label>
+                            <input type="number" id="inp-prof-km" min="1" placeholder="Ex: 50000">
+                        </div>
+                        <div>
+                            <label>Km/dia (estimado)</label>
+                            <input type="number" id="inp-prof-km-dia" min="1" max="500" placeholder="Ex: 40">
+                        </div>
+                    </div>
+                    <div style="margin-bottom:15px;">
                         <label>Capacidade Tanque (L)</label>
                         <input type="number" id="inp-prof-tanque" min="10" max="200" placeholder="Ex: 50">
                     </div>
-                    <div></div>
-                </div>
-                <div style="margin-bottom:12px;">
-                    <label>Marca</label>
-                    <input type="text" id="inp-prof-marca" placeholder="Selecione ou digite a marca">
-                </div>
-                <div style="margin-bottom:12px;">
-                    <label>Ano</label>
-                    <select id="inp-prof-ano" onchange="onAnoChange('inp-prof')"><option value="">Ano...</option></select>
-                </div>
-                <div style="margin-bottom:15px;">
-                    <label>Modelo</label>
-                    <select id="inp-prof-modelo"><option value="">Modelo...</option></select>
-                </div>
-                <div style="margin-bottom:15px;">
-                    <label>Código do Motor (Opcional)</label>
-                    <input type="text" id="inp-prof-motor" placeholder="Ex: EA111 1.6 8V, Fire 1.0 8V">
-                </div>
 
-                <button class="btn-main" onclick="salvarPerfil()" id="prof-btn-salvar">Salvar Veículo</button>
+                    <button class="btn-main" onclick="salvarPerfil()" id="prof-btn-salvar">Salvar Veículo</button>
+                </div>
             </div>
 
+            <!-- BACKUP (sempre visível) -->
             <div class="glass-card" style="margin-top:10px;">
                 <div style="font-weight:700; font-size:13px; color:var(--accent); margin-bottom:5px;"><i class="fas fa-database"></i> Backup e Transferência de Dados</div>
                 <small style="color:#94a3b8; display:block; margin-bottom:15px;">Salve um arquivo com todos os seus dados (veículo, histórico de manutenção e plano de aquisição) para guardar ou levar para outro dispositivo.</small>
 
-                <button class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); margin-bottom:10px;" onclick="exportarDadosJSON()">
-                    <i class="fas fa-download"></i> Exportar Dados (Backup)
-                </button>
-
-                <label for="input-importar-dados" class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); display:block; text-align:center; cursor:pointer; margin-bottom:0;">
-                    <i class="fas fa-upload"></i> Importar Dados
-                </label>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <button class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); margin-bottom:0;" onclick="exportarDadosJSON()">
+                        <i class="fas fa-download"></i> Exportar
+                    </button>
+                    <label for="input-importar-dados" class="btn-main" style="background:var(--glass); color:var(--text); border:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; cursor:pointer; margin-bottom:0; text-align:center;">
+                        <i class="fas fa-upload"></i> Importar
+                    </label>
+                </div>
                 <input type="file" id="input-importar-dados" accept="application/json" class="hidden" onchange="importarDadosJSON(this)">
             </div>
         </div>

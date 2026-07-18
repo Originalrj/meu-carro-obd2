@@ -103,10 +103,21 @@ function editarOdometro() {
     const atual = parseInt(localStorage.getItem("car_km")) || 0;
     const novo = prompt("Digite a quilometragem atual do veículo:", atual);
     if (novo !== null && !isNaN(novo) && parseInt(novo) > 0) {
-        localStorage.setItem("car_km", parseInt(novo));
+        const kmNovo = parseInt(novo);
+        localStorage.setItem("car_km", kmNovo);
+
+        if (typeof getVeiculos === 'function') {
+            const vehicles = getVeiculos();
+            const idx = getIdxAtivo();
+            if (vehicles[idx]) {
+                vehicles[idx].km = kmNovo;
+                salvarVeiculos(vehicles);
+            }
+        }
+
         const odoEl = document.getElementById('txt-odometro');
-        if (odoEl) odoEl.innerHTML = parseInt(novo).toLocaleString() + ' <span style="font-size: 0.9rem; color: #aaa;">KM</span>';
-        showToast("Odômetro atualizado para " + parseInt(novo).toLocaleString() + " KM", "success");
+        if (odoEl) odoEl.innerHTML = kmNovo.toLocaleString() + ' <span style="font-size: 0.9rem; color: #aaa;">KM</span>';
+        showToast("Odômetro atualizado para " + kmNovo.toLocaleString() + " KM", "success");
         if (typeof renderizarDadosGlobais === 'function') renderizarDadosGlobais();
     }
 }
@@ -740,6 +751,14 @@ function parseObdResponse(response) {
                 const odoEl = document.getElementById('txt-odometro');
                 if (odoEl) odoEl.innerHTML = odoReal.toLocaleString() + ' <span style="font-size: 0.9rem; color: #aaa;">KM</span>';
                 localStorage.setItem("car_km", Math.round(odoReal));
+                if (typeof getVeiculos === 'function') {
+                    const vehicles = getVeiculos();
+                    const idx = getIdxAtivo();
+                    if (vehicles[idx]) {
+                        vehicles[idx].km = Math.round(odoReal);
+                        salvarVeiculos(vehicles);
+                    }
+                }
             }
         }
 
@@ -975,14 +994,26 @@ function limparDTCs() {
     showToast("Limpando DTCs da ECU...", "info");
     sendElmCommand("04").then(() => {
         setTimeout(() => {
-            if (kmAtual) localStorage.setItem("car_km", kmAtual);
+            if (kmAtual) {
+                localStorage.setItem("car_km", kmAtual);
+                if (typeof getVeiculos === 'function') {
+                    const v = getVeiculos(); const i = getIdxAtivo();
+                    if (v[i]) { v[i].km = parseInt(kmAtual); salvarVeiculos(v); }
+                }
+            }
             showToast("DTCs limpos com sucesso!", "success");
             document.getElementById('scan-result').classList.add('hidden');
             document.getElementById('scan-idle').classList.remove('hidden');
             sendElmCommand("0101");
         }, 1000);
     }).catch(() => {
-        if (kmAtual) localStorage.setItem("car_km", kmAtual);
+        if (kmAtual) {
+            localStorage.setItem("car_km", kmAtual);
+            if (typeof getVeiculos === 'function') {
+                const v = getVeiculos(); const i = getIdxAtivo();
+                if (v[i]) { v[i].km = parseInt(kmAtual); salvarVeiculos(v); }
+            }
+        }
         showToast("Erro ao limpar DTCs.", "error");
     });
 }
