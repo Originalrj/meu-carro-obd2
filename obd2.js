@@ -1144,7 +1144,10 @@ function renderizarDiagnostico() {
     } else if (L.nivelO2 > 0.8) {
         if (nivelGeral !== 'critico') nivelGeral = 'alerta';
         alertas.push({ nivel: 'alerta', msg: 'Sensor O₂ com leitura alta.', detalhe: `${L.nivelO2.toFixed(2)}V — mistura muito rica` });
-        sugestoes.push({ texto: 'Mistura rica pode indicar injetor vazando ou sensor MAP com defeito.', prioridade: 'media' });
+        sugestoes.push({ texto: 'Mistura rica pode indicar injetor vazando, sensor MAP com defeito ou regulador de pressão de combustível travado.', prioridade: 'media' });
+        if (L.pressaoMAP > 95) {
+            sugestoes.push({ texto: `Pressão MAP elevada (${L.pressaoMAP.toFixed(0)} kPa) combinada com leitura rica — forte indício de falha no sensor MAP.`, prioridade: 'alta' });
+        }
     }
 
     // --- Pressão MAP ---
@@ -1175,11 +1178,17 @@ function renderizarDiagnostico() {
     if (ftStft > 20 || ftLtft > 20) {
         nivelGeral = 'critico';
         alertas.push({ nivel: 'critico', msg: 'Fuel Trim muito alto (mistura pobre)!', detalhe: `STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}% | LTFT: ${ftLtft > 0 ? '+' : ''}${ftLtft.toFixed(1)}%` });
-        sugestoes.push({ texto: 'ECU adicionando muita correção. Possíveis causas: vazamento de ar na admissão, injetor entupido, sensor MAF sujo ou baixa pressão de combustível.', prioridade: 'alta' });
+        sugestoes.push({ texto: 'ECU adicionando muita correção. Possíveis causas: vazamento de ar na admissão, injetor entupido, sensor MAP/MAF sujo ou descalibrado, ou baixa pressão de combustível.', prioridade: 'alta' });
+        if (L.pressaoMAP > 95) {
+            sugestoes.push({ texto: `Pressão MAP elevada (${L.pressaoMAP.toFixed(0)} kPa) — pode indicar obstrução na admissão ou sensor MAP com defeito. Verifique dutos, filtro de ar e conexões.`, prioridade: 'alta' });
+        }
+        if (L.nivelO2 > 0.6) {
+            sugestoes.push({ texto: `Sensor O₂ lendo rico (${L.nivelO2.toFixed(2)}V) mas fuel trim está pobre — possível sensor MAP reportando pressão incorreta à ECU.`, prioridade: 'alta' });
+        }
     } else if (ftStft < -20 || ftLtft < -20) {
         nivelGeral = 'critico';
         alertas.push({ nivel: 'critico', msg: 'Fuel Trim muito baixo (mistura rica)!', detalhe: `STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}% | LTFT: ${ftLtft > 0 ? '+' : ''}${ftLtft.toFixed(1)}%` });
-        sugestoes.push({ texto: 'ECU reduzindo muita correção. Possíveis causas: injetor vazando, regulador de pressão com defeito ou sensor O₂ descalibrado.', prioridade: 'alta' });
+        sugestoes.push({ texto: 'ECU reduzindo muita correção. Possíveis causas: injetor vazando, regulador de pressão com defeito, sensor MAP descalibrado ou sensor O₂ descalibrado.', prioridade: 'alta' });
     } else if (ftStft > 10 || ftLtft > 10) {
         if (nivelGeral !== 'critico') nivelGeral = 'alerta';
         alertas.push({ nivel: 'alerta', msg: 'Fuel Trim elevado (tendência pobre).', detalhe: `STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}% | LTFT: ${ftLtft > 0 ? '+' : ''}${ftLtft.toFixed(1)}%` });
@@ -1228,7 +1237,14 @@ function renderizarDiagnostico() {
     }
 
     // --- TEMP. AMBIENTE ---
-    if (L.tempAmbiente > 40) {
+    if (L.tempAmbiente > 45) {
+        nivelGeral = 'critico';
+        alertas.push({ nivel: 'critico', msg: 'Temperatura ambiente absurdamente alta!', detalhe: `${L.tempAmbiente.toFixed(1)}°C — valor incompatível com clima brasileiro. Possível erro de sensor.` });
+        sugestoes.push({ texto: 'Leitura acima de 45°C é extremamente rara no Brasil. Verifique se o sensor de temperatura ambiente está funcionando corretamente. Se o carro estava parado ao sol, aguarde 10min e refaça o teste.', prioridade: 'alta' });
+        if (L.tempArAdmissao > 0 && L.tempArAdmissao < 40) {
+            sugestoes.push({ texto: `Temperatura do ar de admissão (${L.tempArAdmissao.toFixed(1)}°C) está normal — isso confirma possível erro no sensor de ambiente.`, prioridade: 'alta' });
+        }
+    } else if (L.tempAmbiente > 40) {
         if (nivelGeral !== 'critico') nivelGeral = 'alerta';
         alertas.push({ nivel: 'alerta', msg: 'Temperatura ambiente muito alta.', detalhe: `${L.tempAmbiente.toFixed(1)}°C — pode afetar performance do motor` });
         sugestoes.push({ texto: 'Ar quente reduz potência. Evite acelerações pesadas em dias muito quentes.', prioridade: 'baixa' });
@@ -1355,6 +1371,7 @@ function renderizarDiagnostico() {
         if (statusConsumo === 'alto' || statusConsumo === 'levemente_alto') {
             if (Math.abs(L.fuelTrimLTFT) > 10) causas.push({ texto: 'Fuel Trim descalibrado — ECU compensando falha na mistura', icon: '🔧' });
             if (L.nivelO2 < 0.15 || L.nivelO2 > 0.85) causas.push({ texto: 'Sensor O₂ com leitura fora do ideal — possível descalibração', icon: '🫁' });
+            if (L.pressaoMAP > 95 || L.pressaoMAP < 30) causas.push({ texto: 'Sensor MAP fora do esperado — pode estar descalibrado ou com obstrução', icon: '🔴' });
             if (L.tempMotor < 82) causas.push({ texto: 'Motor não está atingindo temperatura operacional — termostato travado aberto', icon: '🌡️' });
             if (L.pressaoCombustivel < 300) causas.push({ texto: 'Pressão de combustível baixa — bomba ou filtro', icon: '⛽' });
             if (L.tempArAdmissao > 50) causas.push({ texto: 'Ar de admissão quente — intercooler ou dutos com problema', icon: '💨' });
