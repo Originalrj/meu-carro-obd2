@@ -172,7 +172,7 @@ function atualizarPainelConsumo() {
         elMedio.innerHTML = kmLitro ? `${kmLitro} <small style="font-size:10px">km/L</small>` : `-- <small style="font-size:10px">km/L</small>`;
     }
     if (elKmRest) {
-        const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 0;
+        const tanqueCap = (typeof getTanqueCapacidade === 'function') ? getTanqueCapacidade() : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
         const nivel = leiturasOBD.nivelCombustivel || 0;
         const litrosRestante = (nivel / 100) * tanqueCap;
         let kmLitro = calcularKmPorLitro();
@@ -1800,9 +1800,9 @@ function salvarAbastecimentos() {
 function detectarAbastecimento(nivelAntes, nivelDepois) {
     if (nivelAntes === null || nivelAntes === undefined) return;
     if (nivelDepois > nivelAntes + 10) {
-        const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
+        const tanqueCap = getTanqueCapacidade ? getTanqueCapacidade() : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
         const litros = ((nivelDepois - nivelAntes) / 100) * tanqueCap;
-        const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+        const kmAtual = getKmAtual ? getKmAtual() : (parseInt(localStorage.getItem("car_km")) || 0);
 
         const abast = {
             data: new Date().toISOString(),
@@ -1830,9 +1830,9 @@ function detectarAbastecimento(nivelAntes, nivelDepois) {
 }
 
 function registrarAbastecimentoManual() {
-    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const kmAtual = getKmAtual ? getKmAtual() : (parseInt(localStorage.getItem("car_km")) || 0);
     const nivelAtual = leiturasOBD.nivelCombustivel || 50;
-    const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
+    const tanqueCap = getTanqueCapacidade ? getTanqueCapacidade() : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
 
     const litrosStr = prompt("Litros abastecidos:");
     if (litrosStr === null) return;
@@ -1877,15 +1877,9 @@ function editarAbastecimento(index, litros, posto) {
     if (abastecimentos[index]) {
         abastecimentos[index].litros = parseFloat(litros) || 0;
         abastecimentos[index].posto = posto || "";
-        const preco = prompt("Preço por litro (R$):", abastecimentos[index].precoLitro || "");
-        if (preco !== null && !isNaN(preco) && parseFloat(preco) > 0) {
-            abastecimentos[index].precoLitro = parseFloat(preco);
-            abastecimentos[index].custoTotal = parseFloat((abastecimentos[index].litros * parseFloat(preco)).toFixed(2));
-        }
         salvarAbastecimentos();
         showToast("Abastecimento atualizado.", "success");
     }
-}
 }
 
 function removerAbastecimento(index) {

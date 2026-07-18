@@ -471,8 +471,8 @@ function popularSelectorVeiculos() {
 function sincronizarLegado() {
     const v = getVeiculoAtivo();
     console.log("[PERFIL-DEBUG] sincronizarLegado:", v ? `km=${v.km}, marca=${v.marca}` : "null");
-    if (!v || !v.km) return;
-    localStorage.setItem("car_km", v.km);
+    if (!v) return;
+    if (v.km) localStorage.setItem("car_km", v.km);
     localStorage.setItem("car_marca_nome", v.marca || "");
     localStorage.setItem("car_modelo_nome", v.modelo || "");
     localStorage.setItem("car_ano", v.ano || "");
@@ -482,6 +482,7 @@ function sincronizarLegado() {
     localStorage.setItem("car_tanque_capacidade", v.tanqueCapacidade || "");
     localStorage.setItem("car_media_diaria", v.mediaDiaria || "40");
     localStorage.setItem("car_ultima_data", new Date().toISOString());
+    localStorage.setItem("car_motor", v.motor || "");
 }
 
 // ==========================================
@@ -1199,6 +1200,8 @@ function renderizarDadosGlobais() {
     if (inpTanque) inpTanque.value = v ? (v.tanqueCapacidade || "") : "";
     const inpKmDia = document.getElementById("inp-prof-km-dia");
     if (inpKmDia) inpKmDia.value = v ? (v.mediaDiaria || "40") : "";
+    const inpMotor = document.getElementById("inp-prof-motor");
+    if (inpMotor) inpMotor.value = v ? (v.motor || "") : "";
 
     preencherPerfil(marcaNome, modeloNome, ano);
 
@@ -1536,8 +1539,8 @@ function renderizarAbastecimentos() {
     const container = document.getElementById('maint-combustivel');
     if (!container) return;
 
-    const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
-    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const tanqueCap = getTanqueCapacidade();
+    const kmAtual = getKmAtual();
     const nivelAtual = (typeof leiturasOBD !== 'undefined' && leiturasOBD.nivelCombustivel) || 50;
     const litrosRestante = ((nivelAtual / 100) * tanqueCap).toFixed(1);
     const totalGasto = abastecimentos.reduce((sum, a) => sum + (a.custoTotal || 0), 0);
@@ -1660,7 +1663,7 @@ function renderizarAlertasManutencao() {
     const container = document.getElementById('dash-alertas');
     if (!container) return;
 
-    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const kmAtual = getKmAtual();
     const hoje = new Date();
     const alertas = [];
 
@@ -2623,10 +2626,11 @@ function renderizarCatalogoInteligente() {
     const container = document.getElementById('catalogo-container');
     if (!container) return;
     
-    const marca = localStorage.getItem("car_marca_nome") || "";
-    const modelo = localStorage.getItem("car_modelo_nome") || "";
+    const v = getVeiculoAtivo();
+    const marca = v ? (v.marca || "") : "";
+    const modelo = v ? (v.modelo || "") : "";
     const categoria = (typeof categoriaAtualCatalogo !== 'undefined') ? categoriaAtualCatalogo : 'filtros';
-    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const kmAtual = getKmAtual();
     
     const catData = BANCO_PECAS[categoria];
     if (!catData) return;
@@ -2838,7 +2842,7 @@ function removerDosNecessarios(index) {
 }
 
 function verificarPecasVencidas() {
-    const kmAtual = parseInt(localStorage.getItem("car_km")) || 0;
+    const kmAtual = getKmAtual();
     const kmLastMaintenance = {};
     if (typeof registrosManutencao !== 'undefined') {
         registrosManutencao.forEach(r => {
@@ -2863,13 +2867,11 @@ function verificarPecasVencidas() {
 
 
 // Força o carregamento inicial das peças e filtros assim que o app abre
-document.addEventListener("DOMContentLoaded", () => {
-    setTimeout(() => {
-        if (typeof alternarSubAbaPecas === "function") {
-            alternarSubAbaPecas('catalogo');
-        }
-        if (typeof verificarPecasVencidas === "function") {
-            verificarPecasVencidas();
-        }
-    }, 150);
-});
+setTimeout(() => {
+    if (typeof alternarSubAbaPecas === "function") {
+        alternarSubAbaPecas('catalogo');
+    }
+    if (typeof verificarPecasVencidas === "function") {
+        verificarPecasVencidas();
+    }
+}, 500);
