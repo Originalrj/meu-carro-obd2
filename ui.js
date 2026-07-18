@@ -8,6 +8,7 @@ let modelosCache = {};
 let anosPorModeloCache = {};
 let listaNecessidades = JSON.parse(localStorage.getItem("car_lista_necessidades") || "[]");
 let categoriaAtualCatalogo = "filtros";
+let editandoVeiculoId = null;
 
 function cacheGet(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
 function cacheSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
@@ -89,6 +90,7 @@ function setIdxAtivo(idx) {
 
 function trocarVeiculo(id) {
     console.log("[PERFIL-DEBUG] trocarVeiculo:", id);
+    editandoVeiculoId = null;
     const v = getVeiculos();
     const idx = v.findIndex(x => x.id === id);
     console.log("[PERFIL-DEBUG] trocarVeiculo idx:", idx);
@@ -105,10 +107,10 @@ function trocarVeiculo(id) {
 function toggleFormVeiculo() {
     console.log("[PERFIL-DEBUG] toggleFormVeiculo CHAMADO");
     const form = document.getElementById("card-form-veiculo");
-    const btn = document.getElementById("btn-toggle-form");
     const txt = document.getElementById("btn-toggle-text");
+    const btn = document.getElementById("btn-toggle-form");
     console.log("[PERFIL-DEBUG] form:", !!form, "btn:", !!btn, "txt:", !!txt);
-    if (!form || !btn || !txt) {
+    if (!form || !txt || !btn) {
         console.warn("[PERFIL-DEBUG] toggleFormVeiculo: ELEMENTOS NÃO ENCONTRADOS");
         return;
     }
@@ -117,20 +119,79 @@ function toggleFormVeiculo() {
     console.log("[PERFIL-DEBUG] isHidden:", isHidden);
 
     if (isHidden) {
+        editandoVeiculoId = null;
+        limparFormularioVeiculo();
+        const tit = document.getElementById("prof-form-titulo");
+        if (tit) tit.textContent = "Dados do Veículo";
+        const btnSave = document.getElementById("prof-btn-salvar");
+        if (btnSave) btnSave.textContent = "Salvar Veículo";
         form.classList.remove("hidden");
         txt.innerText = "Cancelar";
         btn.querySelector("i").className = "fas fa-times";
     } else {
         form.classList.add("hidden");
-        const v = getVeiculoAtivo();
-        console.log("[PERFIL-DEBUG] toggleForm: getVeiculoAtivo:", v);
-        txt.innerText = v ? "Editar veículo" : "Adicionar novo Veículo";
+        txt.innerText = "Adicionar novo Veículo";
         btn.querySelector("i").className = "fas fa-plus";
     }
     console.log("[PERFIL-DEBUG] toggleFormVeiculo FINALIZADO");
 }
 
+function editarVeiculoAtivo() {
+    console.log("[PERFIL-DEBUG] editarVeiculoAtivo CHAMADO");
+    const v = getVeiculoAtivo();
+    if (!v) {
+        console.warn("[PERFIL-DEBUG] editarVeiculoAtivo: nenhum veículo ativo");
+        return;
+    }
+    console.log("[PERFIL-DEBUG] editarVeiculoAtivo veículo:", v);
+    editandoVeiculoId = v.id;
+
+    document.getElementById("inp-prof-km").value = v.km || "";
+    document.getElementById("inp-prof-marca").value = v.marca || "";
+    const placaInp = document.getElementById("inp-prof-placa");
+    if (placaInp) placaInp.value = v.placa || "";
+    const vinInp = document.getElementById("inp-prof-vin");
+    if (vinInp) vinInp.value = v.vin || "";
+    const tanqueInp = document.getElementById("inp-prof-tanque");
+    if (tanqueInp) tanqueInp.value = v.tanqueCapacidade || "";
+    const kmDiaInp = document.getElementById("inp-prof-km-dia");
+    if (kmDiaInp) kmDiaInp.value = v.mediaDiaria || "40";
+
+    const form = document.getElementById("card-form-veiculo");
+    const txt = document.getElementById("btn-toggle-text");
+    const btn = document.getElementById("btn-toggle-form");
+    if (form) form.classList.remove("hidden");
+    if (txt) txt.innerText = "Cancelar";
+    if (btn) btn.querySelector("i").className = "fas fa-times";
+
+    const tit = document.getElementById("prof-form-titulo");
+    if (tit) tit.textContent = "Editar Veículo";
+    const btnSave = document.getElementById("prof-btn-salvar");
+    if (btnSave) btnSave.textContent = "Atualizar Veículo";
+
+    preencherPerfil(v.marca || "", v.modelo || "", v.ano || "");
+    console.log("[PERFIL-DEBUG] editarVeiculoAtivo FINALIZADO");
+}
+
+function limparFormularioVeiculo() {
+    document.getElementById("inp-prof-km").value = "";
+    document.getElementById("inp-prof-marca").value = "";
+    const placaInp = document.getElementById("inp-prof-placa");
+    if (placaInp) placaInp.value = "";
+    const vinInp = document.getElementById("inp-prof-vin");
+    if (vinInp) vinInp.value = "";
+    const tanqueInp = document.getElementById("inp-prof-tanque");
+    if (tanqueInp) tanqueInp.value = "";
+    const kmDiaInp = document.getElementById("inp-prof-km-dia");
+    if (kmDiaInp) kmDiaInp.value = "40";
+    const modSelect = document.getElementById("inp-prof-modelo");
+    if (modSelect) modSelect.innerHTML = '<option value="">Modelo...</option>';
+    const anoSelect = document.getElementById("inp-prof-ano");
+    if (anoSelect) anoSelect.innerHTML = '<option value="">Ano...</option>';
+}
+
 function excluirVeiculoAtivo() {
+    editandoVeiculoId = null;
     const v = getVeiculoAtivo();
     if (!v) return;
     const nome = `${v.marca} ${v.modelo}`.trim() || "este veículo";
@@ -705,9 +766,11 @@ function renderizarDadosGlobais() {
 
     const btnExcluir = document.getElementById("btn-excluir-veiculo");
     if (btnExcluir) btnExcluir.classList.toggle("hidden", !temVeiculo);
+    const btnEditar = document.getElementById("btn-editar-veiculo");
+    if (btnEditar) btnEditar.classList.toggle("hidden", !temVeiculo);
 
     const txtToggle = document.getElementById("btn-toggle-text");
-    if (txtToggle) txtToggle.innerText = temVeiculo ? "Editar veículo" : "Adicionar novo Veículo";
+    if (txtToggle) txtToggle.innerText = "Adicionar novo Veículo";
 
     document.getElementById("inp-prof-km").value = km || "";
     const inpPlaca = document.getElementById("inp-prof-placa");
@@ -1375,13 +1438,13 @@ function salvarPerfil() {
     };
 
     const vehicles = getVeiculos();
-    const idxAtivo = getIdxAtivo();
-    const existente = vehicles[idxAtivo];
-    console.log("[PERFIL-DEBUG] salvarPerfil existente:", !!existente, "idx:", idxAtivo, "total:", vehicles.length);
+    const existenteIdx = editandoVeiculoId ? vehicles.findIndex(v => v.id === editandoVeiculoId) : -1;
+    const existente = existenteIdx >= 0 ? vehicles[existenteIdx] : null;
+    console.log("[PERFIL-DEBUG] salvarPerfil editando:", !!existente, "editandoVeiculoId:", editandoVeiculoId, "total:", vehicles.length);
 
     if (existente) {
         veiculoData.id = existente.id;
-        vehicles[idxAtivo] = veiculoData;
+        vehicles[existenteIdx] = veiculoData;
     } else {
         vehicles.push(veiculoData);
         setIdxAtivo(vehicles.length - 1);
@@ -1389,8 +1452,13 @@ function salvarPerfil() {
 
     salvarVeiculos(vehicles);
     sincronizarLegado();
+    editandoVeiculoId = null;
 
     document.getElementById("card-form-veiculo").classList.add("hidden");
+    const txtToggle = document.getElementById("btn-toggle-text");
+    const btnToggle = document.getElementById("btn-toggle-form");
+    if (txtToggle) txtToggle.innerText = "Adicionar novo Veículo";
+    if (btnToggle) btnToggle.querySelector("i").className = "fas fa-plus";
     renderizarDadosGlobais();
     showToast(existente ? "Veículo atualizado com sucesso!" : "Veículo adicionado com sucesso!", "success");
     console.log("[PERFIL-DEBUG] salvarPerfil FINALIZADO");

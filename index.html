@@ -234,8 +234,11 @@
                         <div style="font-size:9px; color:var(--warning); margin-top:4px;" id="lbl-placa-container" class="hidden">Placa: <span id="lbl-placa" style="font-weight:700;">--</span></div>
                         <div style="font-size:9px; color:var(--accent); margin-top:2px;" id="lbl-vin-container" class="hidden">VIN: <span id="lbl-vin" style="font-family:monospace">--</span></div>
                     </div>
-                    <div style="flex-shrink:0;">
-                        <button onclick="excluirVeiculoAtivo()" id="btn-excluir-veiculo" class="hidden" style="background:none; border:1px solid rgba(239,68,68,0.3); color:var(--danger); border-radius:8px; padding:6px 10px; cursor:pointer; font-size:10px;" title="Excluir veículo">
+                    <div style="flex-shrink:0; display:flex; gap:6px;">
+                        <button onclick="editarVeiculoAtivo()" id="btn-editar-veiculo" class="hidden" style="background:none; border:1px solid rgba(0,242,255,0.3); color:var(--accent); border-radius:8px; padding:6px 10px; cursor:pointer; font-size:11px;" title="Editar veículo">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button onclick="excluirVeiculoAtivo()" id="btn-excluir-veiculo" class="hidden" style="background:none; border:1px solid rgba(239,68,68,0.3); color:var(--danger); border-radius:8px; padding:6px 10px; cursor:pointer; font-size:11px;" title="Excluir veículo">
                             <i class="fas fa-trash-alt"></i>
                         </button>
                     </div>
