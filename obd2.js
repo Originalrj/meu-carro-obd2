@@ -16,6 +16,9 @@ let bleWriteType = 'writeWithoutResponse';
 let bleBuffer = '';
 let tipoConexao = null; // 'serial' ou 'ble'
 
+// Pre-load OBDex DTC database (lazy, non-blocking)
+loadOBDex();
+
 function hexToAscii(hex) {
     let str = '';
     for (let i = 0; i < hex.length; i += 2) {
@@ -36,7 +39,10 @@ let leiturasOBD = {
     statusMIL: false, qtdDTCs: 0,
     statusSistemaComb: '--',
     distDesdeDTC: 0, tempoDesdeUltimaPartida: 0, tempoDesdeDTC: 0,
-    o2Sensor1: 0, o2Sensor2: 0, o2Sensor3: 0, o2Sensor4: 0
+    o2Sensor1: 0, o2Sensor2: 0, o2Sensor3: 0, o2Sensor4: 0,
+    maf: 0, etanolPercent: 0, tempOleo: 0, consumoRealLh: 0,
+    pressaoBarometrica: 0, tempCatalisador: 0,
+    torqueSolicitado: 0, torqueReal: 0
 };
 
 let nivelCombustivelAnterior = 50;
@@ -65,6 +71,15 @@ function simularDadosOBD() {
     leiturasOBD.pressaoCombustivel = 300 + Math.random() * 100 - (fatorDesgaste * 50) + (leiturasOBD.cargaMotor > 60 ? 50 : 0);
     leiturasOBD.tempPosCatalisador = leiturasOBD.tempMotor + 100 + Math.random() * 200 + (leiturasOBD.cargaMotor > 50 ? 100 : 0);
     leiturasOBD.tempAmbiente = 20 + Math.random() * 15;
+
+    leiturasOBD.maf = 2 + (leiturasOBD.cargaMotor / 100) * 40 + (leiturasOBD.rpm / 8000) * 20 + Math.random() * 5;
+    leiturasOBD.etanolPercent = Math.random() > 0.5 ? 27 : 85;
+    leiturasOBD.tempOleo = 75 + Math.random() * 25 + fatorDesgaste * 10 + (leiturasOBD.cargaMotor > 70 ? 15 : 0);
+    leiturasOBD.consumoRealLh = 1 + (leiturasOBD.cargaMotor / 100) * 8 + (leiturasOBD.rpm / 8000) * 5 + Math.random() * 2;
+    leiturasOBD.pressaoBarometrica = 98 + Math.random() * 6;
+    leiturasOBD.tempCatalisador = 300 + Math.random() * 400 + (leiturasOBD.cargaMotor > 50 ? 150 : 0);
+    leiturasOBD.torqueSolicitado = Math.min(100, Math.max(0, (leiturasOBD.cargaMotor * 0.9) + (Math.random() - 0.5) * 10));
+    leiturasOBD.torqueReal = Math.min(100, Math.max(0, leiturasOBD.torqueSolicitado - 5 + (Math.random() - 0.5) * 8));
 
     const baseConsumo = 2 + (leiturasOBD.cargaMotor / 100) * 6 + (leiturasOBD.rpm / 8000) * 3;
     leiturasOBD.consumoEsperado = Math.max(1.5, baseConsumo);
@@ -432,11 +447,15 @@ async function inicializarPainelReal() {
         modoSimulacao = false;
         clearInterval(simulationIntervalId);
 
+        await sendElmCommand("ATD"); await delay(baseDelay);
         await sendElmCommand("ATZ"); await delay(isBle ? 2000 : 1000);
         await sendElmCommand("ATE0"); await delay(baseDelay);
         await sendElmCommand("ATL0"); await delay(baseDelay);
+        await sendElmCommand("ATS0"); await delay(baseDelay);
         await sendElmCommand("ATH0"); await delay(baseDelay);
+        await sendElmCommand("ATAT1"); await delay(baseDelay);
         await sendElmCommand("ATSP0"); await delay(isBle ? 1000 : 500);
+        try { await sendElmCommand("ATST64"); await delay(baseDelay); } catch(e) {}
 
         if (tipoConexao === 'serial') {
             readLoop();
@@ -450,7 +469,7 @@ async function inicializarPainelReal() {
             if(!modoSimulacao) {
                 if (isBle) {
                     (async () => {
-                        const cmds = ["010C","0104","010D","0105","0142","010F","0111","0106","0107","010B","010A","010E","0101","0103","0121","012F","014D","014E","0114","0115","0116","0117","0146","01A6"];
+                        const cmds = ["010C","0104","010D","0105","0142","010F","0111","0106","0107","010B","010A","010E","0101","0103","0121","012F","014D","014E","0114","0115","0116","0117","0146","01A6","0110","0152","015C","015E","0133","013C","0161","0162"];
                         for (const cmd of cmds) {
                             if (modoSimulacao) break;
                             await sendElmCommand(cmd);
@@ -481,6 +500,14 @@ async function inicializarPainelReal() {
                     setTimeout(() => sendElmCommand("0117"), 6000);
                     setTimeout(() => sendElmCommand("0146"), 6300);
                     setTimeout(() => sendElmCommand("01A6"), 6600);
+                    setTimeout(() => sendElmCommand("0110"), 6900);
+                    setTimeout(() => sendElmCommand("0152"), 7200);
+                    setTimeout(() => sendElmCommand("015C"), 7500);
+                    setTimeout(() => sendElmCommand("015E"), 7800);
+                    setTimeout(() => sendElmCommand("0133"), 8100);
+                    setTimeout(() => sendElmCommand("013C"), 8400);
+                    setTimeout(() => sendElmCommand("0161"), 8700);
+                    setTimeout(() => sendElmCommand("0162"), 9000);
                 }
             }
         }, isBle ? 12000 : 6000);
@@ -598,13 +625,81 @@ async function readLoop() {
 }
 
 // --- BANCO DE DADOS E AUXILIARES DTC (ESTILO TORQUE) ---
-const DICIONARIO_DTC = {
-    "P0300": "Random/Multiple Cylinder Misfire Detected (Falha de Ignição Aleatória/Múltiplos Cilindros)",
-    "P0301": "Cylinder 1 Misfire Detected (Falha de Ignição Detectada no Cilindro 1)",
-    "P0302": "Cylinder 2 Misfire Detected (Falha de Ignição Detectada no Cilindro 2)",
-    "P0303": "Cylinder 3 Misfire Detected (Falha de Ignição Detectada no Cilindro 3)",
-    "P0304": "Cylinder 4 Misfire Detected (Falha de Ignição Detectada no Cilindro 4)"
+const OBDex_URL = 'https://foerbsnavi.github.io/obdex/generic.min.json';
+let _obdexCache = null;
+let _obdexLoading = false;
+
+async function loadOBDex() {
+    if (_obdexCache) return _obdexCache;
+    if (_obdexLoading) return null;
+    _obdexLoading = true;
+    try {
+        const resp = await fetch(OBDex_URL);
+        if (!resp.ok) throw new Error(resp.status);
+        const data = await resp.json();
+        _obdexCache = {};
+        for (const entry of data) {
+            if (entry.code) _obdexCache[entry.code] = entry;
+        }
+        console.log(`[OBDex] Loaded ${Object.keys(_obdexCache).length} DTCs`);
+    } catch (e) {
+        console.warn('[OBDex] Failed to load, using fallback:', e.message);
+        _obdexCache = DICIONARIO_DTC_FALLBACK;
+    }
+    _obdexLoading = false;
+    return _obdexCache;
+}
+
+const DICIONARIO_DTC_FALLBACK = {
+    "P0300": { description: "Random/Multiple Cylinder Misfire Detected", cause: "Spark plugs, ignition coils, fuel injectors", severity: "high" },
+    "P0301": { description: "Cylinder 1 Misfire Detected", cause: "Spark plug, ignition coil, injector cylinder 1", severity: "high" },
+    "P0302": { description: "Cylinder 2 Misfire Detected", cause: "Spark plug, ignition coil, injector cylinder 2", severity: "high" },
+    "P0303": { description: "Cylinder 3 Misfire Detected", cause: "Spark plug, ignition coil, injector cylinder 3", severity: "high" },
+    "P0304": { description: "Cylinder 4 Misfire Detected", cause: "Spark plug, ignition coil, injector cylinder 4", severity: "high" },
+    "P0171": { description: "System Too Lean (Bank 1)", cause: "Vacuum leak, weak fuel pump, dirty MAF", severity: "medium" },
+    "P0172": { description: "System Too Rich (Bank 1)", cause: "Clogged injector, high fuel pressure, faulty MAF", severity: "medium" },
+    "P0420": { description: "Catalyst System Efficiency Below Threshold (Bank 1)", cause: "Worn catalytic converter, O2 sensor", severity: "medium" },
+    "P0401": { description: "Exhaust Gas Recirculation Flow Insufficient", cause: "EGR valve stuck, carbon buildup", severity: "medium" },
+    "P0440": { description: "Evaporative Emission Control System Malfunction", cause: "Loose gas cap, EVAP leak", severity: "low" },
+    "P0442": { description: "Evaporative Emission Control System Leak Detected (small)", cause: "Gas cap, EVAP hose leak", severity: "low" },
+    "P0455": { description: "Evaporative Emission Control System Leak Detected (gross)", cause: "Missing gas cap, major EVAP leak", severity: "low" },
+    "P0500": { description: "Vehicle Speed Sensor Malfunction", cause: "Speed sensor, wiring, ABS module", severity: "medium" },
+    "P0505": { description: "Idle Air Control System Malfunction", cause: "IAC valve, throttle body carbon", severity: "medium" },
+    "P0562": { description: "System Voltage Low", cause: "Alternator, battery, wiring", severity: "high" },
+    "P0600": { description: "Serial Communication Link Malfunction", cause: "Wiring harness, ECU communication error", severity: "high" },
+    "P0700": { description: "Transmission Control System Malfunction", cause: "Transmission control module, solenoids", severity: "high" },
+    "P0100": { description: "Mass Air Flow Circuit Malfunction", cause: "MAF sensor, wiring, air leak", severity: "medium" },
+    "P0105": { description: "Manifold Absolute Pressure/Barometric Pressure Circuit Malfunction", cause: "MAP sensor, vacuum hose, wiring", severity: "medium" },
+    "P0110": { description: "Intake Air Temperature Circuit Malfunction", cause: "IAT sensor, wiring", severity: "low" },
+    "P0115": { description: "Engine Coolant Temperature Circuit Malfunction", cause: "ECT sensor, wiring, thermostat", severity: "medium" },
+    "P0120": { description: "Throttle/Pedal Position Sensor A Circuit Malfunction", cause: "TPS sensor, wiring, throttle body", severity: "medium" },
+    "P0130": { description: "O2 Sensor Circuit Malfunction (Bank 1 Sensor 1)", cause: "O2 sensor, wiring, exhaust leak", severity: "medium" },
+    "P0135": { description: "O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1)", cause: "O2 sensor heater, wiring", severity: "medium" },
+    "P0171": { description: "System Too Lean (Bank 1)", cause: "Vacuum leak, weak fuel pump, dirty MAF", severity: "medium" },
+    "P0201": { description: "Injector Circuit Malfunction - Cylinder 1", cause: "Fuel injector, wiring, ECM", severity: "high" },
+    "P0335": { description: "Crankshaft Position Sensor A Circuit Malfunction", cause: "CKP sensor, wiring, timing belt", severity: "high" },
+    "P0340": { description: "Camshaft Position Sensor A Circuit Malfunction", cause: "CMP sensor, wiring, timing chain", severity: "high" },
+    "P0400": { description: "Exhaust Gas Recirculation Flow Malfunction", cause: "EGR valve, passages blocked", severity: "medium" },
+    "P0446": { description: "Evaporative Emission Control System Vent Control Malfunction", cause: "EVAP vent valve, charcoal canister", severity: "low" }
 };
+
+function obterDTCInfo(codigo) {
+    const db = _obdexCache || DICIONARIO_DTC_FALLBACK;
+    const entry = db[codigo];
+    if (!entry) return null;
+    if (entry.code) {
+        return {
+            code: entry.code,
+            description: entry.title || entry.description || 'Código desconhecido',
+            cause: entry.common_causes || entry.cause || '',
+            severity: entry.severity || 'medium',
+            symptoms: entry.symptoms || '',
+            repair: entry.repair || '',
+            affectedComponents: entry.affected_components || ''
+        };
+    }
+    return { code: codigo, description: entry.description || 'Código não encontrado', cause: entry.cause || '', severity: entry.severity || 'medium' };
+}
 
 const obterSistemaDTC = (codigo) => {
     const prefixo = codigo[0];
@@ -638,17 +733,32 @@ function decodeDTC(hexPair) {
 function gerarHtmlErroTorque(codigo) {
     const sistema = obterSistemaDTC(codigo);
     const subsistema = obterSubsistemaDTC(codigo);
-    const desc = DICIONARIO_DTC[codigo] || "Descrição detalhada não cadastrada. Verifique o subsistema indicado.";
+    const info = obterDTCInfo(codigo);
+    const desc = info ? info.description : "Descrição detalhada não cadastrada.";
+    const causa = info ? info.cause : '';
+    const sintomas = info ? info.symptoms : '';
+    const reparo = info ? info.repair : '';
+    const nivelCor = (info && info.severity === 'high') ? 'var(--danger)' : (info && info.severity === 'low') ? 'var(--success)' : 'var(--warning)';
     
-    return `
-        <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,0,85,0.05); border-radius: 12px; border-left: 4px solid var(--danger);">
-            <div style="font-size: 1.8rem; font-weight: 900; color: var(--danger); line-height: 1;">${codigo}</div>
+    let html = `
+        <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,0,85,0.05); border-radius: 12px; border-left: 4px solid ${nivelCor};">
+            <div style="font-size: 1.8rem; font-weight: 900; color: ${nivelCor}; line-height: 1;">${codigo}</div>
             <div style="font-size: 9px; color: var(--accent); text-transform: uppercase; font-weight: 800; margin: 6px 0;">
                 ${sistema}${subsistema ? ' — ' + subsistema : ''}
             </div>
-            <p style="font-size: 12px; line-height: 1.4; color: #fff; margin: 8px 0 0 0; opacity: 0.9;">${desc}</p>
-        </div>
-    `;
+            <p style="font-size: 12px; line-height: 1.4; color: #fff; margin: 8px 0 0 0; opacity: 0.9;">${desc}</p>`;
+    if (causa) {
+        html += `<div style="margin-top:8px; font-size:10px; color:#94a3b8;"><strong style="color:var(--warning);">Possíveis causas:</strong> ${typeof causa === 'string' ? causa : Array.isArray(causa) ? causa.join(', ') : ''}</div>`;
+    }
+    if (sintomas) {
+        html += `<div style="margin-top:4px; font-size:10px; color:#94a3b8;"><strong style="color:var(--accent);">Sintomas:</strong> ${typeof sintomas === 'string' ? sintomas : Array.isArray(sintomas) ? sintomas.join(', ') : ''}</div>`;
+    }
+    if (reparo) {
+        const rep = typeof reparo === 'object' ? `${reparo.difficulty || ''} ${reparo.estimated_hours ? '(' + reparo.estimated_hours + 'h)' : ''}` : reparo;
+        if (rep.trim()) html += `<div style="margin-top:4px; font-size:10px; color:#94a3b8;"><strong style="color:var(--success);">Reparo:</strong> ${rep}</div>`;
+    }
+    html += `</div>`;
+    return html;
 }
 
 function parseObdResponse(response) {
@@ -959,6 +1069,63 @@ function parseObdResponse(response) {
             }
         }
 
+        // --- NOVOS PIDs (expansão) ---
+        if (line.includes("41 10")) {
+            const match = line.match(/41 10 ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.maf = ((parseInt(match[1], 16) * 256) + parseInt(match[2], 16)) / 100;
+            }
+        }
+
+        if (line.includes("41 52")) {
+            const match = line.match(/41 52 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.etanolPercent = (parseInt(match[1], 16) * 100) / 255;
+            }
+        }
+
+        if (line.includes("41 5C")) {
+            const match = line.match(/41 5C ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tempOleo = parseInt(match[1], 16) - 40;
+            }
+        }
+
+        if (line.includes("41 5E")) {
+            const match = line.match(/41 5E ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.consumoRealLh = ((parseInt(match[1], 16) * 256) + parseInt(match[2], 16)) / 20;
+            }
+        }
+
+        if (line.includes("41 33")) {
+            const match = line.match(/41 33 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.pressaoBarometrica = parseInt(match[1], 16);
+            }
+        }
+
+        if (line.includes("41 3C")) {
+            const match = line.match(/41 3C ([0-9A-F]{2}) ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.tempCatalisador = ((parseInt(match[1], 16) * 256) + parseInt(match[2], 16)) / 10 - 40;
+            }
+        }
+
+        if (line.includes("41 61")) {
+            const match = line.match(/41 61 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.torqueSolicitado = parseInt(match[1], 16) - 125;
+            }
+        }
+
+        if (line.includes("41 62")) {
+            const match = line.match(/41 62 ([0-9A-F]{2})/);
+            if (match) {
+                leiturasOBD.torqueReal = parseInt(match[1], 16) - 125;
+            }
+        }
+
         // --- FIX: Removed random overrides, added real consumption calculation ---
         if (!leiturasOBD.statusSistemaComb || leiturasOBD.statusSistemaComb === '--') {
             leiturasOBD.statusSistemaComb = leiturasOBD.tensaoBateria < 11.5 ? 'Open Loop' : 'Closed Loop';
@@ -967,7 +1134,7 @@ function parseObdResponse(response) {
         const rpmReal = leiturasOBD.rpm || 0;
         const baseConsumo = 2 + (cargaReal / 100) * 6 + (rpmReal / 8000) * 3;
         leiturasOBD.consumoEsperado = Math.max(1.5, baseConsumo);
-        leiturasOBD.consumoInstantaneo = leiturasOBD.consumoEsperado;
+        leiturasOBD.consumoInstantaneo = leiturasOBD.consumoRealLh > 0 ? leiturasOBD.consumoRealLh : leiturasOBD.consumoEsperado;
         atualizarPainelConsumo();
         renderizarSensores();
         renderizarDiagnostico();
@@ -1078,7 +1245,15 @@ const SENSORES_OBD = [
     { id: 'o2Sensor1', label: 'Sensor O₂ (B1S1)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
     { id: 'o2Sensor2', label: 'Sensor O₂ (B1S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
     { id: 'o2Sensor3', label: 'Sensor O₂ (B2S1)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
-    { id: 'o2Sensor4', label: 'Sensor O₂ (B2S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] }
+    { id: 'o2Sensor4', label: 'Sensor O₂ (B2S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
+    { id: 'maf', label: 'Vazão MAF', icon: '💨', unit: 'g/s', decimals: 1, min: 0, max: 200, critico: [150, 200], alerta: [120, 150] },
+    { id: 'etanolPercent', label: '% Etanol', icon: '⛽', unit: '%', decimals: 0, min: 0, max: 100, critico: [], alerta: [] },
+    { id: 'tempOleo', label: 'Temp. Óleo', icon: '🛢️', unit: '°C', decimals: 0, min: 40, max: 150, critico: [130, 150], alerta: [115, 130] },
+    { id: 'consumoRealLh', label: 'Consumo Real', icon: '⛽', unit: 'L/h', decimals: 1, min: 0, max: 30, critico: [20, 30], alerta: [15, 20] },
+    { id: 'pressaoBarometrica', label: 'Pressão Barom.', icon: '🌍', unit: 'kPa', decimals: 0, min: 80, max: 110, critico: [80, 85], alerta: [85, 90] },
+    { id: 'tempCatalisador', label: 'Temp. Catalisador', icon: '🔥', unit: '°C', decimals: 0, min: 0, max: 1000, critico: [850, 1000], alerta: [750, 850] },
+    { id: 'torqueSolicitado', label: 'Torque Solicitado', icon: '⚡', unit: '%', decimals: 0, min: -125, max: 130, critico: [100, 130], alerta: [80, 100] },
+    { id: 'torqueReal', label: 'Torque Real', icon: '⚡', unit: '%', decimals: 0, min: -125, max: 130, critico: [100, 130], alerta: [80, 100] }
 ];
 
 function renderizarSensores() {
