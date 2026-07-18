@@ -1199,6 +1199,14 @@ function renderizarDiagnostico() {
         sugestoes.push({ texto: 'Mistura rica. Verificar se injetores estão vazando ou sensor O₂ está com leitura correta.', prioridade: 'media' });
     }
 
+    // --- TEMP. AMBIENTE × FUEL TRIM (cross-correlation) ---
+    if (L.tempAmbiente > 45 && (ftStft > 15 || ftLtft > 15)) {
+        if (nivelGeral !== 'critico') nivelGeral = 'alerta';
+        alertas.push({ nivel: 'alerta', msg: 'Temperatura ambiente incompatível + Fuel Trim anormal!', detalhe: `Sensor ambiente: ${L.tempAmbiente.toFixed(1)}°C | STFT: ${ftStft > 0 ? '+' : ''}${ftStft.toFixed(1)}% — a ECU pode estar calculando mistura errada com base em temperatura falsa.` });
+        sugestoes.push({ texto: 'Se a temperatura ambiente está errada (sensor defeituoso), a ECU usa esse valor para calcular injeção. Uma leitura de 47°C quando na realidade são 25°C faz a ECU ajustar a mistura incorretamente — isso pode ser a CAUSA RAIZ dos problemas de fuel trim.', prioridade: 'alta' });
+        sugestoes.push({ texto: 'Verifique o sensor de temperatura ambiente (PID 0146) com multímetro. Se estiver fora de faixa (tipicamente -40°C a +125°C), substitua-o. Após a correção, refaça o diagnóstico.', prioridade: 'alta' });
+    }
+
     // --- PRESSÃO DE COMBUSTÍVEL ---
     if (L.pressaoCombustivel < 250) {
         nivelGeral = 'critico';
@@ -1243,6 +1251,10 @@ function renderizarDiagnostico() {
         sugestoes.push({ texto: 'Leitura acima de 45°C é extremamente rara no Brasil. Verifique se o sensor de temperatura ambiente está funcionando corretamente. Se o carro estava parado ao sol, aguarde 10min e refaça o teste.', prioridade: 'alta' });
         if (L.tempArAdmissao > 0 && L.tempArAdmissao < 40) {
             sugestoes.push({ texto: `Temperatura do ar de admissão (${L.tempArAdmissao.toFixed(1)}°C) está normal — isso confirma possível erro no sensor de ambiente.`, prioridade: 'alta' });
+        }
+        const ftAbs = Math.max(Math.abs(ftStft), Math.abs(ftLtft));
+        if (ftAbs > 10) {
+            sugestoes.push({ texto: `⚠️ IMPORTANTE: Fuel trim está anormal (${ftAbs > 0 ? '+' : ''}${ftStft.toFixed(1)}% / ${ftLtft > 0 ? '+' : ''}${ftLtft.toFixed(1)}%). Um sensor de temperatura ambiente defeituoso pode ser a CAUSA RAIZ — a ECU usa essa temperatura para calcular a mistura. Uma leitura errada gera injeção incorreta.`, prioridade: 'alta' });
         }
     } else if (L.tempAmbiente > 40) {
         if (nivelGeral !== 'critico') nivelGeral = 'alerta';
