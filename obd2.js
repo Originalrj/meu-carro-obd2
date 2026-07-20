@@ -796,6 +796,7 @@ function simularDadosOBD() {
     atualizarPainelConsumo();
     renderizarSensores();
     renderizarDiagnostico();
+    renderizarQualidadeCombustivel();
     addSensorHistory();
     analyzeSensorDiagnostics();
 
@@ -1881,6 +1882,7 @@ function parseObdResponse(response) {
         atualizarPainelConsumo();
         renderizarSensores();
         renderizarDiagnostico();
+        renderizarQualidadeCombustivel();
         addSensorHistory();
         analyzeSensorDiagnostics();
     }
@@ -2570,7 +2572,11 @@ function detectarAbastecimento(nivelAntes, nivelDepois) {
                 consumo: parseFloat(leiturasOBD.consumoInstantaneo.toFixed(1)),
                 nivelO2: parseFloat(leiturasOBD.nivelO2.toFixed(2)),
                 tempCatalisador: parseFloat(leiturasOBD.tempCatalisador.toFixed(0)),
-                tempMotor: parseFloat(leiturasOBD.tempMotor.toFixed(1))
+                tempMotor: parseFloat(leiturasOBD.tempMotor.toFixed(1)),
+                pressaoMAP: parseFloat(leiturasOBD.pressaoMAP.toFixed(0)),
+                etanolPercent: parseFloat(leiturasOBD.etanolPercent.toFixed(0)),
+                o2Sensor1: parseFloat(leiturasOBD.o2Sensor1.toFixed(2)),
+                o2Oscilacao: calcularOscilacaoO2()
             }
         };
 
@@ -2579,6 +2585,7 @@ function detectarAbastecimento(nivelAntes, nivelDepois) {
 
         showToast(`Abastecimento detectado! ~${litros.toFixed(1)}L adicionados. Registre o posto no histórico.`, "info");
         if (typeof renderizarAbastecimentos === 'function') renderizarAbastecimentos();
+        capturarBaselineCombustivel();
     }
 }
 
@@ -2617,7 +2624,11 @@ function registrarAbastecimentoManual() {
             consumo: parseFloat(leiturasOBD.consumoInstantaneo.toFixed(1)),
             nivelO2: parseFloat(leiturasOBD.nivelO2.toFixed(2)),
             tempCatalisador: parseFloat((leiturasOBD.tempCatalisador || leiturasOBD.tempPosCatalisador || 0).toFixed(0)),
-            tempMotor: parseFloat(leiturasOBD.tempMotor.toFixed(1))
+            tempMotor: parseFloat(leiturasOBD.tempMotor.toFixed(1)),
+            pressaoMAP: parseFloat(leiturasOBD.pressaoMAP.toFixed(0)),
+            etanolPercent: parseFloat(leiturasOBD.etanolPercent.toFixed(0)),
+            o2Sensor1: parseFloat(leiturasOBD.o2Sensor1.toFixed(2)),
+            o2Oscilacao: calcularOscilacaoO2()
         }
     };
 
@@ -2653,34 +2664,221 @@ function calcularKmPorLitro() {
     return parseFloat(kmL.toFixed(1));
 }
 
+function calcularOscilacaoO2() {
+    const hist = sensorHistory.nivelO2;
+    if (hist.length < 5) return 0;
+    let oscilacoes = 0;
+    for (let i = 1; i < hist.length; i++) {
+        if ((hist[i] > 0.6 && hist[i-1] < 0.4) || (hist[i] < 0.4 && hist[i-1] > 0.6)) {
+            oscilacoes++;
+        }
+    }
+    return oscilacoes;
+}
+
 function calcularPerfilPostos() {
     const perfil = {};
     abastecimentos.forEach(a => {
         if (!a.posto) return;
         if (!perfil[a.posto]) {
-            perfil[a.posto] = { nome: a.posto, abastecimentos: 0, mediaFuelTrim: 0, mediaConsumo: 0, mediaMisfires: 0, qualidade: 100, historico: [] };
+            perfil[a.posto] = {
+                nome: a.posto, abastecimentos: 0,
+                mediaFuelTrim: 0, mediaConsumo: 0, mediaO2: 0,
+                mediaMAP: 0, mediaEtanol: 0, mediaOscilacaoO2: 0,
+                qualidade: 100, historico: [], melhorPosto: false
+            };
         }
         const p = perfil[a.posto];
         p.abastecimentos++;
         p.historico.push(a.snapshot);
         p.mediaFuelTrim += Math.abs(a.snapshot.fuelTrimLTFT || 0);
         p.mediaConsumo += a.snapshot.consumo || 0;
+        p.mediaO2 += a.snapshot.nivelO2 || 0;
+        p.mediaMAP += a.snapshot.pressaoMAP || 0;
+        p.mediaEtanol += a.snapshot.etanolPercent || 0;
+        p.mediaOscilacaoO2 += a.snapshot.o2Oscilacao || 0;
     });
+
+    let melhorQualidade = -1;
 
     Object.values(perfil).forEach(p => {
         if (p.abastecimentos > 0) {
             p.mediaFuelTrim = parseFloat((p.mediaFuelTrim / p.abastecimentos).toFixed(1));
             p.mediaConsumo = parseFloat((p.mediaConsumo / p.abastecimentos).toFixed(1));
+            p.mediaO2 = parseFloat((p.mediaO2 / p.abastecimentos).toFixed(2));
+            p.mediaMAP = parseFloat((p.mediaMAP / p.abastecimentos).toFixed(0));
+            p.mediaEtanol = parseFloat((p.mediaEtanol / p.abastecimentos).toFixed(0));
+            p.mediaOscilacaoO2 = parseFloat((p.mediaOscilacaoO2 / p.abastecimentos).toFixed(0));
 
             let penalidades = 0;
-            if (p.mediaFuelTrim > 10) penalidades += 25;
+            if (p.mediaFuelTrim > 15) penalidades += 30;
+            else if (p.mediaFuelTrim > 10) penalidades += 20;
             else if (p.mediaFuelTrim > 5) penalidades += 10;
-            if (p.mediaConsumo > 10) penalidades += 20;
-            else if (p.mediaConsumo > 8) penalidades += 10;
+            if (p.mediaConsumo > 12) penalidades += 25;
+            else if (p.mediaConsumo > 10) penalidades += 15;
+            else if (p.mediaConsumo > 8) penalidades += 8;
+            if (p.mediaOscilacaoO2 < 3) penalidades += 15;
+            if (p.mediaMAP > 80) penalidades += 10;
 
             p.qualidade = Math.max(0, 100 - penalidades);
+            if (p.qualidade > melhorQualidade) melhorQualidade = p.qualidade;
         }
     });
 
+    Object.values(perfil).forEach(p => {
+        p.melhorPosto = (p.qualidade === melhorQualidade && p.qualidade > 60);
+    });
+
     return perfil;
+}
+
+let _baselineCombustivel = null;
+
+function capturarBaselineCombustivel() {
+    _baselineCombustivel = {
+        fuelTrimSTFT: leiturasOBD.fuelTrimSTFT,
+        fuelTrimLTFT: leiturasOBD.fuelTrimLTFT,
+        consumo: leiturasOBD.consumoInstantaneo,
+        nivelO2: leiturasOBD.nivelO2,
+        pressaoMAP: leiturasOBD.pressaoMAP,
+        timestamp: Date.now()
+    };
+}
+
+function analisarQualidadeCombustivel() {
+    if (!_baselineCombustivel) return null;
+    const B = _baselineCombustivel;
+    const L = leiturasOBD;
+
+    const deltaSTFT = Math.abs(L.fuelTrimSTFT - B.fuelTrimSTFT);
+    const deltaLTFT = Math.abs(L.fuelTrimLTFT - B.fuelTrimLTFT);
+    const deltaConsumo = Math.abs(L.consumoInstantaneo - B.consumo);
+    const deltaO2 = Math.abs(L.nivelO2 - B.nivelO2);
+    const deltaMAP = Math.abs(L.pressaoMAP - B.pressaoMAP);
+
+    let scoreSTFT = Math.max(0, 100 - (deltaSTFT * 10));
+    let scoreLTFT = Math.max(0, 100 - (deltaLTFT * 8));
+    let scoreO2 = Math.max(0, 100 - (deltaO2 * 150));
+    let scoreConsumo = Math.max(0, 100 - (deltaConsumo * 15));
+
+    const indiceQualidade = (scoreSTFT * 0.35 + scoreLTFT * 0.30 + scoreO2 * 0.20 + scoreConsumo * 0.15);
+
+    const oscilacaoO2 = calcularOscilacaoO2();
+    const combustivelOK = indiceQualidade > 70;
+    const problemaDetectado = indiceQualidade < 50;
+
+    let diagnostico = '';
+    let nivel = 'ok';
+    if (indiceQualidade >= 80) {
+        diagnostico = 'Combustível de boa qualidade detectado.';
+        nivel = 'ok';
+    } else if (indiceQualidade >= 60) {
+        diagnostico = 'Combustível com qualidade intermediária. Considere trocar de posto.';
+        nivel = 'alerta';
+    } else if (indiceQualidade >= 40) {
+        diagnostico = 'Combustível de baixa qualidade! Pode causar desgaste e maior consumo.';
+        nivel = 'critico';
+    } else {
+        diagnostico = 'Combustível muito ruim! Risco de danos ao motor. Troque imediatamente de posto.';
+        nivel = 'critico';
+    }
+
+    if (oscilacaoO2 < 3) {
+        diagnostico += ' Sensor O₂ com oscilação baixa — combustível não está queimando corretamente.';
+    }
+
+    return {
+        indiceQualidade: parseFloat(indiceQualidade.toFixed(1)),
+        scoreSTFT: parseFloat(scoreSTFT.toFixed(1)),
+        scoreLTFT: parseFloat(scoreLTFT.toFixed(1)),
+        scoreO2: parseFloat(scoreO2.toFixed(1)),
+        scoreConsumo: parseFloat(scoreConsumo.toFixed(1)),
+        oscilacaoO2,
+        diagnostico,
+        nivel,
+        combustivelOK,
+        problemaDetectado,
+        deltaSTFT: parseFloat(deltaSTFT.toFixed(1)),
+        deltaLTFT: parseFloat(deltaLTFT.toFixed(1))
+    };
+}
+
+function renderizarQualidadeCombustivel() {
+    const container = document.getElementById('diag-qualidade-combustivel');
+    if (!container) return;
+
+    const resultado = analisarQualidadeCombustivel();
+    const perfil = calcularPerfilPostos();
+    const postos = Object.values(perfil).sort((a, b) => b.qualidade - a.qualidade);
+
+    if (!resultado && postos.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = `<div style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700; margin-bottom:12px;">⛽ Análise de Qualidade do Combustível</div>`;
+
+    if (resultado) {
+        const cor = resultado.nivel === 'ok' ? 'var(--success)' : resultado.nivel === 'alerta' ? 'var(--warning)' : 'var(--danger)';
+        const bgCor = resultado.nivel === 'ok' ? 'rgba(0,200,83,0.08)' : resultado.nivel === 'alerta' ? 'rgba(255,152,0,0.08)' : 'rgba(244,67,54,0.08)';
+
+        html += `
+            <div style="background:${bgCor}; border-radius:10px; padding:14px; margin-bottom:12px; border-left:4px solid ${cor};">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <div>
+                        <div style="font-size:11px; font-weight:800; color:${cor};">Índice de Qualidade</div>
+                        <div style="font-size:9px; color:#94a3b8;">Análise em tempo real vs. baseline do abastecimento</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:2rem; font-weight:900; color:${cor};">${resultado.indiceQualidade}</div>
+                        <div style="font-size:8px; color:#94a3b8;">/100</div>
+                    </div>
+                </div>
+                <div style="height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden; margin-bottom:8px;">
+                    <div style="height:100%; width:${resultado.indiceQualidade}%; background:${cor}; border-radius:3px; transition:width 0.5s;"></div>
+                </div>
+                <div style="font-size:10px; color:${cor}; font-weight:600;">${resultado.diagnostico}</div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; margin-bottom:12px;">
+                ${[
+                    { label: 'Fuel Trim', score: resultado.scoreSTFT, delta: resultado.deltaSTFT + '%' },
+                    { label: 'LTFT', score: resultado.scoreLTFT, delta: resultado.deltaLTFT + '%' },
+                    { label: 'Sensor O₂', score: resultado.scoreO2, delta: resultado.oscilacaoO2 + ' osc.' },
+                    { label: 'Consumo', score: resultado.scoreConsumo, delta: '' }
+                ].map(item => {
+                    const c = item.score >= 80 ? 'var(--success)' : item.score >= 60 ? 'var(--warning)' : 'var(--danger)';
+                    return `
+                        <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:6px; text-align:center; border-top:2px solid ${c};">
+                            <div style="font-size:8px; color:#94a3b8; text-transform:uppercase;">${item.label}</div>
+                            <div style="font-size:1rem; font-weight:800; color:${c};">${item.score.toFixed(0)}</div>
+                            ${item.delta ? `<div style="font-size:7px; color:#666;">Δ ${item.delta}</div>` : ''}
+                        </div>
+                    `;
+                }).join('')}
+            </div>`;
+    }
+
+    if (postos.length > 0) {
+        html += `
+            <div style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700; margin-bottom:8px;">Ranking por Posto</div>`;
+        postos.forEach(p => {
+            const cor = p.qualidade >= 80 ? 'var(--success)' : p.qualidade >= 60 ? 'var(--warning)' : 'var(--danger)';
+            const badge = p.melhorPosto ? '<span style="background:var(--success); color:#000; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:800; margin-left:6px;">MELHOR</span>' : '';
+            html += `
+                <div style="padding:10px; margin-bottom:6px; background:rgba(255,255,255,0.03); border-radius:8px; border-left:4px solid ${cor};">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:11px; font-weight:700; color:#fff;">${p.nome}${badge}</div>
+                            <div style="font-size:8px; color:#94a3b8;">${p.abastecimentos} abast. — LTFT: ±${p.mediaFuelTrim}% — O₂ osc: ${p.mediaOscilacaoO2} — MAP: ${p.mediaMAP} kPa</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:1.1rem; font-weight:900; color:${cor};">${p.qualidade}</div>
+                            <div style="font-size:7px; color:#94a3b8;">QUALIDADE</div>
+                        </div>
+                    </div>
+                </div>`;
+        });
+    }
+
+    container.innerHTML = html;
 }

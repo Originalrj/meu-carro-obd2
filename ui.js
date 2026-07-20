@@ -1588,12 +1588,13 @@ function renderizarAbastecimentos() {
             <div style="font-size:9px; color:#94a3b8; text-transform:uppercase; margin-bottom:10px; font-weight:700;">Qualidade por Posto</div>
             ${postos.map(p => {
                 const cor = p.qualidade >= 80 ? 'var(--success)' : p.qualidade >= 60 ? 'var(--warning)' : 'var(--danger)';
+                const badge = p.melhorPosto ? '<span style="background:var(--success); color:#000; padding:2px 6px; border-radius:4px; font-size:7px; font-weight:800; margin-left:6px;">MELHOR</span>' : '';
                 return `
                     <div style="padding:12px; margin-bottom:8px; background:rgba(255,255,255,0.03); border-radius:8px; border-left:4px solid ${cor};">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <div>
-                                <div style="font-size:12px; font-weight:700; color:#fff;">${p.nome}</div>
-                                <div style="font-size:9px; color:#94a3b8;">${p.abastecimentos} abastecimento(s) — Média: ${p.mediaConsumo} L/h — LTFT: ±${p.mediaFuelTrim}%</div>
+                                <div style="font-size:12px; font-weight:700; color:#fff;">${p.nome}${badge}</div>
+                                <div style="font-size:9px; color:#94a3b8;">${p.abastecimentos} abast. — LTFT: ±${p.mediaFuelTrim}% — O₂ osc: ${p.mediaOscilacaoO2 || 0} — MAP: ${p.mediaMAP || 0} kPa</div>
                             </div>
                             <div style="text-align:center;">
                                 <div style="font-size:1.2rem; font-weight:900; color:${cor};">${p.qualidade}</div>
