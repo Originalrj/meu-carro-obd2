@@ -109,6 +109,7 @@ const sensorHistory = {
     fuelTrimSTFT: [],
     fuelTrimLTFT: [],
     pressaoMAP: [],
+    pressaoCombustivel: [],
     nivelO2: [],
     maf: [],
     tempArAdmissao: [],
@@ -130,6 +131,7 @@ function addSensorHistory() {
     sensorHistory.fuelTrimSTFT.push(leiturasOBD.fuelTrimSTFT);
     sensorHistory.fuelTrimLTFT.push(leiturasOBD.fuelTrimLTFT);
     sensorHistory.pressaoMAP.push(leiturasOBD.pressaoMAP);
+    sensorHistory.pressaoCombustivel.push(leiturasOBD.pressaoCombustivel);
     sensorHistory.nivelO2.push(leiturasOBD.nivelO2);
     sensorHistory.maf.push(leiturasOBD.maf);
     sensorHistory.tempArAdmissao.push(leiturasOBD.tempArAdmissao);
@@ -173,99 +175,203 @@ function analyzeSensorDiagnostics() {
     const L = leiturasOBD;
     const H = sensorHistory;
     const tests = [];
+    let diagnosticoFinal = null;
 
-    // 1. Fuel Trim Decision Tree
     const stft = L.fuelTrimSTFT;
     const ltft = L.fuelTrimLTFT;
     const map = L.pressaoMAP;
     const o2 = L.nivelO2;
-    const maf = L.maf;
+    const fuelPress = L.pressaoCombustivel;
     const rpm = L.rpm;
     const carga = L.cargaMotor;
+    const iat = L.tempArAdmissao;
+    const tempAmb = L.tempAmbiente;
 
-    if (Math.abs(stft) > 5 || Math.abs(ltft) > 5) {
+    // Helper: calculate RPM stability (standard deviation)
+    function calcRpmStability() {
+        if (H.rpm.length < 10) return null;
+        const idleReadings = H.rpm.filter((v, i) => H.cargaMotor[i] < 20 && H.rpm[i] > 500 && H.rpm[i] < 1200);
+        if (idleReadings.length < 5) return null;
+        const avg = idleReadings.reduce((a, b) => a + b, 0) / idleReadings.length;
+        const variance = idleReadings.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / idleReadings.length;
+        return { avg: avg, stdDev: Math.sqrt(variance) };
+    }
+
+    // Helper: calculate average fuel pressure
+    function calcAvgFuelPressure() {
+        const valid = H.pressaoCombustivel.filter(v => v > 0);
+        if (valid.length === 0) return null;
+        return valid.reduce((a, b) => a + b, 0) / valid.length;
+    }
+
+    // Helper: calculate O2 stats
+    function calcO2Stats() {
+        if (H.nivelO2.length < 5) return null;
+        const recent = H.nivelO2.slice(-15);
+        const min = Math.min(...recent);
+        const max = Math.max(...recent);
+        const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+        return { min, max, avg, amplitude: max - min };
+    }
+
+    // Helper: calculate MAP stats at idle
+    function calcMapIdleStats() {
+        const idleReadings = H.pressaoMAP.filter((v, i) => H.cargaMotor[i] < 20 && H.rpm[i] > 500 && H.rpm[i] < 1200);
+        if (idleReadings.length < 3) return null;
+        const avg = idleReadings.reduce((a, b) => a + b, 0) / idleReadings.length;
+        return { avg, count: idleReadings.length };
+    }
+
+    // Helper: calculate MAP at high load
+    function calcMapHighLoadStats() {
+        const highLoadReadings = H.pressaoMAP.filter((v, i) => H.cargaMotor[i] > 60);
+        if (highLoadReadings.length < 2) return null;
+        return highLoadReadings.reduce((a, b) => a + b, 0) / highLoadReadings.length;
+    }
+
+    const rpmStab = calcRpmStability();
+    const avgFuelPress = calcAvgFuelPressure();
+    const o2Stats = calcO2Stats();
+    const mapIdleStats = calcMapIdleStats();
+    const mapHighLoad = calcMapHighLoadStats();
+
+    // ============================================================
+    // CRUZAMENTO 1: STFT + MAP + O₂ + Pressão Combustível
+    // ============================================================
+    const isLean = stft > 5 || ltft > 5;
+    const isRich = stft < -5 || ltft < -5;
+    const mapHigh = map > 65;
+    const mapNormal = map >= 30 && map <= 65;
+    const mapLow = map < 30;
+    const o2Rich = o2 > 0.6;
+    const o2Lean = o2 < 0.3;
+    const o2Normal = o2 >= 0.3 && o2 <= 0.6;
+    const fuelPressLow = fuelPress < 250;
+    const fuelPressNormal = fuelPress >= 250 && fuelPress <= 500;
+    const fuelPressHigh = fuelPress > 500;
+    const mapKeyOnInfo = mapKeyOn !== null ? ` | Chave-ON: ${mapKeyOn.toFixed(0)}` : '';
+
+    if (isLean) {
         let diagnostico = '';
         let recomendacao = '';
         let nivel = 'alerta';
         let icon = '🔧';
 
-        // Decision tree based on multiple sensor correlation
-        const isLean = stft > 5 || ltft > 5;
-        const isRich = stft < -5 || ltft < -5;
-        // Use key-on MAP for calibration check, current MAP for idle reading
-        const mapRef = (mapKeyOn !== null && mapKeyOn > 80) ? map : map;
-        const mapHigh = mapRef > 65;
-        const mapNormal = mapRef >= 30 && mapRef <= 65;
-        const o2Rich = o2 > 0.6;
-        const o2Lean = o2 < 0.3;
-        const mapKeyOnInfo = mapKeyOn !== null ? ` (Chave-ON: ${mapKeyOn.toFixed(0)})` : '';
+        // DECISION TREE: STFT + MAP + O₂ + Fuel Pressure
+        if (o2Lean) {
+            // O₂ confirms lean mixture — real lean condition
+            if (mapHigh) {
+                if (fuelPressNormal) {
+                    nivel = 'critico';
+                    icon = '🚨';
+                    diagnostico = 'VAZAMENTO DE AR NA ADMISSÃO';
+                    recomendacao = 'Confirmação por 4 sensores: STFT pobre + MAP alta + O₂ pobre + Pressão OK = ar entrando no sistema. Verifique: (1) Antichamas e mangueiras, (2) Junta do coletor, (3) Tubo do MAP, (4) Conexão filtro de ar. Use spray de partida.';
+                } else if (fuelPressLow) {
+                    nivel = 'critico';
+                    icon = '🚨';
+                    diagnostico = 'VAZAMENTO + PRESSÃO BAIXA (Combustível)';
+                    recomendacao = 'STFT pobre + MAP alta + O₂ pobre + Pressão BAIXA = dois problemas: (1) Vazamento de ar na admissão E (2) Bomba/filtro de combustível fraco. Resolva ambos.';
+                } else {
+                    nivel = 'alerta';
+                    icon = '⚠️';
+                    diagnostico = 'VAZAMENTO DE AR + PRESSÃO ALTA';
+                    recomendacao = 'STFT pobre + MAP alta + O₂ pobre + Pressão alta = vazamento de ar + possível regulador de pressão travado.';
+                }
+            } else if (mapNormal) {
+                if (fuelPressNormal) {
+                    nivel = 'critico';
+                    icon = '⚠️';
+                    diagnostico = 'SENSOR MAP DESCALIBRADO';
+                    recomendacao = 'STFT pobre + MAP normal + O₂ pobre + Pressão OK = sensor MAP reportando valor incorreto à ECU. Substitua o sensor MAP.';
+                } else if (fuelPressLow) {
+                    nivel = 'critico';
+                    icon = '🚨';
+                    diagnostico = 'BOMBA/FILTRO DE COMBUSTÍVEL FRACO';
+                    recomendacao = 'STFT pobre + MAP normal + O₂ pobre + Pressão BAIXA = combustível insuficiente. Substitua filtro e verifique bomba.';
+                } else {
+                    nivel = 'alerta';
+                    icon = '⚠️';
+                    diagnostico = 'COMBUSTÍVEL + SENSOR';
+                    recomendacao = 'STFT pobre + MAP normal + O₂ pobre + Pressão alta = possível regulador de pressão com defeito.';
+                }
+            } else if (mapLow) {
+                nivel = 'alerta';
+                icon = '🔍';
+                diagnostico = 'ANÁLISE EM ANDAMENTO';
+                recomendacao = 'MAP muito baixa — aguardando leituras estáveis para diagnóstico.';
+            }
+        } else if (o2Rich) {
+            // O₂ says rich but STFT says lean — contradiction
+            nivel = 'alerta';
+            icon = '🔍';
+            if (fuelPressNormal) {
+                diagnostico = 'SENSOR O₂ DESCALIBRADO';
+                recomendacao = 'STFT pobre + O₂ rico = contradição. O sensor O₂ está reportando rico quando a mistura é pobre. Verifique fiação e substitua o sensor O₂.';
+            } else if (fuelPressLow) {
+                diagnostico = 'PRESSÃO BAIXA + SENSOR O₂';
+                recomendacao = 'STFT pobre + O₂ rico + Pressão baixa = pressão insuficiente pode estar confundindo o sensor. Verifique bomba/filtro primeiro.';
+            }
+        } else if (o2Normal) {
+            nivel = 'alerta';
+            icon = '🔍';
+            diagnostico = 'ANÁLISE PARCIAL — O₂ NEUTRO';
+            recomendacao = 'STFT pobre mas O₂ neutro — aguardando mais leituras. O sensor O₂ pode estar entre rico/pobre.';
+        }
+        if (Math.abs(stft) > 15 || Math.abs(ltft) > 15) nivel = 'critico';
+        if (diagnostico) {
+            tests.push({
+                nivel, icon,
+                titulo: `Diagnóstico Principal: ${diagnostico}`,
+                detalhe: `STFT: ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% | LTFT: ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}% | MAP: ${map.toFixed(0)}${mapKeyOnInfo} kPa | O₂: ${o2.toFixed(2)}V | Comb: ${fuelPress.toFixed(0)} kPa`,
+                recomendacao
+            });
+            diagnosticoFinal = diagnostico;
+        }
+    } else if (isRich) {
+        let diagnostico = '';
+        let recomendacao = '';
+        let nivel = 'alerta';
+        let icon = '🔧';
 
-        if (isLean && mapHigh && o2Lean) {
+        if (o2Rich) {
             nivel = 'critico';
             icon = '🚨';
-            diagnostico = 'VAZAMENTO DE AR NA ADMISSÃO';
-            recomendacao = 'STFT alto + MAP elevada + O₂ pobre = ar indesejado entrando no sistema. Verifique: (1) Mangueiras de vacuo, (2) Junta do coletor de admissão, (3) Tubo do sensor MAP, (4) Conexões do filtro de ar. Use spray de partida nas conexões — se o RPM variar, achou o vazamento.';
-        } else if (isLean && mapNormal && o2Lean) {
-            nivel = 'critico';
-            icon = '⚠️';
-            diagnostico = 'SENSOR MAP DESCALIBRADO';
-            recomendacao = 'STFT alto + MAP normal + O₂ pobre = sensor MAP reportando valor incorreto à ECU. A ECU acha que tem menos ar e injeta menos combustível. Substitua o sensor MAP.';
-        } else if (isLean && mapNormal && o2Rich) {
-            nivel = 'alerta';
-            icon = '🔍';
-            if (pidSupport.maf) {
-                diagnostico = 'POSSÍVEL SENSOR MAF SUJO/CUTILADO';
-                recomendacao = 'STFT alto + MAP normal + O₂ rico = sensor MAF reportando vazão menor que a real. Limpe o sensor MAF com limpar MAF específico (sem tocar no fio). Se não resolver, substitua.';
-            } else {
-                diagnostico = 'ENTRADA DE AR INTERMITENTE OU REGULADOR';
-                recomendacao = 'STFT alto + MAP normal + O₂ rico = sem sensor MAF, o problema pode ser vazamento intermitente ou regulador de pressão de combustível. Verifique mangueiras de vacúo e regulador.';
+            if (fuelPressNormal) {
+                diagnostico = 'INJETOR VAZANDO OU REGULADOR';
+                recomendacao = 'STFT negativo + O₂ rico + Pressão OK = excesso de combustível. Verifique: (1) Injetores (equalização), (2) Regulador de pressão, (3) Sensor O₂.';
+            } else if (fuelPressHigh) {
+                diagnostico = 'REGULADOR DE PRESSÃO TRAVADO';
+                recomendacao = 'STFT negativo + O₂ rico + Pressão ALTA = regulador não está reduzindo pressão. Substitua o regulador.';
+            } else if (fuelPressLow) {
+                diagnostico = 'INJETOR VAZANDO + PRESSÃO BAIXA';
+                recomendacao = 'STFT negativo + O₂ rico + Pressão baixa = combinção rara. Verifique injetores E bomba/filtro.';
             }
-        } else if (isLean && mapHigh && o2Rich) {
-            nivel = 'alerta';
-            icon = '🔍';
-            if (pidSupport.maf) {
-                diagnostico = 'ENTRADA DE AR + SENSOR MAF';
-                recomendacao = 'STFT alto + MAP elevada + O₂ rico = combinação de fatores. Verifique vazamentos de ar E limpe/substitua o sensor MAF.';
-            } else {
-                diagnostico = 'VAZAMENTO DE AR NA ADMISSÃO';
-                recomendacao = 'STFT alto + MAP elevada + O₂ rico = ar entrando no sistema. Verifique mangueiras de vacúo, junta do coletor e conexões.';
-            }
-        } else if (isRich && o2Rich) {
-            nivel = 'critico';
-            icon = '🚨';
-            diagnostico = 'INJETOR VAZANDO OU REGULADOR DE PRESSÃO';
-            recomendacao = 'STFT negativo + O₂ rico = excesso de combustível. Verifique: (1) Injetores (test de equalização), (2) Regulador de pressão de combustível, (3) Sensor O₂ descalibrado.';
-        } else if (isRich && o2Lean) {
+        } else if (o2Lean) {
             nivel = 'alerta';
             icon = '🔍';
             diagnostico = 'SENSOR O₂ DESCALIBRADO';
-            recomendacao = 'STFT negativo + O₂ pobre = contradição. O sensor O₂ pode estar descalibrado ou com fio danificado. Teste com multímetro.';
-        } else {
-            diagnostico = 'ANÁLISE EM ANDAMENTO';
-            recomendacao = 'Aguardue mais leituras para correlacionar sensores.';
+            recomendacao = 'STFT negativo + O₂ pobre = contradição. O sensor O₂ pode estar descalibrado. Teste com multímetro.';
         }
-
         if (Math.abs(stft) > 15 || Math.abs(ltft) > 15) nivel = 'critico';
-
-        tests.push({
-            nivel,
-            icon,
-            titulo: `Fuel Trim: ${diagnostico}`,
-            detalhe: `STFT: ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% | LTFT: ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}% | MAP: ${map.toFixed(0)} kPa${mapKeyOnInfo} | O₂: ${o2.toFixed(2)}V`,
-            recomendacao
-        });
+        if (diagnostico) {
+            tests.push({
+                nivel, icon,
+                titulo: `Diagnóstico Principal: ${diagnostico}`,
+                detalhe: `STFT: ${stft.toFixed(1)}% | LTFT: ${ltft.toFixed(1)}% | MAP: ${map.toFixed(0)} kPa | O₂: ${o2.toFixed(2)}V | Comb: ${fuelPress.toFixed(0)} kPa`,
+                recomendacao
+            });
+            diagnosticoFinal = diagnostico;
+        }
     }
 
-    // 2. MAP Sensor Health Test (Key-On vs Engine-Running)
+    // ============================================================
+    // CRUZAMENTO 2: MAP Key-ON vs Idle + RPM Stability
+    // ============================================================
     if (rpm > 0) {
-        const mapIdleReadings = H.pressaoMAP.filter((v, i) => H.rpm[i] < 1200 && H.cargaMotor[i] < 25);
-        const mapHighLoadReadings = H.pressaoMAP.filter((v, i) => H.cargaMotor[i] > 60);
-
         let mapStatus = '';
         let mapNivel = 'ok';
         let mapIcon = '✅';
 
-        // KEY-ON vs ENGINE-RUNNING test (the most important MAP test)
         if (mapKeyOn !== null && mapIdleEstabilizado !== null) {
             const deltaKOvsIdle = mapKeyOn - mapIdleEstabilizado;
             const pctDrop = ((deltaKOvsIdle / mapKeyOn) * 100).toFixed(0);
@@ -273,138 +379,208 @@ function analyzeSensorDiagnostics() {
             if (deltaKOvsIdle < 15) {
                 mapNivel = 'critico';
                 mapIcon = '❌';
-                mapStatus = `SENSOR MAP TRAVADO! Chave-ON: ${mapKeyOn.toFixed(0)} kPa → Idle: ${mapIdleEstabilizado.toFixed(0)} kPa (queda apenas ${deltaKOvsIdle.toFixed(0)} kPa). O sensor não está detectando vácuo.`;
+                mapStatus = `SENSOR MAP TRAVADO! Chave-ON: ${mapKeyOn.toFixed(0)} → Idle: ${mapIdleEstabilizado.toFixed(0)} kPa (queda apenas ${deltaKOvsIdle.toFixed(0)} kPa)`;
+                if (rpmStab && rpmStab.stdDev > 80) {
+                    mapStatus += ` + RPM instável (σ=${rpmStab.stdDev.toFixed(0)}) = vazamento GRAND传感器 ou sensor travado`;
+                }
             } else if (deltaKOvsIdle < 30) {
                 mapNivel = 'alerta';
                 mapIcon = '⚠️';
-                mapStatus = `MAP com queda parcial: ${mapKeyOn.toFixed(0)} → ${mapIdleEstabilizado.toFixed(0)} kPa (queda ${deltaKOvsIdle.toFixed(0)} kPa, ${pctDrop}%). Possível vazamento de ar.`;
+                mapStatus = `MAP queda parcial: ${mapKeyOn.toFixed(0)} → ${mapIdleEstabilizado.toFixed(0)} kPa (queda ${deltaKOvsIdle.toFixed(0)} kPa, ${pctDrop}%)`;
+                if (rpmStab && rpmStab.stdDev > 80) {
+                    mapStatus += ` + RPM instável = possível vazamento`;
+                } else {
+                    mapStatus += ` — possível vazamento pequeno ou sensor`;
+                }
             } else {
-                mapStatus = `MAP OK: Chave-ON ${mapKeyOn.toFixed(0)} kPa → Idle ${mapIdleEstabilizado.toFixed(0)} kPa (queda ${deltaKOvsIdle.toFixed(0)} kPa, ${pctDrop}%)`;
+                mapStatus = `MAP OK: Chave-ON ${mapKeyOn.toFixed(0)} → Idle ${mapIdleEstabilizado.toFixed(0)} kPa (queda ${deltaKOvsIdle.toFixed(0)} kPa, ${pctDrop}%)`;
             }
 
-            // Also check idle vs high load if available
-            if (mapHighLoadReadings.length > 2) {
-                const avgMapHigh = mapHighLoadReadings.reduce((a, b) => a + b, 0) / mapHighLoadReadings.length;
-                const deltaIdlevsLoad = avgMapHigh - mapIdleEstabilizado;
-
-                if (deltaIdlevsLoad < 20) {
+            // Idle vs High Load test
+            if (mapHighLoad !== null) {
+                const deltaIdleLoad = mapHighLoad - mapIdleEstabilizado;
+                if (deltaIdleLoad < 20) {
                     mapNivel = 'critico';
                     mapIcon = '❌';
-                    mapStatus += ` | Sensor não varia idle→carga (${mapIdleEstabilizado.toFixed(0)} → ${avgMapHigh.toFixed(0)} kPa)`;
+                    mapStatus += ` | Sem variação idle→carga (${mapIdleEstabilizado.toFixed(0)} → ${mapHighLoad.toFixed(0)} kPa)`;
+                } else {
+                    mapStatus += ` | Carga: ${mapHighLoad.toFixed(0)} kPa (Δ${deltaIdleLoad.toFixed(0)})`;
                 }
             }
         } else if (mapIdleEstabilizado !== null) {
             if (mapIdleEstabilizado > 55) {
                 mapNivel = 'alerta';
                 mapIcon = '⚠️';
-                mapStatus = `MAP ociosa alta (${mapIdleEstabilizado.toFixed(0)} kPa) — aguardando leitura com chave-ON para comparar`;
+                mapStatus = `MAP ociosa alta (${mapIdleEstabilizado.toFixed(0)} kPa) — aguardando chave-ON`;
             } else {
-                mapStatus = `MAP ociosa: ${mapIdleEstabilizado.toFixed(0)} kPa — aguardando leitura chave-ON + carga`;
+                mapStatus = `MAP ociosa: ${mapIdleEstabilizado.toFixed(0)} kPa — aguardando chave-ON + carga`;
             }
         } else {
             mapStatus = 'Coletando dados do sensor MAP...';
         }
 
+        // RPM Stability info
+        if (rpmStab) {
+            const rpmLabel = rpmStab.stdDev > 80 ? ' ⚠️ Instável' : ' ✅ Estável';
+            mapStatus += ` | RPM idle: ${rpmStab.avg.toFixed(0)} ± ${rpmStab.stdDev.toFixed(0)}${rpmLabel}`;
+        }
+
         tests.push({
-            nivel: mapNivel,
-            icon: mapIcon,
-            titulo: 'Sensor MAP — Teste de Saúde',
+            nivel: mapNivel, icon: mapIcon,
+            titulo: 'Sensor MAP — Teste Completo',
             detalhe: mapStatus,
-            recomendacao: mapNivel === 'critico' ? 'Substitua o sensor MAP. Se o sensor estiver OK, verifique vazamentos de admissão.' :
-                         mapNivel === 'alerta' ? 'Verifique mangueiras de vacúo, junta do coletor e conexões do sensor MAP.' :
+            recomendacao: mapNivel === 'critico' ? 'Substitua o sensor MAP ou verifique vazamentos de admissão.' :
+                         mapNivel === 'alerta' ? 'Verifique mangueiras de vácuo, junta do coletor e conexões.' :
                          'Sensor MAP operando corretamente.'
         });
     }
 
-    // 3. MAF Sensor Validation
-    if (pidSupport.maf) {
-        if (maf > 0 && rpm > 0) {
-            const expectedMaf = (rpm * carga) / 10000 * 8;
-            const diff = ((maf - expectedMaf) / expectedMaf * 100);
-            let mafNivel = 'ok';
-            let mafIcon = '✅';
-            let mafStatus = '';
+    // ============================================================
+    // CRUZAMENTO 3: Fuel Trim STFT vs LTFT (permanente vs intermitente)
+    // ============================================================
+    if (Math.abs(stft) > 5 || Math.abs(ltft) > 5) {
+        let ftNivel = 'ok';
+        let ftIcon = '✅';
+        let ftStatus = '';
+        let ftRecomendacao = '';
 
-            if (diff < -30) {
-                mafNivel = 'alerta';
-                mafIcon = '⚠️';
-                mafStatus = `MAF baixo (${maf.toFixed(1)} g/s vs esperado ${expectedMaf.toFixed(1)} g/s) — sensor sujo ou descalibrado`;
-            } else if (diff > 30) {
-                mafNivel = 'alerta';
-                mafIcon = '⚠️';
-                mafStatus = `MAF alto (${maf.toFixed(1)} g/s vs esperado ${expectedMaf.toFixed(1)} g/s) — possível vazamento de ar após o sensor`;
-            } else {
-                mafStatus = `MAF dentro do esperado (${maf.toFixed(1)} g/s)`;
-            }
+        const bothHigh = Math.abs(stft) > 10 && Math.abs(ltft) > 10;
+        const stftOnly = Math.abs(stft) > 10 && Math.abs(ltft) <= 10;
+        const bothHighSameDir = (stft > 10 && ltft > 10) || (stft < -10 && ltft < -10);
 
-            tests.push({
-                nivel: mafNivel,
-                icon: mafIcon,
-                titulo: 'Sensor MAF — Validação',
-                detalhe: mafStatus,
-                recomendacao: mafNivel !== 'ok' ? 'Limpe o sensor MAF com limpar MAF específico. Se não resolver, substitua.' : 'Sensor MAF operando corretamente.'
-            });
+        if (bothHighSameDir) {
+            ftNivel = 'alerta';
+            ftIcon = '⚠️';
+            ftStatus = `Problema PERMANENTE: STFT ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% + LTFT ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}%`;
+            ftRecomendacao = stft > 0 ? 'Ambos altos positivos = problema persistente (vazamento grande, filtro entupido, bomba fraca).' : 'Ambos altos negativos = problema persistente (injetor vazando, regulador travado).';
+        } else if (stftOnly) {
+            ftNivel = 'alerta';
+            ftIcon = '🔍';
+            ftStatus = `Problema INTERMITENTE: STFT ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% mas LTFT ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}%`;
+            ftRecomendacao = 'STFT alto mas LTFT normal = problema pode ser intermitente (mangueira frouxa, vazamento pequeno).';
+        } else if (Math.abs(stft) > 15 || Math.abs(ltft) > 15) {
+            ftNivel = 'critico';
+            ftIcon = '🚨';
+            ftStatus = `Fuel Trim CRÍTICO: STFT ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% | LTFT ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}%`;
+            ftRecomendacao = 'Valores extremos — diagnóstico imediato necessário.';
+        } else {
+            ftStatus = `STFT ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% | LTFT ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}%`;
+            ftRecomendacao = 'Valores moderados — monitorar evolução.';
         }
-    } else {
+
         tests.push({
-            nivel: 'info',
-            icon: 'ℹ️',
-            titulo: 'Sensor MAF — Não disponível',
-            detalhe: 'Este veículo não possui sensor MAF (usa cálculo speed-density por MAP + RPM + IAT)',
-            recomendacao: 'Este teste não se aplica ao seu veículo. O cálculo de ar é feito pelo sensor MAP.'
+            nivel: ftNivel, icon: ftIcon,
+            titulo: `Fuel Trim: ${ftStatus}`,
+            detalhe: `STFT: ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% (curto prazo) | LTFT: ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}% (longo prazo)`,
+            recomendacao: ftRecomendacao
         });
     }
 
-    // 4. O2 Sensor Response Test
-    if (pidSupport.o2Sensor1) {
-        if (H.nivelO2.length > 10) {
-            const recentO2 = H.nivelO2.slice(-10);
-            const minO2 = Math.min(...recentO2);
-            const maxO2 = Math.max(...recentO2);
-            const amplitude = maxO2 - minO2;
-            const avgO2 = recentO2.reduce((a, b) => a + b, 0) / recentO2.length;
+    // ============================================================
+    // CRUZAMENTO 4: O₂ Oscilação vs Fuel Trim
+    // ============================================================
+    if (pidSupport.o2Sensor1 && o2Stats) {
+        let o2Nivel = 'ok';
+        let o2Icon = '✅';
+        let o2Status = '';
+        let o2Recomendacao = '';
 
-            let o2Nivel = 'ok';
-            let o2Icon = '✅';
-            let o2Status = '';
-
-            if (amplitude < 0.1) {
-                o2Nivel = 'alerta';
-                o2Icon = '⚠️';
-                o2Status = `Sensor O₂ sem oscilação (${amplitude.toFixed(2)}V) — possível sensor descalibrado ou travado`;
-            } else if (avgO2 > 0.7) {
-                o2Nivel = 'alerta';
-                o2Icon = '⚠️';
-                o2Status = `Sensor O₂ tendendo rico (${avgO2.toFixed(2)}V média) — verifique fuel trim`;
-            } else if (avgO2 < 0.3) {
-                o2Nivel = 'alerta';
-                o2Icon = '⚠️';
-                o2Status = `Sensor O₂ tendendo pobre (${avgO2.toFixed(2)}V média) — verifique vazamento de ar`;
+        if (o2Stats.amplitude < 0.1) {
+            o2Nivel = 'alerta';
+            o2Icon = '⚠️';
+            if (stft > 10) {
+                o2Status = `Sensor O₂ SEM oscilação (${o2Stats.amplitude.toFixed(2)}V) + STFT pobre`;
+                o2Recomendacao = 'O₂ travado pobre + fuel trim alto = sensor O₂ descalibrado. Substitua.';
+            } else if (stft < -10) {
+                o2Status = `Sensor O₂ SEM oscilação (${o2Stats.amplitude.toFixed(2)}V) + STFT rico`;
+                o2Recomendacao = 'O₂ travado rico + fuel trim baixo = sensor O₂ ou injetor.';
             } else {
-                o2Status = `Sensor O₂ oscilando normalmente (${amplitude.toFixed(2)}V amplitude)`;
+                o2Status = `Sensor O₂ sem oscilação (${o2Stats.amplitude.toFixed(2)}V)`;
+                o2Recomendacao = 'Verifique fiação e conectores do sensor O₂.';
             }
-
-            tests.push({
-                nivel: o2Nivel,
-                icon: o2Icon,
-                titulo: 'Sensor O₂ — Teste de Resposta',
-                detalhe: o2Status,
-                recomendacao: o2Nivel !== 'ok' ? 'Verifique fiação do sensor O₂. Se persistir, substitua o sensor.' : 'Sensor O₂ operando corretamente.'
-            });
+        } else if (o2Stats.avg > 0.7) {
+            o2Nivel = 'alerta';
+            o2Icon = '⚠️';
+            o2Status = `O₂ tendendo rico (média ${o2Stats.avg.toFixed(2)}V, amp ${o2Stats.amplitude.toFixed(2)}V)`;
+            o2Recomendacao = 'Mistura rica persistente — verifique injetores e regulador.';
+        } else if (o2Stats.avg < 0.3) {
+            o2Nivel = 'alerta';
+            o2Icon = '⚠️';
+            o2Status = `O₂ tendendo pobre (média ${o2Stats.avg.toFixed(2)}V, amp ${o2Stats.amplitude.toFixed(2)}V)`;
+            o2Recomendacao = 'Mistura pobre persistente — verifique vazamentos e MAP.';
+        } else {
+            o2Status = `O₂ oscilando normalmente (média ${o2Stats.avg.toFixed(2)}V, amp ${o2Stats.amplitude.toFixed(2)}V)`;
+            o2Recomendacao = 'Sensor O₂ operando corretamente.';
         }
-    } else {
+
         tests.push({
-            nivel: 'info',
-            icon: 'ℹ️',
+            nivel: o2Nivel, icon: o2Icon,
+            titulo: 'Sensor O₂ — Resposta',
+            detalhe: o2Status,
+            recomendacao: o2Recomendacao
+        });
+    } else if (!pidSupport.o2Sensor1) {
+        tests.push({
+            nivel: 'info', icon: 'ℹ️',
             titulo: 'Sensor O₂ — Não disponível',
             detalhe: 'Este veículo não possui sensor O₂ acessível via OBD2',
             recomendacao: 'Este teste não se aplica ao seu veículo.'
         });
     }
 
-    // 5. IAT vs Ambient Temperature
-    if (L.tempArAdmissao > 0 && L.tempAmbiente > -20) {
-        const diffIatAmb = L.tempArAdmissao - L.tempAmbiente;
+    // ============================================================
+    // CRUZAMENTO 5: Carga Motor + MAP Coherence
+    // ============================================================
+    if (rpm > 0 && carga > 0) {
+        let mapCohNivel = 'ok';
+        let mapCohIcon = '✅';
+        let mapCohStatus = '';
+
+        if (carga < 20 && rpm < 1200) {
+            // Idle: MAP should be 25-50 kPa
+            if (map > 55) {
+                mapCohNivel = 'alerta';
+                mapCohIcon = '⚠️';
+                mapCohStatus = `Idle: MAP ${map.toFixed(0)} kPa com ${carga.toFixed(0)}% carga — MAP alta demais para idle`;
+            } else if (map < 20) {
+                mapCohNivel = 'alerta';
+                mapCohIcon = '⚠️';
+                mapCohStatus = `Idle: MAP ${map.toFixed(0)} kPa com ${carga.toFixed(0)}% carga — MAP muito baixa`;
+            } else {
+                mapCohStatus = `Idle: MAP ${map.toFixed(0)} kPa, carga ${carga.toFixed(0)}% — coerente`;
+            }
+        } else if (carga > 50) {
+            // High load: MAP should be 75-105 kPa
+            if (map < 50) {
+                mapCohNivel = 'alerta';
+                mapCohIcon = '⚠️';
+                mapCohStatus = `Carga alta: MAP ${map.toFixed(0)} kPa com ${carga.toFixed(0)}% carga — MAP baixa demais para carga`;
+            } else if (map > 105) {
+                mapCohNivel = 'alerta';
+                mapCohIcon = '⚠️';
+                mapCohStatus = `Carga alta: MAP ${map.toFixed(0)} kPa com ${carga.toFixed(0)}% carga — MAP alta demais`;
+            } else {
+                mapCohStatus = `Carga: MAP ${map.toFixed(0)} kPa, carga ${carga.toFixed(0)}% — coerente`;
+            }
+        } else {
+            mapCohStatus = `MAP ${map.toFixed(0)} kPa, carga ${carga.toFixed(0)}% — intermediário`;
+        }
+
+        if (mapCohNivel !== 'ok') {
+            tests.push({
+                nivel: mapCohNivel, icon: mapCohIcon,
+                titulo: 'Coerência MAP × Carga',
+                detalhe: mapCohStatus,
+                recomendacao: 'Sensor MAP pode estar descalibrado. Verifique com multímetro ou substitua.'
+            });
+        }
+    }
+
+    // ============================================================
+    // CRUZAMENTO 6: IAT vs Temperatura Ambiente
+    // ============================================================
+    if (iat > 0 && tempAmb > -20) {
+        const diffIatAmb = iat - tempAmb;
         let iatNivel = 'ok';
         let iatIcon = '✅';
         let iatStatus = '';
@@ -412,38 +588,125 @@ function analyzeSensorDiagnostics() {
         if (diffIatAmb > 25) {
             iatNivel = 'alerta';
             iatIcon = '⚠️';
-            iatStatus = `Ar de admissão muito quente (${L.tempArAdmissao.toFixed(1)}°C vs ${L.tempAmbiente.toFixed(1)}°C ambiente) — intercooler ou dutos`;
+            iatStatus = `Ar muito quente (${iat.toFixed(1)}°C vs ${tempAmb.toFixed(1)}°C) — Δ${diffIatAmb.toFixed(0)}°C`;
+            iatRecomendacao = 'Verifique intercooler e dutos de admissão.';
         } else if (diffIatAmb < -10) {
             iatNivel = 'alerta';
             iatIcon = '⚠️';
-            iatStatus = `Ar de admissão mais frio que ambiente — sensor IAT descalibrado?`;
+            iatStatus = `Ar mais frio que ambiente (${iat.toFixed(1)}°C vs ${tempAmb.toFixed(1)}°C)`;
+            iatRecomendacao = 'Sensor IAT pode estar descalibrado.';
         } else {
-            iatStatus = `Temperatura normal (admissão: ${L.tempArAdmissao.toFixed(1)}°C, ambiente: ${L.tempAmbiente.toFixed(1)}°C)`;
+            iatStatus = `Normal (${iat.toFixed(1)}°C vs ${tempAmb.toFixed(1)}°C, Δ${diffIatAmb.toFixed(0)}°C)`;
+            iatRecomendacao = 'Sensor IAT operando corretamente.';
+        }
+
+        if (iatNivel !== 'ok') {
+            tests.push({
+                nivel: iatNivel, icon: iatIcon,
+                titulo: 'IAT × Ambiente',
+                detalhe: iatStatus,
+                recomendacao: iatRecomendacao
+            });
+        }
+    }
+
+    // ============================================================
+    // CRUZAMENTO 7: Pressão de Combustível
+    // ============================================================
+    if (fuelPress > 0) {
+        let fpNivel = 'ok';
+        let fpIcon = '✅';
+        let fpStatus = '';
+        let fpRecomendacao = '';
+
+        if (fuelPress < 200) {
+            fpNivel = 'critico';
+            fpIcon = '🚨';
+            fpStatus = `Pressão MUITO BAIXA: ${fuelPress.toFixed(0)} kPa (mínimo: 300)`;
+            fpRecomendacao = 'Bomba de combustível com defeito ou filtro completamente entupido. Substitua urgentemente.';
+        } else if (fuelPress < 250) {
+            fpNivel = 'critico';
+            fpIcon = '❌';
+            fpStatus = `Pressão BAIXA: ${fuelPress.toFixed(0)} kPa (mínimo: 300)`;
+            fpRecomendacao = 'Filtro de combustível entupido ou bomba fraca. Verifique filtro primeiro.';
+        } else if (fuelPress < 300) {
+            fpNivel = 'alerta';
+            fpIcon = '⚠️';
+            fpStatus = `Pressão abaixo do ideal: ${fuelPress.toFixed(0)} kPa`;
+            fpRecomendacao = 'Possível filtro sujo ou bomba desgastada. Monitore.';
+        } else if (fuelPress > 500) {
+            fpNivel = 'critico';
+            fpIcon = '🚨';
+            fpStatus = `Pressão ALTA: ${fuelPress.toFixed(0)} kPa (máximo: 450)`;
+            fpRecomendacao = 'Regulador de pressão travado ou retorno bloqueado.';
+        } else if (fuelPress > 450) {
+            fpNivel = 'alerta';
+            fpIcon = '⚠️';
+            fpStatus = `Pressão elevada: ${fuelPress.toFixed(0)} kPa`;
+            fpRecomendacao = 'Verificar regulador de pressão.';
+        } else {
+            fpStatus = `Pressão OK: ${fuelPress.toFixed(0)} kPa (faixa: 300-450)`;
+            fpRecomendacao = 'Sistema de combustível operando corretamente.';
         }
 
         tests.push({
-            nivel: iatNivel,
-            icon: iatIcon,
-            titulo: 'Sensor IAT — Correlação',
-            detalhe: iatStatus,
-            recomendacao: iatNivel !== 'ok' ? 'Verifique dutos de admissão e intercooler.' : 'Sensor IAT operando corretamente.'
+            nivel: fpNivel, icon: fpIcon,
+            titulo: `Pressão Combustível: ${fpStatus.split(':')[0]}`,
+            detalhe: fpStatus,
+            recomendacao: fpRecomendacao
         });
     }
 
+    // ============================================================
+    // MAF Status (for vehicles that have it)
+    // ============================================================
+    if (!pidSupport.maf) {
+        tests.push({
+            nivel: 'info', icon: 'ℹ️',
+            titulo: 'Sensor MAF — Não disponível',
+            detalhe: 'Veículo usa speed-density (MAP + RPM + IAT). O cálculo de ar é feito pelo MAP.',
+            recomendacao: 'Este teste não se aplica. O MAP é o sensor principal de ar.'
+        });
+    }
+
+    // ============================================================
     // Render results
+    // ============================================================
     if (tests.length === 0) {
         container.innerHTML = '<div style="text-align:center; padding:10px; color:#94a3b8; font-size:11px;">Coletando dados dos sensores...</div>';
         return;
     }
 
-    const nivelOrder = { critico: 0, alerta: 1, ok: 2 };
+    const nivelOrder = { critico: 0, alerta: 1, ok: 2, info: 3 };
     tests.sort((a, b) => nivelOrder[a.nivel] - nivelOrder[b.nivel]);
 
+    // Build summary bar
+    const critCount = tests.filter(t => t.nivel === 'critico').length;
+    const alertCount = tests.filter(t => t.nivel === 'alerta').length;
+    const okCount = tests.filter(t => t.nivel === 'ok').length;
+
+    let summaryBg = 'rgba(34,197,94,0.1)';
+    let summaryBorder = 'rgba(34,197,94,0.3)';
+    let summaryText = `${okCount} OK`;
+    if (critCount > 0) {
+        summaryBg = 'rgba(239,68,68,0.15)';
+        summaryBorder = 'rgba(239,68,68,0.4)';
+        summaryText = `${critCount} CRÍTICO${critCount > 1 ? 'S' : ''}`;
+    } else if (alertCount > 0) {
+        summaryBg = 'rgba(251,191,36,0.1)';
+        summaryBorder = 'rgba(251,191,36,0.3)';
+        summaryText = `${alertCount} ALERTA${alertCount > 1 ? 'S' : ''}`;
+    }
+
     container.innerHTML = `
-        <div style="font-size:10px; color:var(--accent); text-transform:uppercase; font-weight:800; letter-spacing:1px; margin-bottom:12px;">🔬 Análise Detalhada dos Sensores</div>
+        <div style="font-size:10px; color:var(--accent); text-transform:uppercase; font-weight:800; letter-spacing:1px; margin-bottom:12px;">🔬 Análise Cruzada dos Sensores</div>
+        <div style="background:${summaryBg}; border:1px solid ${summaryBorder}; border-radius:8px; padding:10px; margin-bottom:12px; text-align:center; font-size:11px; font-weight:700; color:#e2e8f0;">
+            ${summaryText} | ${tests.length} testes executados
+            ${diagnosticoFinal ? `<div style="font-size:10px; color:var(--accent); margin-top:4px;">Diagnóstico: ${diagnosticoFinal}</div>` : ''}
+        </div>
         ${tests.map(t => {
-            const cor = t.nivel === 'critico' ? 'var(--danger)' : t.nivel === 'alerta' ? 'var(--warning)' : 'var(--success)';
-            const bg = t.nivel === 'critico' ? 'rgba(239,68,68,0.1)' : t.nivel === 'alerta' ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)';
+            const cor = t.nivel === 'critico' ? 'var(--danger)' : t.nivel === 'alerta' ? 'var(--warning)' : t.nivel === 'ok' ? 'var(--success)' : '#64748b';
+            const bg = t.nivel === 'critico' ? 'rgba(239,68,68,0.1)' : t.nivel === 'alerta' ? 'rgba(251,191,36,0.1)' : t.nivel === 'ok' ? 'rgba(34,197,94,0.05)' : 'rgba(100,116,139,0.05)';
             return `
                 <div style="background:${bg}; border:1px solid ${cor}30; border-radius:10px; padding:12px; margin-bottom:8px;">
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
