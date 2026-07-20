@@ -134,6 +134,42 @@ ATD -> ATZ -> ATE0 -> ATL0 -> ATS0 -> ATH0 -> ATAT1 -> ATSP0 -> ATST64
 
 ---
 
+## Diagnostico Detalhado de Sensores (adicionado 20/07/2026)
+
+### Novo painel "Analise Detalhada dos Sensores" (obd2.js:analyzeSensorDiagnostics)
+- Coleta historico dos ultimos 60 samples (sensorHistory array)
+- Atualizado a cada segundo em modo simulado e real
+
+### Fuel Trim Decision Tree (correlacao multi-sensor)
+- **STFT > 5 + MAP > 65 kPa + O2 < 0.3V** → VAZAMENTO DE AR (com spray de partida)
+- **STFT > 5 + MAP 30-65 kPa + O2 < 0.3V** → SENSOR MAP DESCALIBRADO (substituir)
+- **STFT > 5 + MAP 30-65 kPa + O2 > 0.6V** → SENSOR MAF SUJO (limpar/substituir)
+- **STFT > 5 + MAP > 65 kPa + O2 > 0.6V** → ENTRADA DE AR + SENSOR MAF
+- **STFT < -5 + O2 > 0.6V** → INJETOR VAZANDO / REGULADOR DE PRESSAO
+- **STFT < -5 + O2 < 0.3V** → SENSOR O2 DESCALIBRADO
+
+### MAP Sensor Health Test
+- Compara MAP ociosa (RPM < 1200, carga < 25%) com MAP em carga (carga > 60%)
+- Se variacao < 20% → sensor travado (substituir)
+- Se MAP ociosa > 55 kPa → vazamento de ar ou sensor
+
+### MAF Sensor Validation
+- Compara MAF real com esperado = (RPM × carga) / 10000 × 8
+- Se MAF < 30% abaixo do esperado → sensor sujo
+- Se MAF > 30% acima → vazamento apos o sensor
+
+### O2 Sensor Response Test
+- Analisa oscilacao dos ultimos 10 samples
+- Amplitude < 0.1V → sensor descalibrado/travado
+- Media > 0.7V → tendencia rica
+- Media < 0.3V → tendencia pobre
+
+### IAT vs Temperatura Ambiente
+- Diferenca > 25°C → problema no intercooler/dutos
+- Diferenca < -10°C → sensor IAT descalibrado
+
+---
+
 ## APIs e servicos
 
 ### Funcionando
