@@ -148,10 +148,13 @@ ATD -> ATZ -> ATE0 -> ATL0 -> ATS0 -> ATH0 -> ATAT1 -> ATSP0 -> ATST64
 - **STFT < -5 + O2 > 0.6V** → INJETOR VAZANDO / REGULADOR DE PRESSAO
 - **STFT < -5 + O2 < 0.3V** → SENSOR O2 DESCALIBRADO
 
-### MAP Sensor Health Test
-- Compara MAP ociosa (RPM < 1200, carga < 25%) com MAP em carga (carga > 60%)
-- Se variacao < 20% → sensor travado (substituir)
-- Se MAP ociosa > 55 kPa → vazamento de ar ou sensor
+### MAP Sensor Health Test (Key-On vs Engine-Running)
+- **Chave-ON, motor OFF**: MAP deve ler ~101 kPa (atmosferica, sem vacuo)
+- **Motor ligado, idle**: MAP deve cair para 25-45 kPa (motor cria vacuo)
+- **Se delta < 15 kPa**: SENSOR MAP TRAVADO (substituir)
+- **Se delta < 30 kPa**: Vazamento de admissao (verificar mangueiras/coletor)
+- **Idle vs carga**: Se MAP nao varia >20 kPa, sensor travado
+- Variaveis: `mapKeyOn`, `mapIdleEstabilizado`, `engineStarted`
 
 ### MAF Sensor Validation
 - Compara MAF real com esperado = (RPM × carga) / 10000 × 8
