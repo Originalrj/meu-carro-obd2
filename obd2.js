@@ -156,7 +156,19 @@ function simularDadosOBD() {
     atualizarPainelConsumo();
     renderizarSensores();
     renderizarDiagnostico();
+
+    if (++_sensorLogCount % 10 === 0) {
+        AGXLogger.sensorReadings({
+            rpm: Math.round(leiturasOBD.rpm),
+            temp: Math.round(leiturasOBD.tempMotor),
+            fuel: Math.round(leiturasOBD.nivelCombustivel),
+            volt: leiturasOBD.tensaoBateria.toFixed(1),
+            speed: Math.round(leiturasOBD.velocidade),
+            load: Math.round(leiturasOBD.cargaMotor)
+        });
+    }
 }
+let _sensorLogCount = 0;
 
 function editarOdometro() {
     const atual = parseInt(localStorage.getItem("car_km")) || 0;
@@ -259,6 +271,7 @@ async function conectarVeiculoReal() {
             reader = textDecoder.readable.getReader();
 
             console.log("Conectado à porta serial.");
+            AGXLogger.serialConnect("Conectado à porta serial", { baudRate: 115200 });
 
             await inicializarPainelReal();
 
@@ -361,6 +374,7 @@ async function conectarVeiculoBluetooth() {
                 connected = true;
                 bleWriteType = bleTxCharacteristic.properties.writeWithoutResponse ? 'writeWithoutResponse' : 'write';
                 console.log(`Conectado via UUID: ${profile.name} | Write type: ${bleWriteType}`);
+                AGXLogger.bleConnect(`Conectado via ${profile.name}`, { uuid: profile.uuid, writeType: bleWriteType });
                 break;
             } catch (e) {
                 console.log(`UUID ${profile.name} não encontrado, tentando próximo...`);
@@ -388,6 +402,7 @@ async function conectarVeiculoBluetooth() {
 
     } catch (error) {
         console.error("Erro na conexão Bluetooth:", error);
+        AGXLogger.bleError(`Erro na conexão Bluetooth: ${error.message}`, { name: error.name });
         if (error.name === 'NotFoundError') {
             showToast("Nenhum dispositivo selecionado.", "warning");
         } else {
@@ -414,6 +429,7 @@ function onBleNotification(event) {
         bleBuffer = '';
         bleDataCount++;
         console.log(`[BLE #${bleDataCount}] Recebido:`, resposta.trim());
+        AGXLogger.log('BLE_DATA', `#${bleDataCount}: ${resposta.trim()}`);
 
         if (bleDataCount === 1) {
             showToast("Primeira resposta do ELM327 recebida!", "success");
@@ -426,6 +442,7 @@ function onBleNotification(event) {
 
 function onBleDisconnect() {
     console.log("Dispositivo Bluetooth desconectado.");
+    AGXLogger.bleDisconnect("Dispositivo Bluetooth desconectado");
     if (!modoSimulacao) {
         modoSimulacao = true;
         tipoConexao = null;
@@ -601,6 +618,7 @@ async function sendElmCommand(command) {
         elmProcessing = true;
         try {
             console.log("Enviando BLE:", command);
+            AGXLogger.log('ELM_SEND', `BLE: ${command}`);
             const encoder = new TextEncoder();
             const data = encoder.encode(command + "\r");
             if (bleWriteType === 'writeWithoutResponse') {
@@ -611,6 +629,7 @@ async function sendElmCommand(command) {
             await waitForElmPrompt();
         } catch (e) {
             console.error("Erro ao enviar comando BLE:", e);
+            AGXLogger.elmError(command, e.message);
         } finally {
             elmProcessing = false;
             if (elmCommandQueue.length > 0 && !modoSimulacao) {
@@ -634,10 +653,12 @@ async function sendElmCommand(command) {
         elmProcessing = true;
         try {
             console.log("Enviando Serial:", command);
+            AGXLogger.log('ELM_SEND', `Serial: ${command}`);
             await writer.write(command + "\r");
             await waitForElmPrompt();
         } catch (e) {
             console.error("Erro ao enviar comando serial:", e);
+            AGXLogger.elmError(command, e.message);
         } finally {
             elmProcessing = false;
             if (elmCommandQueue.length > 0 && !modoSimulacao) {
@@ -671,6 +692,7 @@ async function readLoop() {
     }
     if (!modoSimulacao && tipoConexao === 'serial') {
         console.log("Conexão serial perdida. Retornando ao modo de simulação.");
+        AGXLogger.serialDisconnect("Conexão serial perdida");
         modoSimulacao = true;
         tipoConexao = null;
         atualizarBadgeconexao();
@@ -1876,6 +1898,7 @@ function detectarAbastecimento(nivelAntes, nivelDepois) {
 }
 
 function registrarAbastecimentoManual() {
+    if (typeof AGXLogger !== 'undefined') AGXLogger.userAction('Registrou abastecimento manual');
     const kmAtual = getKmAtual ? getKmAtual() : (parseInt(localStorage.getItem("car_km")) || 0);
     const nivelAtual = leiturasOBD.nivelCombustivel || 50;
     const tanqueCap = getTanqueCapacidade ? getTanqueCapacidade() : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);

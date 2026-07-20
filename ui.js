@@ -682,6 +682,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         verificarOnboardingESincronizacao();
+        if (typeof atualizarLogCount === 'function') atualizarLogCount();
     } catch(e) {
     }
 });
@@ -1360,6 +1361,7 @@ function renderizarSaudeVeiculo() {
 
 // Navegação entre Telas
 function nav(screenId, element) {
+    if (typeof AGXLogger !== 'undefined') AGXLogger.userAction('Navegou para aba', { screen: screenId });
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.dock-item').forEach(d => d.classList.remove('active'));
     
@@ -1842,6 +1844,7 @@ function editarRegistroManutencao(index) {
 }
 
 function salvarPerfil() {
+    if (typeof AGXLogger !== 'undefined') AGXLogger.userAction('Salvou perfil');
     const kmInput = document.getElementById("inp-prof-km").value;
     const mInput = document.getElementById("inp-prof-marca").value;
     const modSelect = document.getElementById("inp-prof-modelo");
@@ -1932,6 +1935,30 @@ function coletarDadosCompletos() {
         abastecimentos: abastecimentos
     };
 }
+
+// =============================================
+// LOG DE DIAGNÓSTICO
+// =============================================
+
+function limparLogsDiagnostico() {
+    if (!confirm('Limpar todos os logs de diagnóstico?')) return;
+    AGXLogger.clear();
+    showToast('Logs limpos.', 'info');
+    atualizarLogCount();
+}
+
+function atualizarLogCount() {
+    const el = document.getElementById('log-count');
+    if (!el || typeof AGXLogger === 'undefined') return;
+    const count = AGXLogger.getEntryCount();
+    el.innerHTML = count > 0
+        ? `<i class="fas fa-circle" style="color:var(--success); font-size:6px;"></i> ${count} entradas`
+        : '<i class="fas fa-circle" style="color:#64748b; font-size:6px;"></i> 0 entradas';
+}
+
+// =============================================
+// EXPORTAR / IMPORTAR DADOS
+// =============================================
 
 // Baixa um arquivo .json com todos os dados do veículo — serve como backup
 // e também como forma de levar os dados para outro dispositivo/instalação.
