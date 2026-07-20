@@ -372,7 +372,7 @@ function analyzeSensorDiagnostics() {
         let mapNivel = 'ok';
         let mapIcon = '✅';
 
-        if (mapKeyOn !== null && mapIdleEstabilizado !== null) {
+        if (mapKeyOn !== null && mapIdleEstabilizado !== null && mapKeyOn > 0) {
             const deltaKOvsIdle = mapKeyOn - mapIdleEstabilizado;
             const pctDrop = ((deltaKOvsIdle / mapKeyOn) * 100).toFixed(0);
 
@@ -381,7 +381,7 @@ function analyzeSensorDiagnostics() {
                 mapIcon = '❌';
                 mapStatus = `SENSOR MAP TRAVADO! Chave-ON: ${mapKeyOn.toFixed(0)} → Idle: ${mapIdleEstabilizado.toFixed(0)} kPa (queda apenas ${deltaKOvsIdle.toFixed(0)} kPa)`;
                 if (rpmStab && rpmStab.stdDev > 80) {
-                    mapStatus += ` + RPM instável (σ=${rpmStab.stdDev.toFixed(0)}) = vazamento GRAND传感器 ou sensor travado`;
+                    mapStatus += ` + RPM instável (σ=${rpmStab.stdDev.toFixed(0)}) = vazamento GRANDE ou sensor travado`;
                 }
             } else if (deltaKOvsIdle < 30) {
                 mapNivel = 'alerta';
@@ -584,6 +584,7 @@ function analyzeSensorDiagnostics() {
         let iatNivel = 'ok';
         let iatIcon = '✅';
         let iatStatus = '';
+        let iatRecomendacao = '';
 
         if (diffIatAmb > 25) {
             iatNivel = 'alerta';
