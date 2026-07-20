@@ -416,6 +416,6 @@ function atualizarUIDrive() {
         btn.style.borderColor = 'rgba(234,179,8,0.3)';
         btn.style.color = 'var(--warning)';
         if (btnSync) { btnSync.style.opacity = '0.5'; btnSync.style.pointerEvents = 'none'; }
-        if (status) { status.innerHTML = '<i class="fas fa-info-circle" style="color:var(--warning)"></i> Primeira vez? Configure abaixo'; status.style.color = 'var(--warning);'; }
+        if (status) { status.innerHTML = '<i class="fas fa-info-circle" style="color:var(--warning)"></i> Primeira vez? Configure abaixo'; status.style.color = 'var(--warning)'; }
     }
 }

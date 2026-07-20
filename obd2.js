@@ -13,6 +13,41 @@ let writer;
 let bleCharacteristic = null;
 let bleTxCharacteristic = null;
 let bleWriteType = 'writeWithoutResponse';
+
+function atualizarBadgeconexao() {
+    const el = document.getElementById('stat-conexao');
+    const elTipo = document.getElementById('stat-tipo-conexao');
+    if (el) {
+        if (modoSimulacao) {
+            el.innerHTML = '<i class="fas fa-play-circle"></i> Simulado';
+            el.style.borderColor = 'rgba(255,255,255,0.15)';
+            el.style.color = '#94a3b8';
+            el.style.fontWeight = '400';
+        } else {
+            el.innerHTML = '<i class="fas fa-satellite-dish"></i> AO VIVO';
+            el.style.borderColor = 'var(--accent)';
+            el.style.color = 'var(--accent)';
+            el.style.fontWeight = '800';
+        }
+    }
+    if (elTipo) {
+        if (modoSimulacao) {
+            elTipo.innerHTML = '<i class="fas fa-vial"></i> Dados simulados';
+            elTipo.style.borderColor = 'rgba(255,255,255,0.15)';
+            elTipo.style.color = '#94a3b8';
+        } else {
+            const tipo = tipoConexao === 'ble' ? 'Bluetooth' : 'Serial USB';
+            elTipo.innerHTML = `<i class="fas fa-satellite-dish"></i> ${tipo}`;
+            elTipo.style.borderColor = 'rgba(0,242,255,0.2)';
+            elTipo.style.color = 'var(--accent)';
+        }
+    }
+}
+
+function setModoSimulacao(valor) {
+    modoSimulacao = valor;
+    atualizarBadgeconexao();
+}
 let bleBuffer = '';
 let bleDevice = null;
 let tipoConexao = null; // 'serial' ou 'ble'
@@ -52,7 +87,7 @@ let detectandoAbastecimento = false;
 function simularDadosOBD() {
     if (!modoSimulacao) return;
 
-    const kmAtual = parseInt(localStorage.getItem("car_km")) || 80000;
+    const kmAtual = (typeof getKmAtual === 'function' ? getKmAtual() : parseInt(localStorage.getItem("car_km"))) || 80000;
     const fatorDesgaste = Math.min(1, kmAtual / 300000);
 
     leiturasOBD.rpm = 750 + Math.random() * 500 + (Math.random() > 0.92 ? Math.random() * 3000 : 0);
@@ -197,6 +232,7 @@ async function conectarVeiculoReal() {
 
             modoSimulacao = false;
             tipoConexao = 'serial';
+            atualizarBadgeconexao();
 
             const btnConnect = document.getElementById('btn-conectar-carro');
             if (btnConnect) {
@@ -208,7 +244,7 @@ async function conectarVeiculoReal() {
             const badge = document.querySelector('.header-stats .stat-mini:nth-child(2)');
             if (badge) {
                 badge.innerHTML = '<i class="fas fa-satellite-dish"></i> Conectado';
-                badge.borderColor = "var(--success)";
+                badge.style.borderColor = "var(--success)";
                 badge.style.color = "var(--success)";
             }
 
@@ -238,6 +274,7 @@ async function conectarVeiculoReal() {
             alert("Erro ao conectar ao ELM327: " + error.message);
             modoSimulacao = true;
             tipoConexao = null;
+            atualizarBadgeconexao();
             simulationIntervalId = setInterval(simularDadosOBD, 3000);
             const btnConnect = document.getElementById('btn-conectar-carro');
             if (btnConnect) {
@@ -336,6 +373,7 @@ async function conectarVeiculoBluetooth() {
 
         modoSimulacao = false;
         tipoConexao = 'ble';
+        atualizarBadgeconexao();
 
         clearInterval(simulationIntervalId);
 
@@ -359,6 +397,7 @@ async function conectarVeiculoBluetooth() {
         tipoConexao = null;
         bleCharacteristic = null;
         bleTxCharacteristic = null;
+        atualizarBadgeconexao();
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
         atualizarUIDesconectado();
     }
@@ -392,6 +431,7 @@ function onBleDisconnect() {
         tipoConexao = null;
         bleCharacteristic = null;
         bleTxCharacteristic = null;
+        atualizarBadgeconexao();
         if (pollingIntervalId) clearInterval(pollingIntervalId);
         if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
@@ -456,6 +496,7 @@ async function inicializarPainelReal() {
     const baseDelay = isBle ? 500 : 200;
     try {
         modoSimulacao = false;
+        atualizarBadgeconexao();
         clearInterval(simulationIntervalId);
         if (pollingIntervalId) { clearInterval(pollingIntervalId); pollingIntervalId = null; }
         if (pollingTelemetriaId) { clearInterval(pollingTelemetriaId); pollingTelemetriaId = null; }
@@ -553,6 +594,7 @@ async function sendElmCommand(command) {
             return;
         }
         if (elmProcessing) {
+            if (elmCommandQueue.length >= 10) elmCommandQueue.shift();
             elmCommandQueue.push(command);
             return;
         }
@@ -585,6 +627,7 @@ async function sendElmCommand(command) {
             return;
         }
         if (elmProcessing) {
+            if (elmCommandQueue.length >= 10) elmCommandQueue.shift();
             elmCommandQueue.push(command);
             return;
         }
@@ -630,6 +673,7 @@ async function readLoop() {
         console.log("Conexão serial perdida. Retornando ao modo de simulação.");
         modoSimulacao = true;
         tipoConexao = null;
+        atualizarBadgeconexao();
         if (pollingIntervalId) clearInterval(pollingIntervalId);
         if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
@@ -1163,6 +1207,7 @@ function toggleObdMode(isSimulated) {
         if (pollingTelemetriaId) { clearInterval(pollingTelemetriaId); pollingTelemetriaId = null; }
         modoSimulacao = true;
         tipoConexao = null;
+        atualizarBadgeconexao();
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
         showToast("Modo simulado ativado.", "info");
     } else if (!isSimulated && modoSimulacao) {
@@ -1174,6 +1219,7 @@ function toggleObdMode(isSimulated) {
         }
         clearInterval(simulationIntervalId);
         modoSimulacao = false;
+        atualizarBadgeconexao();
         inicializarPainelReal();
         showToast("Modo real ativado.", "success");
     }

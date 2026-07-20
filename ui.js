@@ -198,12 +198,19 @@ function excluirVeiculoRecente(idx) {
     if (vehicles.length === 0) {
         localStorage.removeItem("car_vehicles");
         localStorage.removeItem("car_active_idx");
+        localStorage.removeItem("car_maint_records");
+        localStorage.removeItem("car_lista_necessidades");
+        localStorage.removeItem("car_abastecimentos");
+        registrosManutencao = [];
+        listaNecessidades = [];
+        if (typeof abastecimentos !== 'undefined') abastecimentos = [];
     } else {
         setIdxAtivo(Math.min(idx, vehicles.length - 1));
         salvarVeiculos(vehicles);
     }
 
     renderizarDadosGlobais();
+    sincronizarLegado();
     renderizarSaudeVeiculo();
     renderizarHistoricoManutencao();
     renderizarPlanoNecessidades();
@@ -242,31 +249,23 @@ function preenchimentoInteligente() {
 // Formato novo: array em "car_vehicles" + índice ativo em "car_active_idx"
 
 function migrarDadosLegadoSeNecessario() {
-    console.log("[PERFIL-DEBUG] migrarDadosLegadoSeNecessario INICIADO");
     try {
         const raw = localStorage.getItem("car_vehicles");
-        console.log("[PERFIL-DEBUG] car_vehicles raw:", raw);
         const vehicles = JSON.parse(raw || "null");
-        console.log("[PERFIL-DEBUG] parsed vehicles:", vehicles, "isArray:", Array.isArray(vehicles), "length:", vehicles?.length);
         if (vehicles && Array.isArray(vehicles) && vehicles.length > 0) {
-            console.log("[PERFIL-DEBUG] migração: já existem veículos, retornando");
-            return;
+                return;
         }
     } catch (e) {
-        console.warn("[PERFIL-DEBUG] migração: JSON parse erro, removendo car_vehicles", e);
         localStorage.removeItem("car_vehicles");
     }
 
     const km = localStorage.getItem("car_km");
-    console.log("[PERFIL-DEBUG] car_km:", km);
     if (!km || parseInt(km) <= 0) {
-        console.log("[PERFIL-DEBUG] migração: sem km, criando array vazio");
         localStorage.setItem("car_vehicles", JSON.stringify([]));
         localStorage.setItem("car_active_idx", "0");
         return;
     }
 
-    console.log("[PERFIL-DEBUG] migração: criando veículo a partir de dados legados");
     const novoVeiculo = {
         id: Date.now().toString(36),
         km: parseInt(km) || 0,
@@ -283,7 +282,6 @@ function migrarDadosLegadoSeNecessario() {
 
     localStorage.setItem("car_vehicles", JSON.stringify([novoVeiculo]));
     localStorage.setItem("car_active_idx", "0");
-    console.log("[PERFIL-DEBUG] migração concluída, veículo:", novoVeiculo);
 }
 
 function getVeiculos() {
@@ -311,11 +309,9 @@ function setIdxAtivo(idx) {
 }
 
 function trocarVeiculo(id) {
-    console.log("[PERFIL-DEBUG] trocarVeiculo:", id);
     editandoVeiculoId = null;
     const v = getVeiculos();
     const idx = v.findIndex(x => x.id === id);
-    console.log("[PERFIL-DEBUG] trocarVeiculo idx:", idx);
     if (idx < 0) return;
     setIdxAtivo(idx);
     sincronizarLegado();
@@ -327,18 +323,14 @@ function trocarVeiculo(id) {
 }
 
 function toggleFormVeiculo() {
-    console.log("[PERFIL-DEBUG] toggleFormVeiculo CHAMADO");
     const form = document.getElementById("card-form-veiculo");
     const txt = document.getElementById("btn-toggle-text");
     const btn = document.getElementById("btn-toggle-form");
-    console.log("[PERFIL-DEBUG] form:", !!form, "btn:", !!btn, "txt:", !!txt);
     if (!form || !txt || !btn) {
-        console.warn("[PERFIL-DEBUG] toggleFormVeiculo: ELEMENTOS NÃO ENCONTRADOS");
         return;
     }
 
     const isHidden = form.classList.contains("hidden");
-    console.log("[PERFIL-DEBUG] isHidden:", isHidden);
 
     if (isHidden) {
         editandoVeiculoId = null;
@@ -358,17 +350,13 @@ function toggleFormVeiculo() {
         txt.innerText = "Adicionar novo Veículo";
         btn.querySelector("i").className = "fas fa-plus";
     }
-    console.log("[PERFIL-DEBUG] toggleFormVeiculo FINALIZADO");
 }
 
 function editarVeiculoAtivo() {
-    console.log("[PERFIL-DEBUG] editarVeiculoAtivo CHAMADO");
     const v = getVeiculoAtivo();
     if (!v) {
-        console.warn("[PERFIL-DEBUG] editarVeiculoAtivo: nenhum veículo ativo");
         return;
     }
-    console.log("[PERFIL-DEBUG] editarVeiculoAtivo veículo:", v);
     editandoVeiculoId = v.id;
 
     document.getElementById("inp-prof-km").value = v.km || "";
@@ -397,7 +385,6 @@ function editarVeiculoAtivo() {
     if (btnSave) btnSave.textContent = "Atualizar Veículo";
 
     preencherPerfil(v.marca || "", v.modelo || "", v.ano || "");
-    console.log("[PERFIL-DEBUG] editarVeiculoAtivo FINALIZADO");
 }
 
 function limparFormularioVeiculo() {
@@ -433,6 +420,12 @@ function excluirVeiculoAtivo() {
     if (vehicles.length === 0) {
         localStorage.removeItem("car_vehicles");
         localStorage.removeItem("car_active_idx");
+        localStorage.removeItem("car_maint_records");
+        localStorage.removeItem("car_lista_necessidades");
+        localStorage.removeItem("car_abastecimentos");
+        registrosManutencao = [];
+        listaNecessidades = [];
+        if (typeof abastecimentos !== 'undefined') abastecimentos = [];
     } else {
         setIdxAtivo(Math.min(idx, vehicles.length - 1));
         salvarVeiculos(vehicles);
@@ -448,11 +441,9 @@ function excluirVeiculoAtivo() {
 
 function popularSelectorVeiculos() {
     const sel = document.getElementById("inp-vehicle-selector");
-    console.log("[PERFIL-DEBUG] popularSelectorVeiculos: sel:", !!sel);
     if (!sel) return;
     const vehicles = getVeiculos();
     const idx = getIdxAtivo();
-    console.log("[PERFIL-DEBUG] popularSelectorVeiculos: vehicles:", vehicles.length, "idx:", idx);
 
     if (vehicles.length === 0) {
         sel.innerHTML = '<option value="">VEÍCULO NÃO CONFIGURADO</option>';
@@ -465,12 +456,10 @@ function popularSelectorVeiculos() {
             : (v.placa ? v.placa : `Veículo ${i + 1} (incompleto)`);
         return `<option value="${v.id}" ${i === idx ? 'selected' : ''}>${nome}</option>`;
     }).join('');
-    console.log("[PERFIL-DEBUG] popularSelectorVeiculos: HTML atualizado:", sel.innerHTML.substring(0, 100));
 }
 
 function sincronizarLegado() {
     const v = getVeiculoAtivo();
-    console.log("[PERFIL-DEBUG] sincronizarLegado:", v ? `km=${v.km}, marca=${v.marca}` : "null");
     if (!v) return;
     if (v.km) localStorage.setItem("car_km", v.km);
     localStorage.setItem("car_marca_nome", v.marca || "");
@@ -671,20 +660,16 @@ function popularDatalistManutencao() {
 
 // Inicialização do App e Verificação de Dados Dinâmicos
 document.addEventListener("DOMContentLoaded", async () => {
-    console.log("[PERFIL-DEBUG] DOMContentLoaded INICIADO");
     try {
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
         carregarRegistrosManutencao();
         popularDatalistManutencao();
         await initStaticSelects();
-        console.log("[PERFIL-DEBUG] initStaticSelects OK");
 
         const btnToggle = document.getElementById("btn-toggle-form");
-        console.log("[PERFIL-DEBUG] btn-toggle-form encontrado:", !!btnToggle);
         if (btnToggle) {
             btnToggle.addEventListener("click", () => {
-                console.log("[PERFIL-DEBUG] BOTÃO TOGGLE CLICADO");
-                toggleFormVeiculo();
+                        toggleFormVeiculo();
             });
         }
 
@@ -696,11 +681,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
         }
 
-        console.log("[PERFIL-DEBUG] Antes de verificarOnboardingESincronizacao");
         verificarOnboardingESincronizacao();
-        console.log("[PERFIL-DEBUG] Depois de verificarOnboardingESincronizacao");
     } catch(e) {
-        console.error("[PERFIL-DEBUG] ERRO NO DOMContentLoaded:", e);
     }
 });
 
@@ -1033,24 +1015,19 @@ async function onModeloChange() {
 }
 
 function verificarOnboardingESincronizacao() {
-    console.log("[PERFIL-DEBUG] verificarOnboardingESincronizacao INICIADO");
     migrarDadosLegadoSeNecessario();
     sincronizarLegado();
 
     const vehicles = getVeiculos();
     const km = parseInt(localStorage.getItem("car_km")) || 0;
-    console.log("[PERFIL-DEBUG] vehicles:", vehicles, "km:", km, "length:", vehicles.length);
 
     if (vehicles.length === 0 && km <= 0) {
-        console.log("[PERFIL-DEBUG] sem veículo → toast welcome");
         renderizarDadosGlobais();
         showToast("Bem-vindo! Preencha os dados do seu veículo na aba Perfil para ter acesso a todas as funcionalidades.", "info", 8000);
     } else {
-        console.log("[PERFIL-DEBUG] com veículo → processarEstimativa + renderizar");
         processarEstimativaDeQuilometragem();
         renderizarDadosGlobais();
     }
-    console.log("[PERFIL-DEBUG] verificarOnboardingESincronizacao FINALIZADO");
 }
 
 function concluirOnboarding() {
@@ -1124,7 +1101,7 @@ function processarEstimativaDeQuilometragem() {
     }
 }
 
-function confirmarEstimativa(usarSugerido) {
+function confirmarEstimativa() {
     let kmFinal = parseInt(document.getElementById("inp-km-estimada-editavel").value);
 
     if (kmFinal && kmFinal > 0) {
@@ -1141,9 +1118,7 @@ function confirmarEstimativa(usarSugerido) {
 }
 
 function renderizarDadosGlobais() {
-    console.log("[PERFIL-DEBUG] renderizarDadosGlobais INICIADO");
     const v = getVeiculoAtivo();
-    console.log("[PERFIL-DEBUG] veiculo ativo:", v);
     const temVeiculo = !!v;
 
     const km = v ? (parseInt(v.km) || 0) : 0;
@@ -1160,7 +1135,6 @@ function renderizarDadosGlobais() {
         if (odoEl) odoEl.innerHTML = km.toLocaleString() + ' <span style="font-size:0.9rem;color:#aaa;">KM</span><button onclick="editarOdometro()" style="background:rgba(0,242,255,0.1);border:1px solid var(--accent);color:var(--accent);border-radius:50%;width:28px;height:28px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:6px;vertical-align:middle;" title="Atualizar odometro"><i class="fas fa-pen"></i></button>';
         document.getElementById("lbl-veiculo-ano").innerText = `Ano: ${ano}`;
     } catch(e) {
-        console.error("[PERFIL-DEBUG] Erro ao preencher odomômetro/ano:", e);
     }
 
     const lblPlaca = document.getElementById("lbl-placa");
@@ -1213,7 +1187,6 @@ function renderizarDadosGlobais() {
 
     renderizarAlertasManutencao();
     renderizarRecentes();
-    console.log("[PERFIL-DEBUG] renderizarDadosGlobais FINALIZADO");
 }
 
 async function preencherPerfil(marca, modelo, ano) {
@@ -1869,7 +1842,6 @@ function editarRegistroManutencao(index) {
 }
 
 function salvarPerfil() {
-    console.log("[PERFIL-DEBUG] salvarPerfil CHAMADO");
     const kmInput = document.getElementById("inp-prof-km").value;
     const mInput = document.getElementById("inp-prof-marca").value;
     const modSelect = document.getElementById("inp-prof-modelo");
@@ -1879,7 +1851,6 @@ function salvarPerfil() {
     const tanqueInput = document.getElementById("inp-prof-tanque")?.value || "";
     const kmDiaInput = document.getElementById("inp-prof-km-dia")?.value || "40";
     const motorInput = document.getElementById("inp-prof-motor")?.value?.trim() || "";
-    console.log("[PERFIL-DEBUG] salvarPerfil inputs:", { kmInput, mInput, placaInput });
 
     if (!kmInput || kmInput <= 0) {
         showToast("Insira uma quilometragem válida.", "error");
@@ -1911,7 +1882,6 @@ function salvarPerfil() {
     const vehicles = getVeiculos();
     const existenteIdx = editandoVeiculoId ? vehicles.findIndex(v => v.id === editandoVeiculoId) : -1;
     const existente = existenteIdx >= 0 ? vehicles[existenteIdx] : null;
-    console.log("[PERFIL-DEBUG] salvarPerfil editando:", !!existente, "editandoVeiculoId:", editandoVeiculoId, "total:", vehicles.length);
 
     if (existente) {
         veiculoData.id = existente.id;
@@ -1932,7 +1902,6 @@ function salvarPerfil() {
     if (btnToggle) btnToggle.querySelector("i").className = "fas fa-plus";
     renderizarDadosGlobais();
     showToast(existente ? "Veículo atualizado com sucesso!" : "Veículo adicionado com sucesso!", "success");
-    console.log("[PERFIL-DEBUG] salvarPerfil FINALIZADO");
 }
 
 // ==========================================

@@ -23,8 +23,8 @@
         <!-- PAINEL (DASHBOARD) -->
         <div id="scr-dash" class="screen active">
             <div class="header-stats">
-                <div class="stat-mini" style="border-color:var(--accent); color:var(--accent); font-weight: 800;">AO VIVO</div>
-                <div class="stat-mini"><i class="fas fa-satellite-dish"></i> Simulado</div>
+                <div id="stat-conexao" class="stat-mini" style="border-color:rgba(255,255,255,0.15); color:#94a3b8;">Simulado</div>
+                <div id="stat-tipo-conexao" class="stat-mini"><i class="fas fa-satellite-dish"></i> ELM327</div>
             </div>
 
             <div class="gauge-container">
@@ -432,8 +432,8 @@
             </div>
 
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                <button class="btn-main" style="background:var(--warning); color:#000;" onclick="confirmarEstimativa(true)">Confirmar</button>
-                <button class="btn-main" style="background:var(--glass); color:#fff; border:1px solid rgba(255,255,255,0.1)" onclick="confirmarEstimativa(false)">Ajustar</button>
+                <button class="btn-main" style="background:var(--warning); color:#000;" onclick="confirmarEstimativa()">Confirmar</button>
+                <button class="btn-main" style="background:var(--glass); color:#fff; border:1px solid rgba(255,255,255,0.1)" onclick="document.getElementById('modal-estimativa').classList.add('hidden')">Cancelar</button>
             </div>
         </div>
     </div>
