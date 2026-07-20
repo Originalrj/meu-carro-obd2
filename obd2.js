@@ -2567,6 +2567,51 @@ function obterPosicaoAtual() {
     });
 }
 
+async function reverseGeocode(lat, lng) {
+    try {
+        const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=pt-BR`, {
+            headers: { 'User-Agent': 'AutoGestaoX/1.0' }
+        });
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return data;
+    } catch(e) { return null; }
+}
+
+async function buscarPostosProximos(lat, lng) {
+    try {
+        const raio = 500;
+        const query = `[out:json][timeout:10];node["amenity"="fuel"](around:${raio},${lat},${lng});out body;`;
+        const resp = await fetch(`https://overpass-api.de/api/interpreter`, {
+            method: 'POST',
+            body: `data=${encodeURIComponent(query)}`,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        return data.elements.map(e => ({
+            nome: e.tags?.name || e.tags?.brand || 'Posto sem nome',
+            marca: e.tags?.brand || '',
+            lat: e.lat,
+            lng: e.lon,
+            distancia: Math.round(haversineDist(lat, lng, e.lat, e.lng))
+        })).sort((a, b) => a.distancia - b.distancia);
+    } catch(e) { return []; }
+}
+
+function haversineDist(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) * Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function sugerirPostoHistorico() {
+    const nomes = [...new Set(abastecimentos.filter(a => a.posto).map(a => a.posto))];
+    return nomes.sort();
+}
+
 async function detectarAbastecimento(nivelAntes, nivelDepois) {
     if (nivelAntes === null || nivelAntes === undefined) return;
     if (nivelDepois > nivelAntes + 10) {
@@ -2575,13 +2620,21 @@ async function detectarAbastecimento(nivelAntes, nivelDepois) {
         const kmAtual = getKmAtual ? getKmAtual() : (parseInt(localStorage.getItem("car_km")) || 0);
         const posicao = await obterPosicaoAtual();
 
+        let postoDetectado = "";
+        if (posicao) {
+            const postos = await buscarPostosProximos(posicao.lat, posicao.lng);
+            if (postos.length > 0 && postos[0].distancia < 100) {
+                postoDetectado = postos[0].nome;
+            }
+        }
+
         const abast = {
             data: new Date().toISOString(),
             litros: parseFloat(litros.toFixed(1)),
             nivelAntes: parseFloat(nivelAntes.toFixed(1)),
             nivelDepois: parseFloat(nivelDepois.toFixed(1)),
             km: kmAtual,
-            posto: "",
+            posto: postoDetectado,
             geo: posicao,
             snapshot: {
                 fuelTrimSTFT: parseFloat(leiturasOBD.fuelTrimSTFT.toFixed(1)),
@@ -2600,39 +2653,144 @@ async function detectarAbastecimento(nivelAntes, nivelDepois) {
         abastecimentos.push(abast);
         salvarAbastecimentos();
 
-        showToast(`Abastecimento detectado! ~${litros.toFixed(1)}L adicionados. Registre o posto no histórico.`, "info");
+        const msgPosto = postoDetectado ? ` — ${postoDetectado}` : '';
+        showToast(`Abastecimento detectado! ~${litros.toFixed(1)}L${msgPosto}`, "info");
         if (typeof renderizarAbastecimentos === 'function') renderizarAbastecimentos();
         capturarBaselineCombustivel();
     }
 }
 
 async function registrarAbastecimentoManual() {
-    if (typeof AGXLogger !== 'undefined') AGXLogger.userAction('Registrou abastecimento manual');
+    if (typeof AGXLogger !== 'undefined') AGXLogger.userAction('Abriu registro de abastecimento');
+    const kmAtual = getKmAtual ? getKmAtual() : (parseInt(localStorage.getItem("car_km")) || 0);
+    const nivelAtual = leiturasOBD.nivelCombustivel || 50;
+    const tanqueCap = getTanqueCapacidade ? getTanqueCapacidade() : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
+    const posicao = await obterPosicaoAtual();
+    const historico = sugerirPostoHistorico();
+
+    let postosProximos = [];
+    let nomeDetectado = '';
+    if (posicao) {
+        showToast("🔍 Buscando postos próximos...", "info");
+        postosProximos = await buscarPostosProximos(posicao.lat, posicao.lng);
+        const geo = await reverseGeocode(posicao.lat, posicao.lng);
+        if (geo?.address) {
+            const a = geo.address;
+            nomeDetectado = a.fuel || a.shop || a.amenity || a.road || '';
+        }
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'modal-abast';
+    modal.innerHTML = `
+        <div class="modal-content glass-card" style="max-width:420px; max-height:85vh; overflow-y:auto; padding:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h4 style="margin:0; color:var(--accent);">REGISTRAR ABASTECIMENTO</h4>
+                <button onclick="fecharModalAbast()" style="background:none; border:none; color:#94a3b8; font-size:1.2rem; cursor:pointer;">✕</button>
+            </div>
+
+            <div style="margin-bottom:12px;">
+                <label style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700;">Litros abastecidos *</label>
+                <input type="number" id="abast-litros" step="0.1" min="0" placeholder="Ex: 35.5"
+                    style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:14px; margin-top:4px; box-sizing:border-box;">
+            </div>
+
+            <div style="margin-bottom:12px;">
+                <label style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700;">Posto</label>
+                <input type="text" id="abast-posto" placeholder="Nome do posto" value="${nomeDetectado}"
+                    list="abast-postos-list" autocomplete="off"
+                    style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:12px; margin-top:4px; box-sizing:border-box;">
+                <datalist id="abast-postos-list">
+                    ${historico.map(n => `<option value="${n}">`).join('')}
+                </datalist>
+            </div>
+
+            ${postosProximos.length > 0 ? `
+            <div style="margin-bottom:12px;">
+                <label style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700;">📍 Postos próximos</label>
+                <div style="max-height:120px; overflow-y:auto; margin-top:4px;">
+                    ${postosProximos.slice(0, 5).map(p => `
+                        <div onclick="document.getElementById('abast-posto').value='${p.nome.replace(/'/g, "\\'")}'"
+                            style="padding:8px; margin-bottom:4px; background:rgba(255,255,255,0.03); border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; border:1px solid rgba(255,255,255,0.05);">
+                            <div>
+                                <div style="font-size:11px; font-weight:600; color:#fff;">${p.nome}</div>
+                                ${p.marca ? `<div style="font-size:8px; color:#666;">${p.marca}</div>` : ''}
+                            </div>
+                            <div style="font-size:9px; color:var(--accent);">${p.distancia}m</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>` : ''}
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                <div>
+                    <label style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700;">Preço/L (R$)</label>
+                    <input type="number" id="abast-preco" step="0.01" min="0" placeholder="Ex: 5.89"
+                        style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:12px; margin-top:4px; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700;">KM atual</label>
+                    <input type="number" id="abast-km" value="${kmAtual}"
+                        style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; color:#fff; font-size:12px; margin-top:4px; box-sizing:border-box;">
+                </div>
+            </div>
+
+            <div id="abast-resultado" style="font-size:11px; color:#94a3b8; margin-bottom:12px; min-height:16px;"></div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="btn-main" onclick="fecharModalAbast()" style="background:rgba(255,255,255,0.05); color:#94a3b8; border:1px solid rgba(255,255,255,0.1); padding:10px;">Cancelar</button>
+                <button class="btn-main" onclick="confirmarAbastecimento()" style="padding:10px;">Salvar</button>
+            </div>
+
+            ${posicao ? `<div style="font-size:8px; color:#666; margin-top:8px; text-align:center;">📍 GPS: ${posicao.lat}, ${posicao.lng} (±${Math.round(posicao.precisao)}m)</div>` : '<div style="font-size:8px; color:#666; margin-top:8px; text-align:center;">⚠️ GPS não disponível</div>'}
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const litrosInput = document.getElementById('abast-litros');
+    const precoInput = document.getElementById('abast-preco');
+    const resultadoDiv = document.getElementById('abast-resultado');
+
+    function atualizarResultado() {
+        const l = parseFloat(litrosInput.value) || 0;
+        const p = parseFloat(precoInput.value) || 0;
+        if (l > 0 && p > 0) {
+            resultadoDiv.innerHTML = `<span style="color:var(--accent); font-weight:700;">Total: R$ ${(l * p).toFixed(2)}</span>`;
+        } else {
+            resultadoDiv.innerHTML = '';
+        }
+    }
+    litrosInput.addEventListener('input', atualizarResultado);
+    precoInput.addEventListener('input', atualizarResultado);
+    litrosInput.focus();
+}
+
+function fecharModalAbast() {
+    const m = document.getElementById('modal-abast');
+    if (m) m.remove();
+}
+
+async function confirmarAbastecimento() {
+    const litros = parseFloat(document.getElementById('abast-litros').value) || 0;
+    if (litros <= 0) { showToast("Quantidade inválida.", "error"); return; }
+
     const kmAtual = getKmAtual ? getKmAtual() : (parseInt(localStorage.getItem("car_km")) || 0);
     const nivelAtual = leiturasOBD.nivelCombustivel || 50;
     const tanqueCap = getTanqueCapacidade ? getTanqueCapacidade() : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
     const posicao = await obterPosicaoAtual();
 
-    const litrosStr = prompt("Litros abastecidos:");
-    if (litrosStr === null) return;
-    const litros = parseFloat(litrosStr) || 0;
-    if (litros <= 0) { showToast("Quantidade inválida.", "error"); return; }
-
-    const posto = prompt("Nome do posto (opcional):") || "";
-    const precoStr = prompt("Preço por litro (R$):");
-    let precoLitro = 0;
-    let custoTotal = 0;
-    if (precoStr !== null && !isNaN(precoStr) && parseFloat(precoStr) > 0) {
-        precoLitro = parseFloat(precoStr);
-        custoTotal = parseFloat((litros * precoLitro).toFixed(2));
-    }
+    const posto = document.getElementById('abast-posto').value || "";
+    const precoLitro = parseFloat(document.getElementById('abast-preco').value) || 0;
+    const kmInput = parseInt(document.getElementById('abast-km').value) || kmAtual;
+    const custoTotal = precoLitro > 0 ? parseFloat((litros * precoLitro).toFixed(2)) : 0;
 
     const abast = {
         data: new Date().toISOString(),
         litros: litros,
         nivelAntes: parseFloat(nivelAtual.toFixed(1)),
         nivelDepois: parseFloat(Math.min(100, nivelAtual + (litros / tanqueCap * 100)).toFixed(1)),
-        km: kmAtual,
+        km: kmInput,
         posto: posto,
         precoLitro: precoLitro || undefined,
         custoTotal: custoTotal || undefined,
@@ -2653,8 +2811,11 @@ async function registrarAbastecimentoManual() {
 
     abastecimentos.push(abast);
     salvarAbastecimentos();
+    fecharModalAbast();
     showToast(custoTotal > 0 ? `Abastecimento registrado: ${litros}L — R$ ${custoTotal.toFixed(2)}` : `Abastecimento registrado: ${litros}L`, "success");
     if (typeof renderizarAbastecimentos === 'function') renderizarAbastecimentos();
+    capturarBaselineCombustivel();
+    if (typeof AGXLogger !== 'undefined') AGXLogger.userAction('Abastecimento registrado', { litros, posto, custo: custoTotal });
 }
 
 function editarAbastecimento(index, litros, posto) {
