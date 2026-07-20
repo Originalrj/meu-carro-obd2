@@ -13,6 +13,8 @@ let writer;
 let bleCharacteristic = null;
 let bleTxCharacteristic = null;
 let bleWriteType = 'writeWithoutResponse';
+let _obdexCache = null;
+let _obdexLoading = false;
 
 function atualizarBadgeconexao() {
     const el = document.getElementById('stat-conexao');
@@ -705,8 +707,6 @@ async function readLoop() {
 
 // --- BANCO DE DADOS E AUXILIARES DTC (ESTILO TORQUE) ---
 const OBDex_URL = 'https://foerbsnavi.github.io/obdex/generic.min.json';
-let _obdexCache = null;
-let _obdexLoading = false;
 
 async function loadOBDex() {
     if (_obdexCache) return _obdexCache;
@@ -840,7 +840,16 @@ function gerarHtmlErroTorque(codigo) {
 }
 
 function parseObdResponse(response) {
-    const lines = response.split('\r\n').map(line => line.trim()).filter(line => line.length > 0);
+    // Normalize: handle both BLE (\r\r>) and Serial (\r\n>) terminators
+    let normalized = response.replace(/\r\r?>/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n').map(line => {
+        let l = line.trim();
+        // Add spaces between hex bytes for OBD responses (BLE format: "410C11CC" → "41 0C 11 CC")
+        if (/^4[0-9A-F]{2,}/i.test(l) && !l.includes(' ')) {
+            l = l.replace(/([0-9A-F]{2})/gi, '$1 ').trim();
+        }
+        return l;
+    }).filter(line => line.length > 0);
 
     for (const line of lines) {
         if (line.includes("NO DATA")) {
