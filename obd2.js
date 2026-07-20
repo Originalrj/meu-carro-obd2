@@ -98,6 +98,12 @@ const sensorHistory = {
 };
 const MAX_HISTORY = 60;
 
+// MAP key-on tracking (chave ligada, motor desligado)
+let mapKeyOn = null;          // MAP when RPM=0 (key on, engine off)
+let mapIdleEstabilizado = null; // MAP at idle after engine warms up
+let engineStarted = false;
+let engineStartMap = null;
+
 function addSensorHistory() {
     const now = Date.now();
     sensorHistory.fuelTrimSTFT.push(leiturasOBD.fuelTrimSTFT);
@@ -112,6 +118,30 @@ function addSensorHistory() {
     sensorHistory.timestamps.push(now);
     if (sensorHistory.timestamps.length > MAX_HISTORY) {
         for (const key in sensorHistory) sensorHistory[key].shift();
+    }
+
+    // MAP key-on/engine-off tracking
+    if (leiturasOBD.rpm < 50 && leiturasOBD.pressaoMAP > 50) {
+        mapKeyOn = leiturasOBD.pressaoMAP;
+        engineStarted = false;
+        mapIdleEstabilizado = null;
+        engineStartMap = null;
+    }
+
+    // Detect engine start (RPM goes from 0 to >300)
+    if (!engineStarted && leiturasOBD.rpm > 300) {
+        engineStarted = true;
+        engineStartMap = leiturasOBD.pressaoMAP;
+    }
+
+    // Capture idle MAP after engine stabilizes (RPM < 1200, tempMotor > 70)
+    if (engineStarted && leiturasOBD.rpm < 1200 && leiturasOBD.tempMotor > 70) {
+        if (mapIdleEstabilizado === null) {
+            mapIdleEstabilizado = leiturasOBD.pressaoMAP;
+        } else {
+            // Running average for stability
+            mapIdleEstabilizado = (mapIdleEstabilizado * 0.8) + (leiturasOBD.pressaoMAP * 0.2);
+        }
     }
 }
 
@@ -141,10 +171,13 @@ function analyzeSensorDiagnostics() {
         // Decision tree based on multiple sensor correlation
         const isLean = stft > 5 || ltft > 5;
         const isRich = stft < -5 || ltft < -5;
-        const mapHigh = map > 65;
-        const mapNormal = map >= 30 && map <= 65;
+        // Use key-on MAP for calibration check, current MAP for idle reading
+        const mapRef = (mapKeyOn !== null && mapKeyOn > 80) ? map : map;
+        const mapHigh = mapRef > 65;
+        const mapNormal = mapRef >= 30 && mapRef <= 65;
         const o2Rich = o2 > 0.6;
         const o2Lean = o2 < 0.3;
+        const mapKeyOnInfo = mapKeyOn !== null ? ` (Chave-ON: ${mapKeyOn.toFixed(0)})` : '';
 
         if (isLean && mapHigh && o2Lean) {
             nivel = 'critico';
@@ -187,12 +220,12 @@ function analyzeSensorDiagnostics() {
             nivel,
             icon,
             titulo: `Fuel Trim: ${diagnostico}`,
-            detalhe: `STFT: ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% | LTFT: ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}% | MAP: ${map.toFixed(0)} kPa | O₂: ${o2.toFixed(2)}V`,
+            detalhe: `STFT: ${stft > 0 ? '+' : ''}${stft.toFixed(1)}% | LTFT: ${ltft > 0 ? '+' : ''}${ltft.toFixed(1)}% | MAP: ${map.toFixed(0)} kPa${mapKeyOnInfo} | O₂: ${o2.toFixed(2)}V`,
             recomendacao
         });
     }
 
-    // 2. MAP Sensor Health Test
+    // 2. MAP Sensor Health Test (Key-On vs Engine-Running)
     if (rpm > 0) {
         const mapIdleReadings = H.pressaoMAP.filter((v, i) => H.rpm[i] < 1200 && H.cargaMotor[i] < 25);
         const mapHighLoadReadings = H.pressaoMAP.filter((v, i) => H.cargaMotor[i] > 60);
@@ -201,32 +234,41 @@ function analyzeSensorDiagnostics() {
         let mapNivel = 'ok';
         let mapIcon = '✅';
 
-        if (mapIdleReadings.length > 3) {
-            const avgMapIdle = mapIdleReadings.reduce((a, b) => a + b, 0) / mapIdleReadings.length;
+        // KEY-ON vs ENGINE-RUNNING test (the most important MAP test)
+        if (mapKeyOn !== null && mapIdleEstabilizado !== null) {
+            const deltaKOvsIdle = mapKeyOn - mapIdleEstabilizado;
+            const pctDrop = ((deltaKOvsIdle / mapKeyOn) * 100).toFixed(0);
 
+            if (deltaKOvsIdle < 15) {
+                mapNivel = 'critico';
+                mapIcon = '❌';
+                mapStatus = `SENSOR MAP TRAVADO! Chave-ON: ${mapKeyOn.toFixed(0)} kPa → Idle: ${mapIdleEstabilizado.toFixed(0)} kPa (queda apenas ${deltaKOvsIdle.toFixed(0)} kPa). O sensor não está detectando vácuo.`;
+            } else if (deltaKOvsIdle < 30) {
+                mapNivel = 'alerta';
+                mapIcon = '⚠️';
+                mapStatus = `MAP com queda parcial: ${mapKeyOn.toFixed(0)} → ${mapIdleEstabilizado.toFixed(0)} kPa (queda ${deltaKOvsIdle.toFixed(0)} kPa, ${pctDrop}%). Possível vazamento de ar.`;
+            } else {
+                mapStatus = `MAP OK: Chave-ON ${mapKeyOn.toFixed(0)} kPa → Idle ${mapIdleEstabilizado.toFixed(0)} kPa (queda ${deltaKOvsIdle.toFixed(0)} kPa, ${pctDrop}%)`;
+            }
+
+            // Also check idle vs high load if available
             if (mapHighLoadReadings.length > 2) {
                 const avgMapHigh = mapHighLoadReadings.reduce((a, b) => a + b, 0) / mapHighLoadReadings.length;
-                const variation = ((avgMapHigh - avgMapIdle) / avgMapIdle * 100).toFixed(0);
+                const deltaIdlevsLoad = avgMapHigh - mapIdleEstabilizado;
 
-                if (variation < 20) {
+                if (deltaIdlevsLoad < 20) {
                     mapNivel = 'critico';
                     mapIcon = '❌';
-                    mapStatus = `MAP com pouca variação (${variation}%) — sensor pode estar travado`;
-                } else if (avgMapIdle > 55) {
-                    mapNivel = 'alerta';
-                    mapIcon = '⚠️';
-                    mapStatus = `MAP ociosa alta (${avgMapIdle.toFixed(0)} kPa) — possível vazamento de ar ou sensor defeituoso`;
-                } else {
-                    mapStatus = `MAP funcional — variação de ${variation}% (idle: ${avgMapIdle.toFixed(0)} → carga: ${avgMapHigh.toFixed(0)} kPa)`;
+                    mapStatus += ` | Sensor não varia idle→carga (${mapIdleEstabilizado.toFixed(0)} → ${avgMapHigh.toFixed(0)} kPa)`;
                 }
+            }
+        } else if (mapIdleEstabilizado !== null) {
+            if (mapIdleEstabilizado > 55) {
+                mapNivel = 'alerta';
+                mapIcon = '⚠️';
+                mapStatus = `MAP ociosa alta (${mapIdleEstabilizado.toFixed(0)} kPa) — aguardando leitura com chave-ON para comparar`;
             } else {
-                if (avgMapIdle > 55) {
-                    mapNivel = 'alerta';
-                    mapIcon = '⚠️';
-                    mapStatus = `MAP ociosa alta (${avgMapIdle.toFixed(0)} kPa) — aguardando leituras em carga`;
-                } else {
-                    mapStatus = `MAP ociosa: ${avgMapIdle.toFixed(0)} kPa — aguardando leituras em carga para teste completo`;
-                }
+                mapStatus = `MAP ociosa: ${mapIdleEstabilizado.toFixed(0)} kPa — aguardando leitura chave-ON + carga`;
             }
         } else {
             mapStatus = 'Coletando dados do sensor MAP...';
@@ -237,7 +279,9 @@ function analyzeSensorDiagnostics() {
             icon: mapIcon,
             titulo: 'Sensor MAP — Teste de Saúde',
             detalhe: mapStatus,
-            recomendacao: mapNivel !== 'ok' ? 'Considere substituir o sensor MAP se a variação for baixa.' : 'Sensor MAP operando dentro da faixa esperada.'
+            recomendacao: mapNivel === 'critico' ? 'Substitua o sensor MAP. Se o sensor estiver OK, verifique vazamentos de admissão.' :
+                         mapNivel === 'alerta' ? 'Verifique mangueiras de vacúo, junta do coletor e conexões do sensor MAP.' :
+                         'Sensor MAP operando corretamente.'
         });
     }
 
