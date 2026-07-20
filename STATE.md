@@ -171,6 +171,15 @@ ATD -> ATZ -> ATE0 -> ATL0 -> ATS0 -> ATH0 -> ATAT1 -> ATSP0 -> ATST64
 - Diferenca > 25°C → problema no intercooler/dutos
 - Diferenca < -10°C → sensor IAT descalibrado
 
+### PID Support Tracking (adicionado 20/07/2026)
+- `pidSupport` object rastreia quais PIDs sao suportados pelo veiculo
+- `pidToKey` mapeia comandos ELM para chaves do pidSupport
+- `lastPidSent` rastreia ultimo PID enviado para detectar NO DATA
+- Quando NO_DATA retornado → `pidSupport[key] = false` → sensor ocultado
+- Diagnostico mostra "Nao disponivel" para sensores ausentes (ex: MAF)
+- Arvore de decisao fuel trim ajustada: sem MAF → diagnóstico diferente
+- **Muitos carros BR flex-fuel NAO tem MAF** — usam speed-density (MAP+RPM+IAT)
+
 ---
 
 ## APIs e servicos
