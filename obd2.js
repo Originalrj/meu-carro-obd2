@@ -855,10 +855,6 @@ function atualizarPainelConsumo() {
     }
     if (elMedio) {
         let kmLitro = calcularKmPorLitro();
-        if (!kmLitro && consLh > 0 && vel > 5) {
-            const calc = vel / consLh;
-            if (calc >= 2 && calc <= 30) kmLitro = calc.toFixed(1);
-        }
         elMedio.innerHTML = kmLitro ? `${kmLitro} <small style="font-size:10px">km/L</small>` : `-- <small style="font-size:10px">km/L</small>`;
     }
     if (elKmRest) {
@@ -866,10 +862,6 @@ function atualizarPainelConsumo() {
         const nivel = leiturasOBD.nivelCombustivel || 0;
         const litrosRestante = (nivel / 100) * tanqueCap;
         let kmLitro = calcularKmPorLitro();
-        if (!kmLitro && consLh > 0 && vel > 5) {
-            const calc = vel / consLh;
-            if (calc >= 2 && calc <= 30) kmLitro = calc;
-        }
         if (tanqueCap > 0 && litrosRestante > 0 && kmLitro > 0) {
             const kmRest = Math.round(litrosRestante * parseFloat(kmLitro));
             elKmRest.innerHTML = `${kmRest.toLocaleString()} <small style="font-size:10px">km</small>`;
