@@ -2552,12 +2552,28 @@ function salvarAbastecimentos() {
     localStorage.setItem("car_abastecimentos", JSON.stringify(abastecimentos));
 }
 
-function detectarAbastecimento(nivelAntes, nivelDepois) {
+function obterPosicaoAtual() {
+    return new Promise((resolve) => {
+        if (!navigator.geolocation) { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({
+                lat: parseFloat(pos.coords.latitude.toFixed(6)),
+                lng: parseFloat(pos.coords.longitude.toFixed(6)),
+                precisao: pos.coords.accuracy
+            }),
+            () => resolve(null),
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+        );
+    });
+}
+
+async function detectarAbastecimento(nivelAntes, nivelDepois) {
     if (nivelAntes === null || nivelAntes === undefined) return;
     if (nivelDepois > nivelAntes + 10) {
         const tanqueCap = getTanqueCapacidade ? getTanqueCapacidade() : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
         const litros = ((nivelDepois - nivelAntes) / 100) * tanqueCap;
         const kmAtual = getKmAtual ? getKmAtual() : (parseInt(localStorage.getItem("car_km")) || 0);
+        const posicao = await obterPosicaoAtual();
 
         const abast = {
             data: new Date().toISOString(),
@@ -2566,6 +2582,7 @@ function detectarAbastecimento(nivelAntes, nivelDepois) {
             nivelDepois: parseFloat(nivelDepois.toFixed(1)),
             km: kmAtual,
             posto: "",
+            geo: posicao,
             snapshot: {
                 fuelTrimSTFT: parseFloat(leiturasOBD.fuelTrimSTFT.toFixed(1)),
                 fuelTrimLTFT: parseFloat(leiturasOBD.fuelTrimLTFT.toFixed(1)),
@@ -2589,11 +2606,12 @@ function detectarAbastecimento(nivelAntes, nivelDepois) {
     }
 }
 
-function registrarAbastecimentoManual() {
+async function registrarAbastecimentoManual() {
     if (typeof AGXLogger !== 'undefined') AGXLogger.userAction('Registrou abastecimento manual');
     const kmAtual = getKmAtual ? getKmAtual() : (parseInt(localStorage.getItem("car_km")) || 0);
     const nivelAtual = leiturasOBD.nivelCombustivel || 50;
     const tanqueCap = getTanqueCapacidade ? getTanqueCapacidade() : (parseInt(localStorage.getItem("car_tanque_capacidade")) || 50);
+    const posicao = await obterPosicaoAtual();
 
     const litrosStr = prompt("Litros abastecidos:");
     if (litrosStr === null) return;
@@ -2618,6 +2636,7 @@ function registrarAbastecimentoManual() {
         posto: posto,
         precoLitro: precoLitro || undefined,
         custoTotal: custoTotal || undefined,
+        geo: posicao,
         snapshot: {
             fuelTrimSTFT: parseFloat(leiturasOBD.fuelTrimSTFT.toFixed(1)),
             fuelTrimLTFT: parseFloat(leiturasOBD.fuelTrimLTFT.toFixed(1)),

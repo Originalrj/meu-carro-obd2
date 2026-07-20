@@ -10,8 +10,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -222,6 +224,16 @@
     
     <div id="sacola-container" class="hidden"></div>
 </div>
+
+        <!-- MAPA -->
+        <div id="scr-mapa" class="screen">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="margin:0;">Mapa de Abastecimentos</h3>
+                <button class="btn-main" onclick="centralizarMapa()" style="font-size:10px; padding:6px 12px;"><i class="fas fa-crosshairs"></i> Centralizar</button>
+            </div>
+            <div id="mapa-container" style="width:100%; height:45vh; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.1);"></div>
+            <div id="mapa-info" style="margin-top:10px;"></div>
+        </div>
 
         <!-- PERFIL -->
         <div id="scr-profile" class="screen">
@@ -466,6 +478,7 @@
         <div class="dock-item active" onclick="nav('dash', this)"><i class="fas fa-tachometer-alt"></i><span>Painel</span></div>
         <div class="dock-item" onclick="nav('maintenance', this)"><i class="fas fa-tools"></i><span>Manutenção</span></div>
         <div class="dock-item" onclick="nav('obd', this)"><i class="fas fa-notes-medical"></i><span>Diagnóstico</span></div>
+        <div class="dock-item" onclick="nav('mapa', this)"><i class="fas fa-map-marked-alt"></i><span>Mapa</span></div>
         <div class="dock-item" onclick="nav('shop', this)"><i class="fas fa-shopping-cart"></i><span>Peças</span></div>
         <div class="dock-item" onclick="nav('profile', this)"><i class="fas fa-user-cog"></i><span>Perfil</span></div>
     </nav>

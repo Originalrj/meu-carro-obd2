@@ -1388,6 +1388,13 @@ function nav(screenId, element) {
         const abaAlvo = (btnSaude && btnSaude.classList.contains('active')) ? 'saude' : 'historico';
         alternarSubAbaManutencao(abaAlvo);
     }
+
+    if (screenId === 'mapa') {
+        setTimeout(() => {
+            inicializarMapa();
+            if (mapa) mapa.invalidateSize();
+        }, 100);
+    }
 }
 
 function alternarSubAbaManutencao(aba) {
@@ -2872,3 +2879,105 @@ setTimeout(() => {
         verificarPecasVencidas();
     }
 }, 500);
+
+// --- MAPA ---
+let mapa = null;
+let mapaMarkers = [];
+let mapaInicializado = false;
+
+function inicializarMapa() {
+    if (mapaInicializado) return;
+    const container = document.getElementById('mapa-container');
+    if (!container) return;
+
+    mapa = L.map('mapa-container', {
+        zoomControl: false,
+        attributionControl: false
+    }).setView([-23.55, -46.63], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+    }).addTo(mapa);
+
+    L.control.zoom({ position: 'topright' }).addTo(mapa);
+    mapaInicializado = true;
+    renderizarMapaAbastecimentos();
+}
+
+function renderizarMapaAbastecimentos() {
+    if (!mapa) return;
+
+    mapaMarkers.forEach(m => mapa.removeLayer(m));
+    mapaMarkers = [];
+
+    const comGeo = (typeof abastecimentos !== 'undefined') ? abastecimentos.filter(a => a.geo && a.geo.lat) : [];
+
+    if (comGeo.length === 0) {
+        document.getElementById('mapa-info').innerHTML = `
+            <div style="text-align:center; padding:20px; color:#94a3b8;">
+                <i class="fas fa-map-marker-alt" style="font-size:2rem; opacity:0.3; margin-bottom:8px;"></i>
+                <p style="font-size:11px;">Nenhum abastecimento com localização registrado.</p>
+                <p style="font-size:9px;">A geolocalização é capturada automaticamente a cada abastecimento.</p>
+            </div>`;
+        return;
+    }
+
+    const bounds = [];
+    comGeo.forEach((a, i) => {
+        const cor = a.posto ? 'var(--accent)' : '#ff9800';
+        const icon = L.divIcon({
+            className: '',
+            html: `<div style="background:${cor}; width:24px; height:24px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+                <i class="fas fa-gas-pump" style="color:#000; font-size:10px;"></i>
+            </div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        const marker = L.marker([a.geo.lat, a.geo.lng], { icon }).addTo(mapa);
+        const data = new Date(a.data).toLocaleDateString('pt-BR');
+        const popup = `
+            <div style="font-family:sans-serif; min-width:150px;">
+                <div style="font-weight:700; font-size:13px; margin-bottom:4px;">${a.posto || 'Posto não informado'}</div>
+                <div style="font-size:11px; color:#666;">${data} — ${a.litros}L</div>
+                ${a.custoTotal ? `<div style="font-size:11px; color:#666;">R$ ${a.custoTotal.toFixed(2)}</div>` : ''}
+                <div style="font-size:10px; color:#999; margin-top:4px;">${a.km.toLocaleString('pt-BR')} km</div>
+            </div>`;
+        marker.bindPopup(popup);
+        mapaMarkers.push(marker);
+        bounds.push([a.geo.lat, a.geo.lng]);
+    });
+
+    if (bounds.length > 0) {
+        mapa.fitBounds(bounds, { padding: [40, 40] });
+    }
+
+    document.getElementById('mapa-info').innerHTML = `
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:100px; background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; text-align:center;">
+                <div style="font-size:8px; color:#94a3b8; text-transform:uppercase;">Total</div>
+                <div style="font-size:1.1rem; font-weight:800; color:var(--accent);">${comGeo.length}</div>
+                <div style="font-size:8px; color:#666;">abastecimentos</div>
+            </div>
+            <div style="flex:1; min-width:100px; background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; text-align:center;">
+                <div style="font-size:8px; color:#94a3b8; text-transform:uppercase;">Postos</div>
+                <div style="font-size:1.1rem; font-weight:800; color:var(--accent);">${new Set(comGeo.map(a => a.posto).filter(Boolean)).size}</div>
+                <div style="font-size:8px; color:#666;">diferentes</div>
+            </div>
+        </div>`;
+}
+
+function centralizarMapa() {
+    if (!mapa) { inicializarMapa(); return; }
+    const comGeo = (typeof abastecimentos !== 'undefined') ? abastecimentos.filter(a => a.geo && a.geo.lat) : [];
+    if (comGeo.length === 0) {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                mapa.setView([pos.coords.latitude, pos.coords.longitude], 13);
+            }, () => mapa.setView([-23.55, -46.63], 12));
+        }
+        return;
+    }
+    const bounds = comGeo.map(a => [a.geo.lat, a.geo.lng]);
+    mapa.fitBounds(bounds, { padding: [40, 40] });
+}
