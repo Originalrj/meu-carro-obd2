@@ -83,6 +83,27 @@ let leiturasOBD = {
     torqueSolicitado: 0, torqueReal: 0
 };
 
+// Track which PIDs are supported by this vehicle (NO DATA = unsupported)
+const pidSupport = {
+    maf: true,        // PID 0110
+    fuelTrimSTFT: true, // PID 0106
+    fuelTrimLTFT: true, // PID 0107
+    pressaoCombustivel: true, // PID 010A
+    pressaoMAP: true, // PID 010B
+    tempOleo: true,    // PID 015C
+    tempAmbiente: true, // PID 0146
+    o2Sensor1: true,   // PID 0114
+    o2Sensor2: true,   // PID 0115
+};
+
+// Map PID commands to pidSupport keys
+const pidToKey = {
+    '0110': 'maf', '0106': 'fuelTrimSTFT', '0107': 'fuelTrimLTFT',
+    '010A': 'pressaoCombustivel', '010B': 'pressaoMAP', '015C': 'tempOleo',
+    '0146': 'tempAmbiente', '0114': 'o2Sensor1', '0115': 'o2Sensor2'
+};
+let lastPidSent = null;
+
 // Sensor history for correlation analysis (max 60 samples = ~60 seconds)
 const sensorHistory = {
     fuelTrimSTFT: [],
@@ -192,13 +213,23 @@ function analyzeSensorDiagnostics() {
         } else if (isLean && mapNormal && o2Rich) {
             nivel = 'alerta';
             icon = '🔍';
-            diagnostico = 'POSSÍVEL SENSOR MAF SUJO/CUTILADO';
-            recomendacao = 'STFT alto + MAP normal + O₂ rico = sensor MAF reportando vazão menor que a real. Limpe o sensor MAF com limpar MAF específico (sem tocar no fio). Se não resolver, substitua.';
+            if (pidSupport.maf) {
+                diagnostico = 'POSSÍVEL SENSOR MAF SUJO/CUTILADO';
+                recomendacao = 'STFT alto + MAP normal + O₂ rico = sensor MAF reportando vazão menor que a real. Limpe o sensor MAF com limpar MAF específico (sem tocar no fio). Se não resolver, substitua.';
+            } else {
+                diagnostico = 'ENTRADA DE AR INTERMITENTE OU REGULADOR';
+                recomendacao = 'STFT alto + MAP normal + O₂ rico = sem sensor MAF, o problema pode ser vazamento intermitente ou regulador de pressão de combustível. Verifique mangueiras de vacúo e regulador.';
+            }
         } else if (isLean && mapHigh && o2Rich) {
             nivel = 'alerta';
             icon = '🔍';
-            diagnostico = 'ENTRADA DE AR + SENSOR MAF';
-            recomendacao = 'STFT alto + MAP elevada + O₂ rico = combinação de fatores. Verifique vazamentos de ar E limpe/substitua o sensor MAF.';
+            if (pidSupport.maf) {
+                diagnostico = 'ENTRADA DE AR + SENSOR MAF';
+                recomendacao = 'STFT alto + MAP elevada + O₂ rico = combinação de fatores. Verifique vazamentos de ar E limpe/substitua o sensor MAF.';
+            } else {
+                diagnostico = 'VAZAMENTO DE AR NA ADMISSÃO';
+                recomendacao = 'STFT alto + MAP elevada + O₂ rico = ar entrando no sistema. Verifique mangueiras de vacúo, junta do coletor e conexões.';
+            }
         } else if (isRich && o2Rich) {
             nivel = 'critico';
             icon = '🚨';
@@ -286,68 +317,88 @@ function analyzeSensorDiagnostics() {
     }
 
     // 3. MAF Sensor Validation
-    if (maf > 0 && rpm > 0) {
-        const expectedMaf = (rpm * carga) / 10000 * 8;
-        const diff = ((maf - expectedMaf) / expectedMaf * 100);
-        let mafNivel = 'ok';
-        let mafIcon = '✅';
-        let mafStatus = '';
+    if (pidSupport.maf) {
+        if (maf > 0 && rpm > 0) {
+            const expectedMaf = (rpm * carga) / 10000 * 8;
+            const diff = ((maf - expectedMaf) / expectedMaf * 100);
+            let mafNivel = 'ok';
+            let mafIcon = '✅';
+            let mafStatus = '';
 
-        if (diff < -30) {
-            mafNivel = 'alerta';
-            mafIcon = '⚠️';
-            mafStatus = `MAF baixo (${maf.toFixed(1)} g/s vs esperado ${expectedMaf.toFixed(1)} g/s) — sensor sujo ou descalibrado`;
-        } else if (diff > 30) {
-            mafNivel = 'alerta';
-            mafIcon = '⚠️';
-            mafStatus = `MAF alto (${maf.toFixed(1)} g/s vs esperado ${expectedMaf.toFixed(1)} g/s) — possível vazamento de ar após o sensor`;
-        } else {
-            mafStatus = `MAF dentro do esperado (${maf.toFixed(1)} g/s)`;
+            if (diff < -30) {
+                mafNivel = 'alerta';
+                mafIcon = '⚠️';
+                mafStatus = `MAF baixo (${maf.toFixed(1)} g/s vs esperado ${expectedMaf.toFixed(1)} g/s) — sensor sujo ou descalibrado`;
+            } else if (diff > 30) {
+                mafNivel = 'alerta';
+                mafIcon = '⚠️';
+                mafStatus = `MAF alto (${maf.toFixed(1)} g/s vs esperado ${expectedMaf.toFixed(1)} g/s) — possível vazamento de ar após o sensor`;
+            } else {
+                mafStatus = `MAF dentro do esperado (${maf.toFixed(1)} g/s)`;
+            }
+
+            tests.push({
+                nivel: mafNivel,
+                icon: mafIcon,
+                titulo: 'Sensor MAF — Validação',
+                detalhe: mafStatus,
+                recomendacao: mafNivel !== 'ok' ? 'Limpe o sensor MAF com limpar MAF específico. Se não resolver, substitua.' : 'Sensor MAF operando corretamente.'
+            });
         }
-
+    } else {
         tests.push({
-            nivel: mafNivel,
-            icon: mafIcon,
-            titulo: 'Sensor MAF — Validação',
-            detalhe: mafStatus,
-            recomendacao: mafNivel !== 'ok' ? 'Limpe o sensor MAF com limpar MAF específico. Se não resolver, substitua.' : 'Sensor MAF operando corretamente.'
+            nivel: 'info',
+            icon: 'ℹ️',
+            titulo: 'Sensor MAF — Não disponível',
+            detalhe: 'Este veículo não possui sensor MAF (usa cálculo speed-density por MAP + RPM + IAT)',
+            recomendacao: 'Este teste não se aplica ao seu veículo. O cálculo de ar é feito pelo sensor MAP.'
         });
     }
 
     // 4. O2 Sensor Response Test
-    if (H.nivelO2.length > 10) {
-        const recentO2 = H.nivelO2.slice(-10);
-        const minO2 = Math.min(...recentO2);
-        const maxO2 = Math.max(...recentO2);
-        const amplitude = maxO2 - minO2;
-        const avgO2 = recentO2.reduce((a, b) => a + b, 0) / recentO2.length;
+    if (pidSupport.o2Sensor1) {
+        if (H.nivelO2.length > 10) {
+            const recentO2 = H.nivelO2.slice(-10);
+            const minO2 = Math.min(...recentO2);
+            const maxO2 = Math.max(...recentO2);
+            const amplitude = maxO2 - minO2;
+            const avgO2 = recentO2.reduce((a, b) => a + b, 0) / recentO2.length;
 
-        let o2Nivel = 'ok';
-        let o2Icon = '✅';
-        let o2Status = '';
+            let o2Nivel = 'ok';
+            let o2Icon = '✅';
+            let o2Status = '';
 
-        if (amplitude < 0.1) {
-            o2Nivel = 'alerta';
-            o2Icon = '⚠️';
-            o2Status = `Sensor O₂ sem oscilação (${amplitude.toFixed(2)}V) — possível sensor descalibrado ou travado`;
-        } else if (avgO2 > 0.7) {
-            o2Nivel = 'alerta';
-            o2Icon = '⚠️';
-            o2Status = `Sensor O₂ tendendo rico (${avgO2.toFixed(2)}V média) — verifique fuel trim`;
-        } else if (avgO2 < 0.3) {
-            o2Nivel = 'alerta';
-            o2Icon = '⚠️';
-            o2Status = `Sensor O₂ tendendo pobre (${avgO2.toFixed(2)}V média) — verifique vazamento de ar`;
-        } else {
-            o2Status = `Sensor O₂ oscilando normalmente (${amplitude.toFixed(2)}V amplitude)`;
+            if (amplitude < 0.1) {
+                o2Nivel = 'alerta';
+                o2Icon = '⚠️';
+                o2Status = `Sensor O₂ sem oscilação (${amplitude.toFixed(2)}V) — possível sensor descalibrado ou travado`;
+            } else if (avgO2 > 0.7) {
+                o2Nivel = 'alerta';
+                o2Icon = '⚠️';
+                o2Status = `Sensor O₂ tendendo rico (${avgO2.toFixed(2)}V média) — verifique fuel trim`;
+            } else if (avgO2 < 0.3) {
+                o2Nivel = 'alerta';
+                o2Icon = '⚠️';
+                o2Status = `Sensor O₂ tendendo pobre (${avgO2.toFixed(2)}V média) — verifique vazamento de ar`;
+            } else {
+                o2Status = `Sensor O₂ oscilando normalmente (${amplitude.toFixed(2)}V amplitude)`;
+            }
+
+            tests.push({
+                nivel: o2Nivel,
+                icon: o2Icon,
+                titulo: 'Sensor O₂ — Teste de Resposta',
+                detalhe: o2Status,
+                recomendacao: o2Nivel !== 'ok' ? 'Verifique fiação do sensor O₂. Se persistir, substitua o sensor.' : 'Sensor O₂ operando corretamente.'
+            });
         }
-
+    } else {
         tests.push({
-            nivel: o2Nivel,
-            icon: o2Icon,
-            titulo: 'Sensor O₂ — Teste de Resposta',
-            detalhe: o2Status,
-            recomendacao: o2Nivel !== 'ok' ? 'Verifique fiação do sensor O₂. Se persistir, substitua o sensor.' : 'Sensor O₂ operando corretamente.'
+            nivel: 'info',
+            icon: 'ℹ️',
+            titulo: 'Sensor O₂ — Não disponível',
+            detalhe: 'Este veículo não possui sensor O₂ acessível via OBD2',
+            recomendacao: 'Este teste não se aplica ao seu veículo.'
         });
     }
 
@@ -932,6 +983,13 @@ function waitForElmPrompt(timeoutMs = tipoConexao === 'ble' ? 4000 : 2000) {
 }
 
 async function sendElmCommand(command) {
+    // Track last PID sent for NO DATA detection
+    if (command.startsWith('01') || command.startsWith('09')) {
+        lastPidSent = command.substring(0, 4);
+    } else {
+        lastPidSent = null;
+    }
+
     if (tipoConexao === 'ble') {
         const txChar = bleTxCharacteristic || bleCharacteristic;
         if (!txChar) {
@@ -1179,6 +1237,15 @@ function parseObdResponse(response) {
 
     for (const line of lines) {
         if (line.includes("NO DATA")) {
+            // Mark PID as unsupported if we know which one was sent
+            if (lastPidSent && pidToKey[lastPidSent]) {
+                const key = pidToKey[lastPidSent];
+                if (pidSupport[key]) {
+                    pidSupport[key] = false;
+                    leiturasOBD[key] = 0;
+                    console.log(`[PID] ${lastPidSent} (${key}) não suportado neste veículo`);
+                }
+            }
             document.getElementById('scan-active').classList.add('hidden');
             const res = document.getElementById('scan-result');
             res.classList.remove('hidden');
@@ -1696,7 +1763,25 @@ function renderizarSensores() {
     const container = document.getElementById('obd-sensores');
     if (!container) return;
 
+    // Map sensor IDs to pidSupport keys
+    const sensorPidMap = {
+        'maf': 'maf', 'fuelTrimSTFT': 'fuelTrimSTFT', 'fuelTrimLTFT': 'fuelTrimLTFT',
+        'pressaoCombustivel': 'pressaoCombustivel', 'pressaoMAP': 'pressaoMAP',
+        'tempOleo': 'tempOleo', 'tempAmbiente': 'tempAmbiente',
+        'o2Sensor1': 'o2Sensor1', 'o2Sensor2': 'o2Sensor2'
+    };
+
     container.innerHTML = SENSORES_OBD.map(s => {
+        // Skip unsupported sensors
+        const pidKey = sensorPidMap[s.id];
+        if (pidKey && !pidSupport[pidKey]) {
+            return `
+                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left:3px solid #333; opacity:0.4;">
+                    <div style="font-size:8px; color:#666; text-transform:uppercase;">${s.icon} ${s.label}</div>
+                    <div style="font-size:0.9rem; font-weight:600; color:#666;">Não disponível</div>
+                </div>
+            `;
+        }
         const val = leiturasOBD[s.id] || 0;
         let cor = 'var(--success)';
 
