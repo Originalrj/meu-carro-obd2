@@ -500,6 +500,7 @@ const CATALOGO_MANUTENCAO = [
 // Registros reais de manutenção do usuário — vazio até ele cadastrar algo.
 // Persistido no localStorage, como o resto dos dados do veículo.
 let registrosManutencao = [];
+let editandoManutencaoIndex = null;
 
 function carregarRegistrosManutencao() {
     try {
@@ -851,13 +852,6 @@ async function initStaticSelects() {
             list.classList.remove('open');
         });
     });
-}
-
-let marcaDebounceTimers = {};
-
-async function onMarcaChange(prefix) {
-    clearTimeout(marcaDebounceTimers[prefix]);
-    marcaDebounceTimers[prefix] = setTimeout(() => executarMarcaChange(prefix), 300);
 }
 
 async function executarMarcaChange(prefix) {
@@ -1708,8 +1702,6 @@ function closeMaintModal() {
     const ttl = document.getElementById('maint-modal-titulo');
     if (ttl) ttl.textContent = 'NOVO REGISTRO';
 }
-
-let editandoManutencaoIndex = null;
 
 function saveMaintRecord() {
     const sistema = document.getElementById('maint-sistema').value;

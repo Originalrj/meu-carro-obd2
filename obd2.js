@@ -724,6 +724,7 @@ function analyzeSensorDiagnostics() {
 
 let nivelCombustivelAnterior = null;
 let detectandoAbastecimento = false;
+let _sensorLogCount = 0;
 
 function simularDadosOBD() {
     if (!modoSimulacao) return;
@@ -812,7 +813,6 @@ function simularDadosOBD() {
         });
     }
 }
-let _sensorLogCount = 0;
 
 function editarOdometro() {
     const atual = parseInt(localStorage.getItem("car_km")) || 0;
@@ -1750,7 +1750,6 @@ function parseObdResponse(response) {
                 const byteA = parseInt(match[1], 16);
                 const byteB = parseInt(match[2], 16);
                 const fuelStatus1 = (byteA >> 4) & 0x0F;
-                const fuelStatus2 = byteA & 0x0F;
                 const statuses = { 1: 'Open Loop (cold start)', 2: 'Closed Loop', 3: 'Open Loop (lean)', 4: 'Open Loop (rich)', 5: 'Closed Loop (fault)', 6: '--' };
                 leiturasOBD.statusSistemaComb = statuses[fuelStatus1] || '--';
             }
