@@ -120,11 +120,54 @@ const sensorHistory = {
 };
 const MAX_HISTORY = 60;
 
+// --- Trip accumulators (real-time distance + fuel) ---
+let lastUpdateTime = null;        // Timestamp of last OBD2 update (ms)
+let distanciaAcumulada = 0;       // Distance accumulated since trip start (km)
+let combustivelAcumulado = 0;     // Fuel consumed since trip start (liters)
+let tripStartTime = null;         // When current trip started
+
 // MAP key-on tracking (chave ligada, motor desligado)
 let mapKeyOn = null;          // MAP when RPM=0 (key on, engine off)
 let mapIdleEstabilizado = null; // MAP at idle after engine warms up
 let engineStarted = false;
 let engineStartMap = null;
+
+function atualizarAcumuladores() {
+    const now = Date.now();
+    if (lastUpdateTime === null) {
+        lastUpdateTime = now;
+        if (!tripStartTime) tripStartTime = now;
+        return;
+    }
+
+    const dtSeg = (now - lastUpdateTime) / 1000;
+    lastUpdateTime = now;
+
+    if (dtSeg <= 0 || dtSeg > 30) return;
+
+    const vel = leiturasOBD.velocidade || 0;
+    const consLh = leiturasOBD.consumoInstantaneo || 0;
+
+    const deltaKm = (vel / 3600) * dtSeg;
+    distanciaAcumulada += deltaKm;
+
+    const deltaLitros = (consLh / 3600) * dtSeg;
+    combustivelAcumulado += deltaLitros;
+}
+
+function resetarAcumuladores() {
+    distanciaAcumulada = 0;
+    combustivelAcumulado = 0;
+    lastUpdateTime = null;
+    tripStartTime = null;
+}
+
+function getConsumoMedioReal() {
+    if (combustivelAcumulado < 0.1) return null;
+    const kmL = distanciaAcumulada / combustivelAcumulado;
+    if (kmL < 2 || kmL > 30) return null;
+    return parseFloat(kmL.toFixed(1));
+}
 
 function addSensorHistory() {
     const now = Date.now();
@@ -768,7 +811,8 @@ function simularDadosOBD() {
     leiturasOBD.deslizamentoEmbreagem = Math.min(30, baseClutch + (Math.random() > 0.95 ? 15 + Math.random() * 10 : Math.random() * 2));
 
     const consumoLh = leiturasOBD.consumoInstantaneo;
-    const consumoPercentual = (consumoLh / 3600) * (1 / 3) * 100;
+    const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
+    const consumoPercentual = (consumoLh / 3600) * (1 / tanqueCap) * 100;
     leiturasOBD.nivelCombustivel = Math.max(0, leiturasOBD.nivelCombustivel - consumoPercentual);
 
     if (leiturasOBD.nivelCombustivel < 10 && Math.random() > 0.7) {
@@ -783,7 +827,6 @@ function simularDadosOBD() {
     if (elVoltHeader) elVoltHeader.innerText = leiturasOBD.tensaoBateria.toFixed(1) + 'V';
 
     const elLiters = document.getElementById('val-liters');
-    const tanqueCap = parseInt(localStorage.getItem("car_tanque_capacidade")) || 50;
     const litrosRestante = ((leiturasOBD.nivelCombustivel / 100) * tanqueCap).toFixed(1);
     if (elLiters) elLiters.innerText = litrosRestante;
 
@@ -796,6 +839,7 @@ function simularDadosOBD() {
     }
 
     atualizarPainelConsumo();
+    atualizarAcumuladores();
     renderizarSensores();
     renderizarDiagnostico();
     renderizarQualidadeCombustivel();
@@ -1872,6 +1916,7 @@ function parseObdResponse(response) {
         leiturasOBD.consumoEsperado = Math.max(1.5, baseConsumo);
         leiturasOBD.consumoInstantaneo = leiturasOBD.consumoRealLh > 0 ? leiturasOBD.consumoRealLh : leiturasOBD.consumoEsperado;
         atualizarPainelConsumo();
+        atualizarAcumuladores();
         renderizarSensores();
         renderizarDiagnostico();
         renderizarQualidadeCombustivel();
@@ -2649,6 +2694,7 @@ async function detectarAbastecimento(nivelAntes, nivelDepois) {
         showToast(`Abastecimento detectado! ~${litros.toFixed(1)}L${msgPosto}`, "info");
         if (typeof renderizarAbastecimentos === 'function') renderizarAbastecimentos();
         capturarBaselineCombustivel();
+        resetarAcumuladores();
     }
 }
 
@@ -2807,6 +2853,7 @@ async function confirmarAbastecimento() {
     showToast(custoTotal > 0 ? `Abastecimento registrado: ${litros}L — R$ ${custoTotal.toFixed(2)}` : `Abastecimento registrado: ${litros}L`, "success");
     if (typeof renderizarAbastecimentos === 'function') renderizarAbastecimentos();
     capturarBaselineCombustivel();
+    resetarAcumuladores();
     if (typeof AGXLogger !== 'undefined') AGXLogger.userAction('Abastecimento registrado', { litros, posto, custo: custoTotal });
 }
 
@@ -2826,6 +2873,9 @@ function removerAbastecimento(index) {
 }
 
 function calcularKmPorLitro() {
+    const real = getConsumoMedioReal();
+    if (real) return real;
+
     if (abastecimentos.length < 2) return null;
     const ordenado = [...abastecimentos].sort((a, b) => a.km - b.km);
     let totalKm = ordenado[ordenado.length - 1].km - ordenado[0].km;
