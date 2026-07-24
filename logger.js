@@ -3,11 +3,12 @@
 // =============================================
 
 const AGXLogger = {
-    MAX_ENTRIES: 500,
+    MAX_ENTRIES: 2000,
     STORAGE_KEY: 'agx_logs',
     sessionId: null,
     enabled: true,
     sessionActive: false,
+    _bleDataCount: 0,
 
     init() {
         this.sessionId = new Date().toISOString().replace(/[:.]/g, '-');
@@ -21,6 +22,10 @@ const AGXLogger = {
 
     log(type, msg, data) {
         if (!this.enabled || !this.sessionActive) return;
+        if (type === 'BLE_DATA') {
+            this._bleDataCount++;
+            if (this._bleDataCount % 5 !== 0) return;
+        }
 
         const entries = this.getEntries();
         if (entries.length >= this.MAX_ENTRIES) {
@@ -37,8 +42,7 @@ const AGXLogger = {
         try {
             localStorage.setItem(this.STORAGE_KEY, JSON.stringify(entries));
         } catch (e) {
-            // localStorage cheio — remove os 50 mais antigos
-            entries.splice(0, 50);
+            entries.splice(0, 100);
             try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(entries)); } catch(e2) {}
         }
     },

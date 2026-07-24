@@ -5,7 +5,6 @@
 // --- MODO SIMULADOR DE DADOS E CONEXÃO REAL ---
 let modoSimulacao = true; 
 let simulationIntervalId;
-let pollingIntervalId;
 let pollingTelemetriaId;
 let port;
 let reader;
@@ -15,6 +14,12 @@ let bleTxCharacteristic = null;
 let bleWriteType = 'writeWithoutResponse';
 let _obdexCache = null;
 let _obdexLoading = false;
+let noDataCount = 0;
+const NO_DATA_THRESHOLD = 10;
+const pidFailures = {};
+const PID_FAIL_THRESHOLD = 3;
+let lastPidSent = null;
+let bleDataCount = 0;
 
 function atualizarBadgeconexao() {
     const el = document.getElementById('stat-conexao');
@@ -102,7 +107,6 @@ const pidToKey = {
     '010A': 'pressaoCombustivel', '010B': 'pressaoMAP', '015C': 'tempOleo',
     '0146': 'tempAmbiente', '0114': 'o2Sensor1', '0115': 'o2Sensor2'
 };
-let lastPidSent = null;
 
 // Sensor history for correlation analysis (max 60 samples = ~60 seconds)
 const sensorHistory = {
@@ -952,6 +956,9 @@ async function conectarVeiculoReal() {
 
             console.log("Conectado à porta serial.");
             AGXLogger.serialConnect("Conectado à porta serial", { baudRate: 115200 });
+            noDataCount = 0;
+            Object.keys(pidFailures).forEach(k => delete pidFailures[k]);
+            Object.keys(pidSupport).forEach(k => pidSupport[k] = true);
 
             await inicializarPainelReal();
 
@@ -1055,6 +1062,10 @@ async function conectarVeiculoBluetooth() {
                 bleWriteType = bleTxCharacteristic.properties.writeWithoutResponse ? 'writeWithoutResponse' : 'write';
                 console.log(`Conectado via UUID: ${profile.name} | Write type: ${bleWriteType}`);
                 AGXLogger.bleConnect(`Conectado via ${profile.name}`, { uuid: profile.uuid, writeType: bleWriteType });
+                noDataCount = 0;
+                Object.keys(pidFailures).forEach(k => delete pidFailures[k]);
+                Object.keys(pidSupport).forEach(k => pidSupport[k] = true);
+                bleDataCount = 0;
                 break;
             } catch (e) {
                 console.log(`UUID ${profile.name} não encontrado, tentando próximo...`);
@@ -1098,7 +1109,6 @@ async function conectarVeiculoBluetooth() {
     }
 }
 
-let bleDataCount = 0;
 function onBleNotification(event) {
     const decoder = new TextDecoder();
     const value = decoder.decode(event.target.value);
@@ -1116,7 +1126,8 @@ function onBleNotification(event) {
         }
 
         if (elmPromptResolve) elmPromptResolve();
-        parseObdResponse(resposta);
+        const pidCtx = lastPidSent;
+        parseObdResponse(resposta, pidCtx);
     }
 }
 
@@ -1129,7 +1140,6 @@ function onBleDisconnect() {
         bleCharacteristic = null;
         bleTxCharacteristic = null;
         atualizarBadgeconexao();
-        if (pollingIntervalId) clearInterval(pollingIntervalId);
         if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
         atualizarUIDesconectado();
@@ -1195,7 +1205,6 @@ async function inicializarPainelReal() {
         modoSimulacao = false;
         atualizarBadgeconexao();
         clearInterval(simulationIntervalId);
-        if (pollingIntervalId) { clearInterval(pollingIntervalId); pollingIntervalId = null; }
         if (pollingTelemetriaId) { clearInterval(pollingTelemetriaId); pollingTelemetriaId = null; }
 
         await sendElmCommand("ATD"); await delay(baseDelay);
@@ -1215,7 +1224,6 @@ async function inicializarPainelReal() {
         try { await sendElmCommand("0902"); await delay(800); } catch(e) { console.error("Falha VIN:", e); }
         try { await sendElmCommand("01A6"); await delay(500); } catch(e) { console.error("Falha Odo:", e); }
 
-        pollingIntervalId = setInterval(() => { if(!modoSimulacao) sendElmCommand("010C"); }, isBle ? 1000 : 500);
         pollingTelemetriaId = setInterval(() => {
             if(!modoSimulacao) {
                 if (isBle) {
@@ -1371,7 +1379,8 @@ async function readLoop() {
             if (value.includes(">")) {
                 if (elmPromptResolve) elmPromptResolve();
             }
-            parseObdResponse(value);
+            const pidCtxSerial = lastPidSent;
+            parseObdResponse(value, pidCtxSerial);
         } catch (error) {
             console.error("Erro na leitura serial:", error);
             break;
@@ -1383,7 +1392,6 @@ async function readLoop() {
         modoSimulacao = true;
         tipoConexao = null;
         atualizarBadgeconexao();
-        if (pollingIntervalId) clearInterval(pollingIntervalId);
         if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
         atualizarUIDesconectado();
@@ -1392,27 +1400,6 @@ async function readLoop() {
 
 // --- BANCO DE DADOS E AUXILIARES DTC (ESTILO TORQUE) ---
 const OBDex_URL = 'https://foerbsnavi.github.io/obdex/generic.min.json';
-
-async function loadOBDex() {
-    if (_obdexCache) return _obdexCache;
-    if (_obdexLoading) return null;
-    _obdexLoading = true;
-    try {
-        const resp = await fetch(OBDex_URL);
-        if (!resp.ok) throw new Error(resp.status);
-        const data = await resp.json();
-        _obdexCache = {};
-        for (const entry of data) {
-            if (entry.code) _obdexCache[entry.code] = entry;
-        }
-        console.log(`[OBDex] Loaded ${Object.keys(_obdexCache).length} DTCs`);
-    } catch (e) {
-        console.warn('[OBDex] Failed to load, using fallback:', e.message);
-        _obdexCache = DICIONARIO_DTC_FALLBACK;
-    }
-    _obdexLoading = false;
-    return _obdexCache;
-}
 
 const DICIONARIO_DTC_FALLBACK = {
     "P0300": { description: "Random/Multiple Cylinder Misfire Detected", cause: "Spark plugs, ignition coils, fuel injectors", severity: "high" },
@@ -1445,6 +1432,27 @@ const DICIONARIO_DTC_FALLBACK = {
     "P0400": { description: "Exhaust Gas Recirculation Flow Malfunction", cause: "EGR valve, passages blocked", severity: "medium" },
     "P0446": { description: "Evaporative Emission Control System Vent Control Malfunction", cause: "EVAP vent valve, charcoal canister", severity: "low" }
 };
+
+async function loadOBDex() {
+    if (_obdexCache) return _obdexCache;
+    if (_obdexLoading) return null;
+    _obdexLoading = true;
+    try {
+        const resp = await fetch(OBDex_URL);
+        if (!resp.ok) throw new Error(resp.status);
+        const data = await resp.json();
+        _obdexCache = {};
+        for (const entry of data) {
+            if (entry.code) _obdexCache[entry.code] = entry;
+        }
+        console.log(`[OBDex] Loaded ${Object.keys(_obdexCache).length} DTCs`);
+    } catch (e) {
+        console.warn('[OBDex] Failed to load, using fallback:', e.message);
+        _obdexCache = DICIONARIO_DTC_FALLBACK;
+    }
+    _obdexLoading = false;
+    return _obdexCache;
+}
 
 function obterDTCInfo(codigo) {
     const db = _obdexCache || DICIONARIO_DTC_FALLBACK;
@@ -1524,7 +1532,7 @@ function gerarHtmlErroTorque(codigo) {
     return html;
 }
 
-function parseObdResponse(response) {
+function parseObdResponse(response, pidCtx) {
     // Normalize: handle both BLE (\r\r>) and Serial (\r\n>) terminators
     let normalized = response.replace(/\r\r?>/g, '\n').replace(/\r/g, '\n');
     const lines = normalized.split('\n').map(line => {
@@ -1538,14 +1546,25 @@ function parseObdResponse(response) {
 
     for (const line of lines) {
         if (line.includes("NO DATA")) {
-            // Mark PID as unsupported if we know which one was sent
-            if (lastPidSent && pidToKey[lastPidSent]) {
-                const key = pidToKey[lastPidSent];
-                if (pidSupport[key]) {
+            noDataCount++;
+            if (pidCtx && pidToKey[pidCtx]) {
+                const key = pidToKey[pidCtx];
+                pidFailures[key] = (pidFailures[key] || 0) + 1;
+                if (pidFailures[key] >= PID_FAIL_THRESHOLD && pidSupport[key]) {
                     pidSupport[key] = false;
                     leiturasOBD[key] = 0;
-                    console.log(`[PID] ${lastPidSent} (${key}) não suportado neste veículo`);
+                    AGXLogger.log('PID_UNSUPPORTED', `${pidCtx} (${key}) não suportado após ${PID_FAIL_THRESHOLD} falhas`);
                 }
+            }
+            if (noDataCount >= NO_DATA_THRESHOLD && !modoSimulacao) {
+                AGXLogger.log('CIRCUIT_BREAKER', `${noDataCount} NO DATA consecutivos — reconectando`);
+                noDataCount = 0;
+                if (tipoConexao === 'ble' && bleDevice) {
+                    bleDevice.gatt.disconnect();
+                } else if (tipoConexao === 'serial' && port) {
+                    port.close();
+                }
+                return;
             }
             document.getElementById('scan-active').classList.add('hidden');
             const res = document.getElementById('scan-result');
@@ -1656,6 +1675,7 @@ function parseObdResponse(response) {
         if (line.includes("41 0C")) {
             const match = line.match(/41 0C ([0-9A-F]{2}) ([0-9A-F]{2})/);
             if (match) {
+                noDataCount = 0;
                 const rpm = ((parseInt(match[1], 16) * 256) + parseInt(match[2], 16)) / 4;
                 leiturasOBD.rpm = rpm;
                 const rpmEl = document.getElementById('rpm-num');
@@ -1668,6 +1688,16 @@ function parseObdResponse(response) {
                 const rpmEsperado = leiturasOBD.velocidade > 5 ? (leiturasOBD.velocidade * 30 + 800) : 800;
                 const baseClutch = leiturasOBD.velocidade > 10 ? Math.max(0, ((rpm - rpmEsperado) / rpmEsperado) * 100) : 0;
                 leiturasOBD.deslizamentoEmbreagem = Math.min(30, baseClutch);
+                if (++_sensorLogCount % 10 === 0 && !modoSimulacao) {
+                    AGXLogger.sensorReadings({
+                        rpm: Math.round(leiturasOBD.rpm),
+                        temp: Math.round(leiturasOBD.tempMotor),
+                        fuel: Math.round(leiturasOBD.nivelCombustivel),
+                        volt: leiturasOBD.tensaoBateria.toFixed(1),
+                        speed: Math.round(leiturasOBD.velocidade),
+                        load: Math.round(leiturasOBD.cargaMotor)
+                    });
+                }
             }
         }
 
@@ -1931,7 +1961,6 @@ function toggleObdMode(isSimulated) {
     document.getElementById('btn-obd-real').classList.toggle('active', !isSimulated);
 
     if (isSimulated && !modoSimulacao) {
-        if (pollingIntervalId) { clearInterval(pollingIntervalId); pollingIntervalId = null; }
         if (pollingTelemetriaId) { clearInterval(pollingTelemetriaId); pollingTelemetriaId = null; }
         modoSimulacao = true;
         tipoConexao = null;
