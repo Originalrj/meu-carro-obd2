@@ -1,9 +1,11 @@
-const CACHE_NAME = 'autogestaox-v2';
+const CACHE_NAME = 'autogestaox-v3';
 const ASSETS = [
     './',
     './index.html',
     './ui.js',
     './obd2.js',
+    './logger.js',
+    './anomaly-db.js',
     './style.css',
     './manifest.json'
 ];

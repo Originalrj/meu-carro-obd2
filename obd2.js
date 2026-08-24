@@ -1947,6 +1947,7 @@ function parseObdResponse(response, pidCtx) {
         leiturasOBD.consumoInstantaneo = leiturasOBD.consumoRealLh > 0 ? leiturasOBD.consumoRealLh : leiturasOBD.consumoEsperado;
         atualizarPainelConsumo();
         atualizarAcumuladores();
+        detectarAnomalias();
         renderizarSensores();
         renderizarDiagnostico();
         renderizarQualidadeCombustivel();
@@ -2144,6 +2145,7 @@ function renderizarSensores() {
 }
 
 function renderizarDiagnostico() {
+    renderizarHistoricoAnomalias();
     const statusIcon = document.getElementById('diag-status-icon');
     const statusText = document.getElementById('diag-status-text');
     const statusSub = document.getElementById('diag-status-sub');
