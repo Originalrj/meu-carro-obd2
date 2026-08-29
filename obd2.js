@@ -2614,10 +2614,20 @@ function renderizarDiagnostico() {
 // SISTEMA DE ABASTECIMENTO E QUALIDADE
 // ==========================================
 
-let abastecimentos = JSON.parse(localStorage.getItem("car_abastecimentos") || "[]");
+let abastecimentos = [];
+
+function carregarAbastecimentos() {
+    try {
+        const chave = (typeof chaveV === 'function') ? chaveV("abastecimentos") : "car_abastecimentos";
+        abastecimentos = JSON.parse(localStorage.getItem(chave) || "[]");
+    } catch (e) {
+        abastecimentos = [];
+    }
+}
 
 function salvarAbastecimentos() {
-    localStorage.setItem("car_abastecimentos", JSON.stringify(abastecimentos));
+    const chave = (typeof chaveV === 'function') ? chaveV("abastecimentos") : "car_abastecimentos";
+    localStorage.setItem(chave, JSON.stringify(abastecimentos));
 }
 
 function obterPosicaoAtual() {

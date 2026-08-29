@@ -7,7 +7,7 @@ const API_FIPE_V1 = "https://parallelum.com.br/fipe/api/v1/carros/marcas";
 let marcasCache = [];
 let modelosCache = {};
 let anosPorModeloCache = {};
-let listaNecessidades = JSON.parse(localStorage.getItem("car_lista_necessidades") || "[]");
+let listaNecessidades = JSON.parse(localStorage.getItem(chaveV("lista_necessidades")) || "[]");
 let categoriaAtualCatalogo = "filtros";
 let editandoVeiculoId = null;
 
@@ -171,6 +171,7 @@ function renderizarRecentes() {
         `;
         div.onclick = () => {
             setIdxAtivo(idx);
+            recarregarDadosVeiculoAtivo();
             renderizarDadosGlobais();
             renderizarSaudeVeiculo();
             renderizarHistoricoManutencao();
@@ -194,6 +195,7 @@ function excluirVeiculoRecente(idx) {
     const nome = `${v.marca || ''} ${v.modelo || ''}`.trim() || 'este veículo';
     if (!confirm(`Excluir "${nome}"?\n\nTodos os dados locais deste veículo serão removidos.`)) return;
 
+    if (v.id) removerChavesVeiculo(v.id);
     vehicles.splice(idx, 1);
     if (vehicles.length === 0) {
         localStorage.removeItem("car_vehicles");
@@ -207,6 +209,7 @@ function excluirVeiculoRecente(idx) {
     } else {
         setIdxAtivo(Math.min(idx, vehicles.length - 1));
         salvarVeiculos(vehicles);
+        recarregarDadosVeiculoAtivo();
     }
 
     renderizarDadosGlobais();
@@ -286,7 +289,17 @@ function migrarDadosLegadoSeNecessario() {
 
 function getVeiculos() {
     migrarDadosLegadoSeNecessario();
-    return JSON.parse(localStorage.getItem("car_vehicles") || "[]");
+    let arr = JSON.parse(localStorage.getItem("car_vehicles") || "[]");
+    let mudou = false;
+    arr.forEach((v, i) => {
+        if (!v.id) {
+            v.id = (i + 1) + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+            mudou = true;
+        }
+    });
+    if (mudou) localStorage.setItem("car_vehicles", JSON.stringify(arr));
+    migrarChavesIsolamento();
+    return arr;
 }
 
 function getIdxAtivo() {
@@ -308,13 +321,66 @@ function setIdxAtivo(idx) {
     localStorage.setItem("car_ultima_data", new Date().toISOString());
 }
 
+// ==========================================
+// ISOLAMENTO DE DADOS POR VEÍCULO
+// Coleções (manutenção, abastecimentos, checklist) passam a usar
+// chaves prefixadas "car_v{id}_..." para não compartilhar dados entre veículos.
+// ==========================================
+
+function getVeiculosRaw() {
+    return JSON.parse(localStorage.getItem("car_vehicles") || "[]");
+}
+
+function chaveV(nome) {
+    try {
+        const v = getVeiculoAtivo();
+        if (v && v.id) return "car_v" + v.id + "_" + nome;
+    } catch (e) {}
+    return "car_" + nome;
+}
+
+function removerChavesVeiculo(id) {
+    const prefixo = "car_v" + id + "_";
+    const chaves = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefixo)) chaves.push(k);
+    }
+    chaves.forEach(k => localStorage.removeItem(k));
+}
+
+// Move dados legados (chaves sem prefixo) para o veículo ativo, uma única vez.
+function migrarChavesIsolamento() {
+    const vehicles = getVeiculosRaw();
+    if (vehicles.length === 0) return;
+    const v = vehicles[getIdxAtivo()] || vehicles[0];
+    if (!v || !v.id) return;
+    const pref = "car_v" + v.id + "_";
+    ["maint_records", "abastecimentos", "lista_necessidades"].forEach(nome => {
+        const legada = "car_" + nome;
+        const alvo = pref + nome;
+        const valor = localStorage.getItem(legada);
+        if (valor !== null && localStorage.getItem(alvo) === null) {
+            localStorage.setItem(alvo, valor);
+        }
+        if (valor !== null) localStorage.removeItem(legada);
+    });
+}
+
+function recarregarDadosVeiculoAtivo() {
+    carregarRegistrosManutencao();
+    listaNecessidades = JSON.parse(localStorage.getItem(chaveV("lista_necessidades")) || "[]");
+    if (typeof carregarAbastecimentos === 'function') carregarAbastecimentos();
+    sincronizarLegado();
+}
+
 function trocarVeiculo(id) {
     editandoVeiculoId = null;
     const v = getVeiculos();
     const idx = v.findIndex(x => x.id === id);
     if (idx < 0) return;
     setIdxAtivo(idx);
-    sincronizarLegado();
+    recarregarDadosVeiculoAtivo();
     renderizarDadosGlobais();
     renderizarSaudeVeiculo();
     renderizarHistoricoManutencao();
@@ -415,6 +481,7 @@ function excluirVeiculoAtivo() {
 
     const vehicles = getVeiculos();
     const idx = getIdxAtivo();
+    if (v.id) removerChavesVeiculo(v.id);
     vehicles.splice(idx, 1);
 
     if (vehicles.length === 0) {
@@ -429,6 +496,7 @@ function excluirVeiculoAtivo() {
     } else {
         setIdxAtivo(Math.min(idx, vehicles.length - 1));
         salvarVeiculos(vehicles);
+        recarregarDadosVeiculoAtivo();
     }
 
     renderizarDadosGlobais();
@@ -504,7 +572,7 @@ let editandoManutencaoIndex = null;
 
 function carregarRegistrosManutencao() {
     try {
-        registrosManutencao = JSON.parse(localStorage.getItem("car_maint_records")) || [];
+        registrosManutencao = JSON.parse(localStorage.getItem(chaveV("maint_records"))) || [];
     } catch (e) {
         console.error("Erro ao carregar registros de manutenção:", e);
         registrosManutencao = [];
@@ -512,7 +580,7 @@ function carregarRegistrosManutencao() {
 }
 
 function salvarRegistrosManutencao() {
-    localStorage.setItem("car_maint_records", JSON.stringify(registrosManutencao));
+    localStorage.setItem(chaveV("maint_records"), JSON.stringify(registrosManutencao));
 }
 
 function formatarDataBR(isoDate) {
@@ -664,6 +732,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
         simulationIntervalId = setInterval(simularDadosOBD, 3000);
         carregarRegistrosManutencao();
+        if (typeof carregarAbastecimentos === 'function') carregarAbastecimentos();
         popularDatalistManutencao();
         await initStaticSelects();
 
@@ -1739,7 +1808,7 @@ function saveMaintRecord() {
         return !match;
     });
     if (removidos.length > 0) {
-        localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+        localStorage.setItem(chaveV("lista_necessidades"), JSON.stringify(listaNecessidades));
         showToast(`${removidos.join(', ')} removido(s) do Checklist de Peças (já registrado na manutenção).`, "info");
     }
 
@@ -1913,12 +1982,24 @@ function salvarPerfil() {
 
 // Reúne tudo que identifica o veículo e seu histórico num único objeto
 function coletarDadosCompletos() {
+    const vehicles = getVeiculos();
+    const dadosPorVeiculo = {};
+    vehicles.forEach(v => {
+        if (!v || !v.id) return;
+        const pref = "car_v" + v.id + "_";
+        dadosPorVeiculo[v.id] = {
+            registrosManutencao: JSON.parse(localStorage.getItem(pref + "maint_records") || "[]"),
+            abastecimentos: JSON.parse(localStorage.getItem(pref + "abastecimentos") || "[]"),
+            listaNecessidades: JSON.parse(localStorage.getItem(pref + "lista_necessidades") || "[]")
+        };
+    });
     return {
         appNome: "AutoGestão X",
-        versaoFormato: 7,
+        versaoFormato: 8,
         exportadoEm: new Date().toISOString(),
-        vehicles: getVeiculos(),
+        vehicles: vehicles,
         activeIdx: getIdxAtivo(),
+        dadosPorVeiculo: dadosPorVeiculo,
         veiculo: {
             km: localStorage.getItem("car_km"),
             marca: localStorage.getItem("car_marca_nome"),
@@ -2028,6 +2109,19 @@ function importarDadosJSON(inputEl) {
                 salvarVeiculos(vehicles);
             }
             sincronizarLegado();
+
+            // Backup v8+: coleções persistentes por veículo ("car_v{id}_...")
+            if (dados.dadosPorVeiculo && dados.vehicles && Array.isArray(dados.vehicles)) {
+                dados.vehicles.forEach(v => {
+                    if (!v || !v.id || !dados.dadosPorVeiculo[v.id]) return;
+                    const d = dados.dadosPorVeiculo[v.id];
+                    const pref = "car_v" + v.id + "_";
+                    if (d.registrosManutencao) localStorage.setItem(pref + "maint_records", JSON.stringify(d.registrosManutencao));
+                    if (d.abastecimentos) localStorage.setItem(pref + "abastecimentos", JSON.stringify(d.abastecimentos));
+                    if (d.listaNecessidades) localStorage.setItem(pref + "lista_necessidades", JSON.stringify(d.listaNecessidades));
+                });
+                recarregarDadosVeiculoAtivo();
+            }
 
             registrosManutencao = dados.registrosManutencao || [];
             registrosManutencao.forEach(r => {
@@ -2725,7 +2819,7 @@ function adicionarPecaComPreco(nome, prioridade) {
     if (precoStr === null) return;
     const preco = parseFloat(precoStr.replace(',', '.')) || 0;
     listaNecessidades.push({ nome, motivo: 'Seleção Manual', preco, prioridade, vidaUtilPct: 85 });
-    localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+    localStorage.setItem(chaveV("lista_necessidades"), JSON.stringify(listaNecessidades));
     showToast(`${nome} adicionado ao Checklist de Peças!`, "success");
     renderizarCatalogoInteligente();
     if (!document.getElementById('sacola-container').classList.contains('hidden')) renderizarPlanoNecessidades();
@@ -2734,7 +2828,7 @@ function adicionarPecaComPreco(nome, prioridade) {
 function adicionarAosNecessarios(nome, motivo, preco = 0, prioridade = "Média", vidaUtilPct = 90) {
     if (listaNecessidades.some(item => item.nome === nome)) return;
     listaNecessidades.push({ nome, motivo, preco, prioridade, vidaUtilPct });
-    localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+    localStorage.setItem(chaveV("lista_necessidades"), JSON.stringify(listaNecessidades));
     showToast(`${nome} adicionado ao Checklist de Peças!`, "success");
     if (!document.getElementById('sacola-container').classList.contains('hidden')) renderizarPlanoNecessidades();
 }
@@ -2826,14 +2920,14 @@ function editarPrecoPeca(index) {
     const precoStr = prompt(`Preço para ${listaNecessidades[index].nome}:`, atual > 0 ? atual.toFixed(2) : '');
     if (precoStr === null) return;
     listaNecessidades[index].preco = parseFloat(precoStr.replace(',', '.')) || 0;
-    localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+    localStorage.setItem(chaveV("lista_necessidades"), JSON.stringify(listaNecessidades));
     showToast("Preço atualizado!", "success");
     renderizarPlanoNecessidades();
 }
 
 function removerDosNecessarios(index) {
     listaNecessidades.splice(index, 1);
-    localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+    localStorage.setItem(chaveV("lista_necessidades"), JSON.stringify(listaNecessidades));
     renderizarPlanoNecessidades();
 }
 

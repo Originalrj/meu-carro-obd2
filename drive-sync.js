@@ -354,10 +354,21 @@ async function importarDadosDoDrive(dados) {
         salvarVeiculos(vehicles);
     }
 
+    if (dados.dadosPorVeiculo && dados.vehicles && Array.isArray(dados.vehicles)) {
+        dados.vehicles.forEach(v => {
+            if (!v || !v.id || !dados.dadosPorVeiculo[v.id]) return;
+            const d = dados.dadosPorVeiculo[v.id];
+            const pref = "car_v" + v.id + "_";
+            if (d.registrosManutencao) localStorage.setItem(pref + "maint_records", JSON.stringify(d.registrosManutencao));
+            if (d.abastecimentos) localStorage.setItem(pref + "abastecimentos", JSON.stringify(d.abastecimentos));
+            if (d.listaNecessidades) localStorage.setItem(pref + "lista_necessidades", JSON.stringify(d.listaNecessidades));
+        });
+    }
+
     if (dados.registrosManutencao) { registrosManutencao = dados.registrosManutencao; salvarRegistrosManutencao(); }
     if (dados.planoAquisicao || dados.checklistPecas) {
         listaNecessidades = dados.planoAquisicao || dados.checklistPecas || [];
-        localStorage.setItem("car_lista_necessidades", JSON.stringify(listaNecessidades));
+        localStorage.setItem((typeof chaveV === 'function' ? chaveV("lista_necessidades") : "car_lista_necessidades"), JSON.stringify(listaNecessidades));
     }
     if (dados.abastecimentos) { abastecimentos = dados.abastecimentos; salvarAbastecimentos(); }
 
