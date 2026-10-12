@@ -65,8 +65,11 @@ let bleBuffer = '';
 let bleDevice = null;
 let tipoConexao = null; // 'serial' ou 'ble'
 
-// Pre-load OBDex DTC database (lazy, non-blocking)
-loadOBDex();
+// Pre-load OBDex DTC database (lazy, non-blocking).
+// ADIADO com setTimeout: DICIONARIO_DTC_FALLBACK é declarado no fim do arquivo;
+// chamar loadOBDex() aqui no topo causava "Cannot access 'DICIONARIO_DTC_FALLBACK'
+// before initialization" (TDZ) sempre que o fetch falhava (offline/CSP).
+setTimeout(() => { loadOBDex().catch(() => {}); }, 0);
 
 function hexToAscii(hex) {
     let str = '';
@@ -1201,6 +1204,12 @@ function onBleNotification(event) {
 }
 
 function onBleDisconnect() {
+    // Evita execução dupla: desconectarVeiculo() chama onBleDisconnect() direto E
+    // gatt.disconnect() dispara 'gattserverdisconnected' → onBleDisconnect de novo.
+    if (tipoConexao === null && modoSimulacao) {
+        _desconexaoManual = false;
+        return;
+    }
     console.log("Dispositivo Bluetooth desconectado.");
     const manual = _desconexaoManual;
     _desconexaoManual = false;
@@ -2173,27 +2182,27 @@ function runScanner() {
 const SENSORES_OBD = [
     { id: 'rpm', label: 'RPM Motor', icon: '⚙️', unit: '', decimals: 0, min: 0, max: 8000, critico: [6500, 8000], alerta: [5500, 6500] },
     { id: 'velocidade', label: 'Velocidade', icon: '🚗', unit: 'km/h', decimals: 0, min: 0, max: 220, critico: [180, 220], alerta: [140, 180] },
-    { id: 'tempMotor', label: 'Temp. Motor', icon: '🌡️', unit: '°C', decimals: 1, min: 60, max: 120, critico: [105, 120], alerta: [95, 105] },
+    { id: 'tempMotor', label: 'Temp. Motor', icon: '🌡️', unit: '°C', decimals: 1, min: -40, max: 120, critico: [105, 120], alerta: [95, 105] },
     { id: 'tensaoBateria', label: 'Tensão Bateria', icon: '🔋', unit: 'V', decimals: 1, min: 10, max: 16, critico: [10, 11.5], alerta: [11.5, 12.0] },
     { id: 'cargaMotor', label: 'Carga Motor', icon: '📊', unit: '%', decimals: 0, min: 0, max: 100, critico: [90, 100], alerta: [75, 90] },
     { id: 'posAcelerador', label: 'Pos. Acelerador', icon: '⬆️', unit: '%', decimals: 0, min: 0, max: 100, critico: [90, 100], alerta: [75, 90] },
     { id: 'tempArAdmissao', label: 'Temp. Admissão', icon: '💨', unit: '°C', decimals: 1, min: 0, max: 80, critico: [60, 80], alerta: [50, 60] },
     { id: 'pressaoMAP', label: 'Pressão MAP', icon: '🔴', unit: 'kPa', decimals: 0, min: 0, max: 110, critico: [95, 110], alerta: [80, 95] },
     { id: 'consumoInstantaneo', label: 'Consumo', icon: '⛽', unit: 'L/h', decimals: 1, min: 0, max: 20, critico: [15, 20], alerta: [10, 15] },
-    { id: 'nivelO2', label: 'Sensor O₂', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
-    { id: 'pontoIgnicao', label: 'Ponto Ignição', icon: '⚡', unit: '°', decimals: 1, min: 0, max: 40, critico: [30, 40], alerta: [25, 30] },
+    { id: 'nivelO2', label: 'Sensor O₂', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0.01, 0.05], alerta: [0.05, 0.15] },
+    { id: 'pontoIgnicao', label: 'Ponto Ignição', icon: '⚡', unit: '°', decimals: 1, min: -64, max: 64, critico: [30, 40], alerta: [25, 30] },
     { id: 'fuelTrimSTFT', label: 'Fuel Trim STFT', icon: '🔧', unit: '%', decimals: 1, min: -30, max: 30, critico: [-30, -20], alerta: [-20, -10], criticoAlto: [20, 30], alertaAlto: [10, 20] },
     { id: 'fuelTrimLTFT', label: 'Fuel Trim LTFT', icon: '🔧', unit: '%', decimals: 1, min: -30, max: 30, critico: [-30, -20], alerta: [-20, -10], criticoAlto: [20, 30], alertaAlto: [10, 20] },
     { id: 'pressaoCombustivel', label: 'Pressão Comb.', icon: '⛽', unit: 'kPa', decimals: 0, min: 0, max: 600, critico: [150, 250], alerta: [250, 300], criticoAlto: [500, 600], alertaAlto: [450, 500] },
     { id: 'tempAmbiente', label: 'Temp. Ambiente', icon: '🌍', unit: '°C', decimals: 1, min: -20, max: 55, critico: [-20, -10], alerta: [-10, 0], criticoAlto: [45, 55], alertaAlto: [40, 45] },
     { id: 'deslizamentoEmbreagem', label: 'Embreagem', icon: '🔗', unit: '%', decimals: 1, min: 0, max: 30, critico: [15, 30], alerta: [8, 15] },
-    { id: 'distDesdeDTC', label: 'Dist. desde DTCs', icon: '📏', unit: 'km', decimals: 0, min: 0, max: 65535, critico: [0, 100], alerta: [100, 500] },
+    { id: 'distDesdeDTC', label: 'Dist. desde DTCs', icon: '📏', unit: 'km', decimals: 0, min: 0, max: 65535, critico: [], alerta: [] },
     { id: 'tempoDesdeUltimaPartida', label: 'Tempo Motor', icon: '⏱️', unit: 'min', decimals: 0, min: 0, max: 1440, critico: [480, 1440], alerta: [360, 480] },
-    { id: 'tempoDesdeDTC', label: 'Tempo desde DTCs', icon: '📅', unit: 'min', decimals: 0, min: 0, max: 65535, critico: [0, 100], alerta: [100, 1000] },
-    { id: 'o2Sensor1', label: 'Sensor O₂ (B1S1)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
-    { id: 'o2Sensor2', label: 'Sensor O₂ (B1S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
-    { id: 'o2Sensor3', label: 'Sensor O₂ (B2S1)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
-    { id: 'o2Sensor4', label: 'Sensor O₂ (B2S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0, 0.05], alerta: [0.05, 0.15] },
+    { id: 'tempoDesdeDTC', label: 'Tempo desde DTCs', icon: '📅', unit: 'min', decimals: 0, min: 0, max: 65535, critico: [], alerta: [] },
+    { id: 'o2Sensor1', label: 'Sensor O₂ (B1S1)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0.01, 0.05], alerta: [0.05, 0.15] },
+    { id: 'o2Sensor2', label: 'Sensor O₂ (B1S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0.01, 0.05], alerta: [0.05, 0.15] },
+    { id: 'o2Sensor3', label: 'Sensor O₂ (B2S1)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0.01, 0.05], alerta: [0.05, 0.15] },
+    { id: 'o2Sensor4', label: 'Sensor O₂ (B2S2)', icon: '🫁', unit: 'V', decimals: 2, min: 0, max: 1, critico: [0.01, 0.05], alerta: [0.05, 0.15] },
     { id: 'maf', label: 'Vazão MAF', icon: '💨', unit: 'g/s', decimals: 1, min: 0, max: 200, critico: [150, 200], alerta: [120, 150] },
     { id: 'etanolPercent', label: '% Etanol', icon: '⛽', unit: '%', decimals: 0, min: 0, max: 100, critico: [], alerta: [] },
     { id: 'tempOleo', label: 'Temp. Óleo', icon: '🛢️', unit: '°C', decimals: 0, min: 40, max: 150, critico: [130, 150], alerta: [115, 130] },

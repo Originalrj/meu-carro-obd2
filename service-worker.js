@@ -1,4 +1,4 @@
-const CACHE_NAME = 'autogestaox-v5';
+const CACHE_NAME = 'autogestaox-v6';
 const ASSETS = [
     './',
     './index.html',
@@ -11,8 +11,12 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+    // cache.addAll() rejeita se QUALQUER asset falhar e, com isso, o SW novo nunca
+    // ativa (ficando preso numa versão antiga). Aqui cada asset é best-effort.
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+        caches.open(CACHE_NAME).then((cache) =>
+            Promise.all(ASSETS.map((asset) => cache.add(asset).catch(() => null)))
+        )
     );
     self.skipWaiting();
 });

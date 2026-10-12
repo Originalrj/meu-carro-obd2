@@ -492,7 +492,25 @@
 <script src="drive-sync.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).then((reg) => {
+            reg.update();
+            reg.addEventListener('updatefound', () => {
+                const novo = reg.installing;
+                if (!novo) return;
+                novo.addEventListener('statechange', () => {
+                    if (novo.state === 'installed' && navigator.serviceWorker.controller) {
+                        if (typeof showToast === 'function') {
+                            showToast('🔄 Nova versão disponível. Feche e reabra o app para atualizar.', 'info', 9000);
+                        }
+                    }
+                });
+            });
+        }).catch(() => {});
+        setInterval(() => {
+            navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {});
+        }, 60 * 60 * 1000);
+    });
 }
 document.addEventListener('DOMContentLoaded', () => {
     initGoogleDrive();
