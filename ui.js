@@ -1441,6 +1441,9 @@ function nav(screenId, element) {
     document.getElementById('scr-' + screenId).classList.add('active');
     element.classList.add('active');
 
+    // Atualiza contagem/duração do log ao abrir o Perfil
+    if (screenId === 'profile' && typeof atualizarLogCount === 'function') atualizarLogCount();
+
     // Gatilho inteligente para renderizar os dados ao entrar na aba Peças
     if (screenId === 'shop') {
         const btnSacola = document.getElementById('btn-sub-sacola');
@@ -2041,10 +2044,15 @@ function limparLogsDiagnostico() {
 function atualizarLogCount() {
     const el = document.getElementById('log-count');
     if (!el || typeof AGXLogger === 'undefined') return;
-    const count = AGXLogger.getEntryCount();
-    el.innerHTML = count > 0
-        ? `<i class="fas fa-circle" style="color:var(--success); font-size:6px;"></i> ${count} entradas`
-        : '<i class="fas fa-circle" style="color:#64748b; font-size:6px;"></i> 0 entradas';
+    const entries = AGXLogger.getEntries();
+    const count = entries.length;
+    if (count === 0) {
+        el.innerHTML = '<i class="fas fa-circle" style="color:#64748b; font-size:6px;"></i> 0 entradas';
+        return;
+    }
+    const durMin = Math.max(0, Math.round((entries[count - 1].t - entries[0].t) / 60000));
+    const durTxt = durMin >= 60 ? `${(durMin / 60).toFixed(1)}h` : `${durMin}min`;
+    el.innerHTML = `<i class="fas fa-circle" style="color:var(--success); font-size:6px;"></i> ${count} entradas · ${durTxt}`;
 }
 
 // =============================================

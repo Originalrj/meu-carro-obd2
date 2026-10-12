@@ -3,13 +3,19 @@
 // =============================================
 
 const AGXLogger = {
-    MAX_ENTRIES: 2000,
+    // Retenção ampliada para coletar mais tempo de sessão em campo.
+    // ~1 heartbeat de polling a cada ~5s + amostras de BLE/ELM => ~8h de histórico.
+    MAX_ENTRIES: 8000,
     STORAGE_KEY: 'agx_logs',
-    FLUSH_MS: 1500,
+    FLUSH_MS: 4000,
+    // Amostragem: evita que respostas cruas e comandos enviados encham o buffer.
+    BLE_DATA_EVERY: 20,
+    ELM_SEND_EVERY: 20,
     sessionId: null,
     enabled: true,
     sessionActive: false,
     _bleDataCount: 0,
+    _elmSendCount: 0,
     _entries: null,
     _flushTimer: null,
     _dirty: false,
@@ -59,12 +65,17 @@ const AGXLogger = {
         if (!this.enabled || !this.sessionActive) return;
         if (type === 'BLE_DATA') {
             this._bleDataCount++;
-            if (this._bleDataCount % 5 !== 0) return;
+            if (this._bleDataCount % this.BLE_DATA_EVERY !== 0) return;
+        }
+        if (type === 'ELM_SEND') {
+            this._elmSendCount++;
+            if (this._elmSendCount % this.ELM_SEND_EVERY !== 0) return;
         }
 
         const entries = this._loadEntries();
-        if (entries.length >= this.MAX_ENTRIES) {
-            entries.splice(0, entries.length - this.MAX_ENTRIES + 1);
+        // Trim em lote (evita splice a cada entrada, que é O(n) e trava a main thread).
+        if (entries.length >= this.MAX_ENTRIES + 500) {
+            entries.splice(0, entries.length - this.MAX_ENTRIES);
         }
 
         entries.push({

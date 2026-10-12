@@ -18,8 +18,14 @@ let noDataCount = 0;
 const NO_DATA_THRESHOLD = 10;
 const pidFailures = {};
 const PID_FAIL_THRESHOLD = 3;
+// PIDs marcados como não suportados pelo veículo (por comando). Auto-skip no polling.
+const pidUnsupported = {};
+// PIDs essenciais: nunca "aposentar" (um hiccup do adaptador não deve congelar o painel).
+const PIDS_ESSENCIAIS = new Set(['010C', '010D', '0104', '0105', '0142', '012F']);
 let lastPidSent = null;
 let bleDataCount = 0;
+let _scanNoDataShown = false;
+let _desconexaoManual = false;
 
 function atualizarBadgeconexao() {
     const el = document.getElementById('stat-conexao');
@@ -805,12 +811,33 @@ const RenderTick = {
     }
 };
 
+let _lastRenderDiag = -1e12;
+let _lastRenderQual = -1e12;
+let _lastRenderAnlz = -1e12;
+let _lastRenderMs = 0;
+
 function renderizarTudo() {
-    atualizarPainelConsumo();
-    renderizarSensores();
-    renderizarDiagnostico();
-    renderizarQualidadeCombustivel();
-    analyzeSensorDiagnostics();
+    const t0 = performance.now();
+    // Blocos independentes: um erro em um não trava os demais nem o tick.
+    try { atualizarPainelConsumo(); } catch (e) { AGXLogger.error('render.painel', e.message); }
+    try { renderizarSensores(); } catch (e) { AGXLogger.error('render.sensores', e.message); }
+
+    // Diagnóstico/qualidade/análise são pesados (reconstroem HTML) → cadência menor.
+    if (t0 - _lastRenderDiag >= 1000) {
+        _lastRenderDiag = t0;
+        try { renderizarDiagnostico(); } catch (e) { AGXLogger.error('render.diag', e.message); }
+    }
+    if (t0 - _lastRenderQual >= 3000) {
+        _lastRenderQual = t0;
+        try { renderizarQualidadeCombustivel(); } catch (e) { AGXLogger.error('render.qual', e.message); }
+    }
+    if (t0 - _lastRenderAnlz >= 1500) {
+        _lastRenderAnlz = t0;
+        try { analyzeSensorDiagnostics(); } catch (e) { AGXLogger.error('render.analise', e.message); }
+    }
+
+    _lastRenderMs = performance.now() - t0;
+    if (_lastRenderMs > 120) AGXLogger.log('RENDER_SLOW', `render ${_lastRenderMs.toFixed(0)}ms`);
 }
 
 function simularDadosOBD() {
@@ -995,6 +1022,9 @@ async function conectarVeiculoReal() {
             noDataCount = 0;
             Object.keys(pidFailures).forEach(k => delete pidFailures[k]);
             Object.keys(pidSupport).forEach(k => pidSupport[k] = true);
+            Object.keys(pidUnsupported).forEach(k => delete pidUnsupported[k]);
+            _scanNoDataShown = false;
+            _ultimoReinitElm = 0;
 
             await inicializarPainelReal();
 
@@ -1101,6 +1131,9 @@ async function conectarVeiculoBluetooth() {
                 noDataCount = 0;
                 Object.keys(pidFailures).forEach(k => delete pidFailures[k]);
                 Object.keys(pidSupport).forEach(k => pidSupport[k] = true);
+                Object.keys(pidUnsupported).forEach(k => delete pidUnsupported[k]);
+                _scanNoDataShown = false;
+                _ultimoReinitElm = 0;
                 bleDataCount = 0;
                 break;
             } catch (e) {
@@ -1169,21 +1202,32 @@ function onBleNotification(event) {
 
 function onBleDisconnect() {
     console.log("Dispositivo Bluetooth desconectado.");
-    AGXLogger.bleDisconnect("Dispositivo Bluetooth desconectado");
-    if (!modoSimulacao) {
-        modoSimulacao = true;
-        tipoConexao = null;
-        bleCharacteristic = null;
-        bleTxCharacteristic = null;
-        atualizarBadgeconexao();
-        if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
-        simulationIntervalId = setInterval(simularDadosOBD, 3000);
-        atualizarUIDesconectado();
-        showToast("Bluetooth desconectado. Voltando ao modo simulado.", "warning");
+    const manual = _desconexaoManual;
+    _desconexaoManual = false;
+    const estavaConectado = (tipoConexao !== null) || !modoSimulacao;
+    AGXLogger.bleDisconnect("Dispositivo Bluetooth desconectado", { manual });
+
+    modoSimulacao = true;
+    tipoConexao = null;
+    bleCharacteristic = null;
+    bleTxCharacteristic = null;
+    bleDevice = null;
+    atualizarBadgeconexao();
+    if (pollingTelemetriaId) { clearInterval(pollingTelemetriaId); pollingTelemetriaId = null; }
+    if (simulationIntervalId) clearInterval(simulationIntervalId);
+    simulationIntervalId = setInterval(simularDadosOBD, 3000);
+    atualizarUIDesconectado();
+
+    if (estavaConectado && !manual) {
+        AGXLogger.log('CONEXAO_PERDIDA', 'Conexão OBD perdida inesperadamente — modo SIMULADO ativado (dados NÃO são reais)');
+        showToast("⚠️ CONEXÃO PERDIDA — agora exibindo DADOS SIMULADOS (não reais). Reconecte para voltar ao real.", "danger", 9000);
+    } else if (manual) {
+        showToast("Desconectado. Modo simulado ativado.", "info");
     }
 }
 
 function desconectarVeiculo() {
+    _desconexaoManual = true;
     if (tipoConexao === 'ble' && bleDevice) {
         bleDevice.gatt.disconnect();
     } else if (tipoConexao === 'serial' && port) {
@@ -1373,28 +1417,56 @@ async function iniciarPollingLoop() {
     let ciclo = 0;
     try {
         while (!modoSimulacao && (tipoConexao === 'ble' || tipoConexao === 'serial')) {
+            const tCiclo = performance.now();
             for (const cmd of PIDS_RAPIDOS) {
                 if (modoSimulacao) return;
+                if (pidUnsupported[cmd]) continue;
                 await sendElmCommand(cmd);
                 await new Promise(r => setTimeout(r, 40));
             }
             if (ciclo % 2 === 1) {
                 for (const cmd of PIDS_MEDIOS) {
                     if (modoSimulacao) return;
-                    // Pula PIDs já marcados como não suportados pelo veículo
-                    const key = pidToKey[cmd];
-                    if (key && pidSupport[key] === false) continue;
+                    if (pidUnsupported[cmd]) continue;
                     await sendElmCommand(cmd);
                     await new Promise(r => setTimeout(r, 40));
                 }
             }
-            if (ciclo % 10 === 0) {
+            if (ciclo % 10 === 0 && !pidUnsupported[PID_ODOMETRO]) {
                 await sendElmCommand(PID_ODOMETRO);
             }
+            _logPollHeartbeat(ciclo, performance.now() - tCiclo);
             ciclo++;
         }
     } finally {
         _pollingAtivo = false;
+    }
+}
+
+// Heartbeat compacto: série temporal leve para diagnosticar travas/desconexões em campo.
+function _logPollHeartbeat(ciclo, durMs) {
+    if (ciclo % 2 !== 0) return; // ~1 amostra a cada 2 ciclos
+    AGXLogger.log('POLL', `ciclo ${ciclo} em ${durMs.toFixed(0)}ms`, {
+        ciclo,
+        durMs: Math.round(durMs),
+        rpm: Math.round(leiturasOBD.rpm),
+        vel: Math.round(leiturasOBD.velocidade),
+        noData: noDataCount,
+        naoSuportados: Object.keys(pidUnsupported).length,
+        queue: elmCommandQueue.length,
+        renderMs: _lastRenderMs
+    });
+}
+
+let _ultimoReinitElm = 0;
+function _reinicializarElmLeve() {
+    const agora = Date.now();
+    if (agora - _ultimoReinitElm < 30000) return; // no máximo 1x a cada 30s
+    _ultimoReinitElm = agora;
+    try { sendElmCommand("ATSP0"); } catch (e) {}
+    AGXLogger.log('ELM_REINIT', 'Reenviado ATSP0 (re-detecção de protocolo) — conexão mantida');
+    if (typeof showToast === 'function') {
+        showToast("Muitas respostas vazias do ELM327 — reajustando protocolo (conexão mantida).", "warning");
     }
 }
 
@@ -1579,33 +1651,43 @@ function parseObdResponse(response, pidCtx) {
     }).filter(line => line.length > 0);
 
     for (const line of lines) {
-        if (line.includes("NO DATA")) {
+        // Qualquer resposta OBD válida (41.., 49.., 7F..) = adaptador vivo → zera o contador de "link mudo".
+        if (/^(4[0-9A-F]|49|7F)/i.test(line)) noDataCount = 0;
+
+        if (line.includes("NO DATA") || line.includes("UNABLE TO CONNECT")) {
             noDataCount++;
-            if (pidCtx && pidToKey[pidCtx]) {
-                const key = pidToKey[pidCtx];
-                pidFailures[key] = (pidFailures[key] || 0) + 1;
-                if (pidFailures[key] >= PID_FAIL_THRESHOLD && pidSupport[key]) {
-                    pidSupport[key] = false;
-                    leiturasOBD[key] = 0;
-                    AGXLogger.log('PID_UNSUPPORTED', `${pidCtx} (${key}) não suportado após ${PID_FAIL_THRESHOLD} falhas`);
+            // Marca o PID específico como não suportado (funciona para QUALQUER PID, não só os mapeados).
+            if (pidCtx) {
+                pidFailures[pidCtx] = (pidFailures[pidCtx] || 0) + 1;
+                if (!PIDS_ESSENCIAIS.has(pidCtx) && pidFailures[pidCtx] >= PID_FAIL_THRESHOLD && !pidUnsupported[pidCtx]) {
+                    pidUnsupported[pidCtx] = true;
+                    if (pidToKey[pidCtx]) {
+                        pidSupport[pidToKey[pidCtx]] = false;
+                        leiturasOBD[pidToKey[pidCtx]] = 0;
+                    }
+                    AGXLogger.log('PID_UNSUPPORTED', `${pidCtx} não suportado após ${PID_FAIL_THRESHOLD} falhas`);
                 }
             }
+            // NUNCA desconectar por NO DATA. Apenas loga e reajusta o ELM de forma leve.
             if (noDataCount >= NO_DATA_THRESHOLD && !modoSimulacao) {
-                AGXLogger.log('CIRCUIT_BREAKER', `${noDataCount} NO DATA consecutivos — reconectando`);
                 noDataCount = 0;
-                if (tipoConexao === 'ble' && bleDevice) {
-                    bleDevice.gatt.disconnect();
-                } else if (tipoConexao === 'serial' && port) {
-                    port.close();
-                }
-                return;
+                AGXLogger.log('NO_DATA_RECOVER', `${NO_DATA_THRESHOLD}+ respostas vazias seguidas — reajustando ELM (sem desconectar)`);
+                _reinicializarElmLeve();
             }
-            document.getElementById('scan-active').classList.add('hidden');
-            const res = document.getElementById('scan-result');
-            res.classList.remove('hidden');
-            const resContent = document.getElementById('scan-result-content');
-            resContent.innerHTML = `<div style="color:var(--success); font-weight:800; font-size:10px"><i class="fas fa-check-circle"></i> STATUS:</div>
+            // Painel de scan: atualiza no máximo 1x (não reescreve DOM no caminho quente).
+            if (!_scanNoDataShown) {
+                _scanNoDataShown = true;
+                const scanActive = document.getElementById('scan-active');
+                const res = document.getElementById('scan-result');
+                const resContent = document.getElementById('scan-result-content');
+                if (scanActive && res && resContent) {
+                    scanActive.classList.add('hidden');
+                    res.classList.remove('hidden');
+                    resContent.innerHTML = `<div style="color:var(--success); font-weight:800; font-size:10px"><i class="fas fa-check-circle"></i> STATUS:</div>
                              <p style="font-size:12px; margin:5px 0 15px;">Nenhum código de falha encontrado. Sistema operacional normal.</p>`;
+                }
+            }
+            continue;
         }
 
         if (line.includes("49 02")) {
