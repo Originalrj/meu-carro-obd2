@@ -773,6 +773,46 @@ let nivelCombustivelAnterior = null;
 let detectandoAbastecimento = false;
 let _sensorLogCount = 0;
 
+// ==========================================
+// RENDER TICK — desacopla aquisição de renderização.
+// Antes, cada resposta OBD reconstruía o DOM inteiro (31 sensores + diag +
+// qualidade + histórico de anomalias) na main thread, saturando a UI e
+// atrasando o parser. Agora a aquisição só atualiza o modelo e marca "sujo";
+// o repaint roda no máximo a cada RENDER_INTERVAL_MS via requestAnimationFrame.
+// ==========================================
+const RenderTick = {
+    INTERVAL_MS: 250, // ~4 Hz
+    _dirty: false,
+    _last: 0,
+    _raf: null,
+    marcar() {
+        this._dirty = true;
+        if (this._raf === null && typeof requestAnimationFrame === 'function') {
+            this._raf = requestAnimationFrame(() => this._tick());
+        }
+    },
+    _tick() {
+        this._raf = null;
+        const agora = performance.now();
+        if (this._dirty && agora - this._last >= this.INTERVAL_MS) {
+            this._dirty = false;
+            this._last = agora;
+            renderizarTudo();
+        }
+        if (this._dirty) {
+            this._raf = requestAnimationFrame(() => this._tick());
+        }
+    }
+};
+
+function renderizarTudo() {
+    atualizarPainelConsumo();
+    renderizarSensores();
+    renderizarDiagnostico();
+    renderizarQualidadeCombustivel();
+    analyzeSensorDiagnostics();
+}
+
 function simularDadosOBD() {
     if (!modoSimulacao) return;
 
@@ -842,13 +882,9 @@ function simularDadosOBD() {
         rpmFill.style.strokeDasharray = `${pct} 314`;
     }
 
-    atualizarPainelConsumo();
     atualizarAcumuladores();
-    renderizarSensores();
-    renderizarDiagnostico();
-    renderizarQualidadeCombustivel();
     addSensorHistory();
-    analyzeSensorDiagnostics();
+    RenderTick.marcar();
 
     if (++_sensorLogCount % 10 === 0) {
         AGXLogger.sensorReadings({
@@ -1224,52 +1260,7 @@ async function inicializarPainelReal() {
         try { await sendElmCommand("0902"); await delay(800); } catch(e) { console.error("Falha VIN:", e); }
         try { await sendElmCommand("01A6"); await delay(500); } catch(e) { console.error("Falha Odo:", e); }
 
-        pollingTelemetriaId = setInterval(() => {
-            if(!modoSimulacao) {
-                if (isBle) {
-                    (async () => {
-                        const cmds = ["010C","0104","010D","0105","0142","010F","0111","0106","0107","010B","010A","010E","0101","0103","0121","012F","014D","014E","0114","0115","0116","0117","0146","01A6","0110","0152","015C","015E","0133","013C","0161","0162"];
-                        for (const cmd of cmds) {
-                            if (modoSimulacao) break;
-                            await sendElmCommand(cmd);
-                            await delay(150);
-                        }
-                    })();
-                } else {
-                    sendElmCommand("0104");
-                    setTimeout(() => sendElmCommand("010D"), 300);
-                    setTimeout(() => sendElmCommand("0105"), 600);
-                    setTimeout(() => sendElmCommand("0142"), 900);
-                    setTimeout(() => sendElmCommand("010F"), 1200);
-                    setTimeout(() => sendElmCommand("0111"), 1500);
-                    setTimeout(() => sendElmCommand("0106"), 1800);
-                    setTimeout(() => sendElmCommand("0107"), 2100);
-                    setTimeout(() => sendElmCommand("010B"), 2400);
-                    setTimeout(() => sendElmCommand("010A"), 2700);
-                    setTimeout(() => sendElmCommand("010E"), 3000);
-                    setTimeout(() => sendElmCommand("0101"), 3300);
-                    setTimeout(() => sendElmCommand("0103"), 3600);
-                    setTimeout(() => sendElmCommand("0121"), 3900);
-                    setTimeout(() => sendElmCommand("012F"), 4200);
-                    setTimeout(() => sendElmCommand("014D"), 4500);
-                    setTimeout(() => sendElmCommand("014E"), 4800);
-                    setTimeout(() => sendElmCommand("0114"), 5100);
-                    setTimeout(() => sendElmCommand("0115"), 5400);
-                    setTimeout(() => sendElmCommand("0116"), 5700);
-                    setTimeout(() => sendElmCommand("0117"), 6000);
-                    setTimeout(() => sendElmCommand("0146"), 6300);
-                    setTimeout(() => sendElmCommand("01A6"), 6600);
-                    setTimeout(() => sendElmCommand("0110"), 6900);
-                    setTimeout(() => sendElmCommand("0152"), 7200);
-                    setTimeout(() => sendElmCommand("015C"), 7500);
-                    setTimeout(() => sendElmCommand("015E"), 7800);
-                    setTimeout(() => sendElmCommand("0133"), 8100);
-                    setTimeout(() => sendElmCommand("013C"), 8400);
-                    setTimeout(() => sendElmCommand("0161"), 8700);
-                    setTimeout(() => sendElmCommand("0162"), 9000);
-                }
-            }
-        }, isBle ? 12000 : 6000);
+        iniciarPollingLoop();
     } catch(e) { console.error("Erro na inicialização:", e); }
 }
 
@@ -1277,7 +1268,7 @@ let elmPromptResolve = null;
 let elmCommandQueue = [];
 let elmProcessing = false;
 
-function waitForElmPrompt(timeoutMs = tipoConexao === 'ble' ? 4000 : 2000) {
+function waitForElmPrompt(timeoutMs = tipoConexao === 'ble' ? 3000 : 2000) {
     return new Promise((resolve) => {
         const timer = setTimeout(() => {
             elmPromptResolve = null;
@@ -1306,7 +1297,7 @@ async function sendElmCommand(command) {
             return;
         }
         if (elmProcessing) {
-            if (elmCommandQueue.length >= 10) elmCommandQueue.shift();
+            if (elmCommandQueue.length >= 32) elmCommandQueue.shift();
             elmCommandQueue.push(command);
             return;
         }
@@ -1341,7 +1332,7 @@ async function sendElmCommand(command) {
             return;
         }
         if (elmProcessing) {
-            if (elmCommandQueue.length >= 10) elmCommandQueue.shift();
+            if (elmCommandQueue.length >= 32) elmCommandQueue.shift();
             elmCommandQueue.push(command);
             return;
         }
@@ -1361,6 +1352,49 @@ async function sendElmCommand(command) {
                 await sendElmCommand(next);
             }
         }
+    }
+}
+
+// ==========================================
+// SCHEDULER DE POLLING — um único laço serializado (1 comando em voo).
+// Substitui o setInterval anterior, que disparava um novo ciclo a cada
+// 12s/6s mesmo com o ciclo anterior em andamento (ciclos sobrepostos →
+// fila estourava → comandos eram descartados → leituras "travavam").
+// PIDs rápidos a cada ciclo; médios a cada 2; odômetro a cada 10.
+// ==========================================
+let _pollingAtivo = false;
+const PIDS_RAPIDOS = ["010C","010D","0104","0105","0142","010F","0111","012F"];
+const PIDS_MEDIOS  = ["0106","0107","010B","010A","010E","0101","0103","0121","014D","014E","0114","0115","0116","0117","0146","0110","0152","015C","015E","0133","013C","0161","0162"];
+const PID_ODOMETRO = "01A6";
+
+async function iniciarPollingLoop() {
+    if (_pollingAtivo) return;
+    _pollingAtivo = true;
+    let ciclo = 0;
+    try {
+        while (!modoSimulacao && (tipoConexao === 'ble' || tipoConexao === 'serial')) {
+            for (const cmd of PIDS_RAPIDOS) {
+                if (modoSimulacao) return;
+                await sendElmCommand(cmd);
+                await new Promise(r => setTimeout(r, 40));
+            }
+            if (ciclo % 2 === 1) {
+                for (const cmd of PIDS_MEDIOS) {
+                    if (modoSimulacao) return;
+                    // Pula PIDs já marcados como não suportados pelo veículo
+                    const key = pidToKey[cmd];
+                    if (key && pidSupport[key] === false) continue;
+                    await sendElmCommand(cmd);
+                    await new Promise(r => setTimeout(r, 40));
+                }
+            }
+            if (ciclo % 10 === 0) {
+                await sendElmCommand(PID_ODOMETRO);
+            }
+            ciclo++;
+        }
+    } finally {
+        _pollingAtivo = false;
     }
 }
 
@@ -1945,15 +1979,12 @@ function parseObdResponse(response, pidCtx) {
         const baseConsumo = 2 + (cargaReal / 100) * 6 + (rpmReal / 8000) * 3;
         leiturasOBD.consumoEsperado = Math.max(1.5, baseConsumo);
         leiturasOBD.consumoInstantaneo = leiturasOBD.consumoRealLh > 0 ? leiturasOBD.consumoRealLh : leiturasOBD.consumoEsperado;
-        atualizarPainelConsumo();
-        atualizarAcumuladores();
-        detectarAnomalias();
-        renderizarSensores();
-        renderizarDiagnostico();
-        renderizarQualidadeCombustivel();
-        addSensorHistory();
-        analyzeSensorDiagnostics();
     }
+
+    atualizarAcumuladores();
+    addSensorHistory();
+    detectarAnomalias();
+    RenderTick.marcar();
 }
 
 // Alterna entre modo simulado e modo real (hardware conectado)
@@ -2091,6 +2122,8 @@ const SENSORES_OBD = [
     { id: 'torqueReal', label: 'Torque Real', icon: '⚡', unit: '%', decimals: 0, min: -125, max: 130, critico: [100, 130], alerta: [80, 100] }
 ];
 
+let _sensoresCache = null;
+
 function renderizarSensores() {
     const container = document.getElementById('obd-sensores');
     if (!container) return;
@@ -2103,17 +2136,41 @@ function renderizarSensores() {
         'o2Sensor1': 'o2Sensor1', 'o2Sensor2': 'o2Sensor2'
     };
 
-    container.innerHTML = SENSORES_OBD.map(s => {
-        // Skip unsupported sensors
-        const pidKey = sensorPidMap[s.id];
+    // Constrói a estrutura uma única vez; depois atualiza só valores/cores.
+    if (!_sensoresCache || _sensoresCache.container !== container || _sensoresCache.count !== SENSORES_OBD.length) {
+        container.innerHTML = '';
+        const nodes = SENSORES_OBD.map(s => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left:3px solid var(--success);';
+            const label = document.createElement('div');
+            label.style.cssText = 'font-size:8px; color:#94a3b8; text-transform:uppercase;';
+            label.textContent = `${s.icon} ${s.label}`;
+            const value = document.createElement('div');
+            value.style.cssText = 'font-size:1.1rem; font-weight:800; color:var(--success);';
+            value.textContent = '--';
+            card.appendChild(label);
+            card.appendChild(value);
+            container.appendChild(card);
+            return { s, card, label, value, pidKey: sensorPidMap[s.id] };
+        });
+        _sensoresCache = { container, count: SENSORES_OBD.length, nodes };
+    }
+
+    for (const node of _sensoresCache.nodes) {
+        const { s, card, label, value, pidKey } = node;
+
         if (pidKey && !pidSupport[pidKey]) {
-            return `
-                <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left:3px solid #333; opacity:0.4;">
-                    <div style="font-size:8px; color:#666; text-transform:uppercase;">${s.icon} ${s.label}</div>
-                    <div style="font-size:0.9rem; font-weight:600; color:#666;">Não disponível</div>
-                </div>
-            `;
+            card.style.borderLeft = '3px solid #333';
+            card.style.opacity = '0.4';
+            label.style.color = '#666';
+            value.style.color = '#666';
+            value.textContent = 'Não disponível';
+            continue;
         }
+
+        card.style.opacity = '1';
+        label.style.color = '#94a3b8';
+
         const val = leiturasOBD[s.id] || 0;
         let cor = 'var(--success)';
 
@@ -2135,13 +2192,10 @@ function renderizarSensores() {
             }
         }
 
-        return `
-            <div style="background:rgba(255,255,255,0.03); padding:10px; border-radius:8px; border-left:3px solid ${cor};">
-                <div style="font-size:8px; color:#94a3b8; text-transform:uppercase;">${s.icon} ${s.label}</div>
-                <div style="font-size:1.1rem; font-weight:800; color:${cor};">${val > 0 ? '+' : ''}${val.toFixed(s.decimals)}${s.unit ? ' ' + s.unit : ''}</div>
-            </div>
-        `;
-    }).join('');
+        card.style.borderLeft = `3px solid ${cor}`;
+        value.style.color = cor;
+        value.textContent = `${val > 0 ? '+' : ''}${val.toFixed(s.decimals)}${s.unit ? ' ' + s.unit : ''}`;
+    }
 }
 
 function renderizarDiagnostico() {

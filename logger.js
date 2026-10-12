@@ -5,10 +5,45 @@
 const AGXLogger = {
     MAX_ENTRIES: 2000,
     STORAGE_KEY: 'agx_logs',
+    FLUSH_MS: 1500,
     sessionId: null,
     enabled: true,
     sessionActive: false,
     _bleDataCount: 0,
+    _entries: null,
+    _flushTimer: null,
+    _dirty: false,
+
+    // Mantém as entradas em memória e persiste de forma diferida (flush).
+    // Evita um localStorage.setItem síncrono a cada comando ELM.
+    _loadEntries() {
+        if (this._entries) return this._entries;
+        try {
+            this._entries = JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]');
+        } catch (e) {
+            this._entries = [];
+        }
+        return this._entries;
+    },
+
+    _scheduleFlush() {
+        if (this._flushTimer) return;
+        this._flushTimer = setTimeout(() => {
+            this._flushTimer = null;
+            this.flush();
+        }, this.FLUSH_MS);
+    },
+
+    flush() {
+        if (!this._dirty || !this._entries) return;
+        this._dirty = false;
+        try {
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this._entries));
+        } catch (e) {
+            this._entries.splice(0, 200);
+            try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this._entries)); } catch (e2) {}
+        }
+    },
 
     init() {
         this.sessionId = new Date().toISOString().replace(/[:.]/g, '-');
@@ -27,7 +62,7 @@ const AGXLogger = {
             if (this._bleDataCount % 5 !== 0) return;
         }
 
-        const entries = this.getEntries();
+        const entries = this._loadEntries();
         if (entries.length >= this.MAX_ENTRIES) {
             entries.splice(0, entries.length - this.MAX_ENTRIES + 1);
         }
@@ -39,32 +74,28 @@ const AGXLogger = {
             data: data || null
         });
 
-        try {
-            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(entries));
-        } catch (e) {
-            entries.splice(0, 100);
-            try { localStorage.setItem(this.STORAGE_KEY, JSON.stringify(entries)); } catch(e2) {}
-        }
+        this._dirty = true;
+        this._scheduleFlush();
     },
 
     getEntries() {
-        try {
-            return JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]');
-        } catch (e) {
-            return [];
-        }
+        return this._loadEntries();
     },
 
     getEntryCount() {
-        return this.getEntries().length;
+        return this._loadEntries().length;
     },
 
     clear() {
+        this._entries = [];
+        this._dirty = false;
+        if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
         localStorage.removeItem(this.STORAGE_KEY);
         this.log('LOG_CLEARED', 'Logs limpos pelo usuário');
     },
 
     exportJSON() {
+        this.flush();
         const entries = this.getEntries();
         const payload = {
             sessionId: this.sessionId,
@@ -112,4 +143,10 @@ window.addEventListener('error', (e) => {
 
 window.addEventListener('unhandledrejection', (e) => {
     AGXLogger.error('unhandledrejection', e.reason?.message || String(e.reason));
+});
+
+// Garante persistência dos logs ao sair/ocultar a página
+window.addEventListener('beforeunload', () => AGXLogger.flush());
+window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') AGXLogger.flush();
 });

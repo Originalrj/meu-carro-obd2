@@ -199,6 +199,7 @@ function excluirVeiculoRecente(idx) {
     vehicles.splice(idx, 1);
     if (vehicles.length === 0) {
         localStorage.removeItem("car_vehicles");
+        invalidarCacheVeiculos();
         localStorage.removeItem("car_active_idx");
         localStorage.removeItem("car_maint_records");
         localStorage.removeItem("car_lista_necessidades");
@@ -251,6 +252,11 @@ function preenchimentoInteligente() {
 // Formato antigo (legado): chaves individuais car_km, car_marca_nome, etc.
 // Formato novo: array em "car_vehicles" + índice ativo em "car_active_idx"
 
+// Cache em memória: getVeiculos() era chamado a cada amostra OBD e
+// refazia JSON.parse + migrações. Invalida apenas quando os dados mudam.
+let _veiculosCache = null;
+function invalidarCacheVeiculos() { _veiculosCache = null; }
+
 function migrarDadosLegadoSeNecessario() {
     try {
         const raw = localStorage.getItem("car_vehicles");
@@ -288,6 +294,7 @@ function migrarDadosLegadoSeNecessario() {
 }
 
 function getVeiculos() {
+    if (_veiculosCache) return _veiculosCache;
     migrarDadosLegadoSeNecessario();
     let arr = JSON.parse(localStorage.getItem("car_vehicles") || "[]");
     let mudou = false;
@@ -299,6 +306,7 @@ function getVeiculos() {
     });
     if (mudou) localStorage.setItem("car_vehicles", JSON.stringify(arr));
     migrarChavesIsolamento();
+    _veiculosCache = arr;
     return arr;
 }
 
@@ -314,6 +322,7 @@ function getVeiculoAtivo() {
 
 function salvarVeiculos(arr) {
     localStorage.setItem("car_vehicles", JSON.stringify(arr));
+    _veiculosCache = arr;
 }
 
 function setIdxAtivo(idx) {
@@ -486,6 +495,7 @@ function excluirVeiculoAtivo() {
 
     if (vehicles.length === 0) {
         localStorage.removeItem("car_vehicles");
+        invalidarCacheVeiculos();
         localStorage.removeItem("car_active_idx");
         localStorage.removeItem("car_maint_records");
         localStorage.removeItem("car_lista_necessidades");

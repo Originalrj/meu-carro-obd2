@@ -222,9 +222,15 @@ function detectarAnomalias() {
     }
 }
 
-async function renderizarHistoricoAnomalias() {
+let _ultimaRenderAnomalias = -1e12;
+async function renderizarHistoricoAnomalias(force) {
     const container = document.getElementById('diag-anomalias');
     if (!container) return;
+
+    // Antes rodava a cada amostra (query IndexedDB + innerHTML). Limita a 3s.
+    const agora = performance.now();
+    if (!force && agora - _ultimaRenderAnomalias < 3000) return;
+    _ultimaRenderAnomalias = agora;
 
     const total = await AnomalyDB.count();
     const recentes = await AnomalyDB.getAll(50);
@@ -285,6 +291,6 @@ async function renderizarHistoricoAnomalias() {
 
 function limparAnomalias() {
     if (confirm('Apagar todo o histórico de anomalias?')) {
-        AnomalyDB.clear().then(() => renderizarHistoricoAnomalias());
+        AnomalyDB.clear().then(() => renderizarHistoricoAnomalias(true));
     }
 }
