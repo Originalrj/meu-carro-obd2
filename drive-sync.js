@@ -284,6 +284,7 @@ async function sincronizarComDrive() {
     try {
         const arquivo = await buscarArquivoBackup();
         const dadosLocais = coletarDadosCompletos();
+        let sincronizado = false;
 
         if (arquivo) {
             gdriveFileId = arquivo.id;
@@ -299,27 +300,37 @@ async function sincronizarComDrive() {
                         `Drive: ${dataRemota.toLocaleString('pt-BR')}\nLocal: ${dataLocal.toLocaleString('pt-BR')}\n\n` +
                         'Deseja importar os dados do Drive?')) {
                         await importarDadosDoDrive(dadosRemotos);
+                        sincronizado = true;
                         showToast('Dados importados do Google Drive!', 'success');
                     } else {
-                        await uploadBackup(dadosLocais);
-                        showToast('Dados locais enviados ao Drive.', 'info');
+                        sincronizado = await uploadBackup(dadosLocais);
+                        if (sincronizado) showToast('Dados locais enviados ao Drive.', 'info');
                     }
                 } else if (dataLocal > dataRemota) {
-                    await uploadBackup(dadosLocais);
-                    showToast('Backup enviado ao Drive (mais recente).', 'success');
+                    sincronizado = await uploadBackup(dadosLocais);
+                    if (sincronizado) showToast('Backup enviado ao Drive (mais recente).', 'success');
+                } else {
+                    sincronizado = true; // já em sincronia (sem alterações)
                 }
             } else {
-                await uploadBackup(dadosLocais);
+                sincronizado = await uploadBackup(dadosLocais);
             }
         } else {
-            await uploadBackup(dadosLocais);
-            showToast('Primeiro backup criado no Google Drive!', 'success');
+            sincronizado = await uploadBackup(dadosLocais);
+            if (sincronizado) showToast('Primeiro backup criado no Google Drive!', 'success');
         }
 
-        if (statusEl) {
-            statusEl.innerHTML = `<i class="fas fa-check-circle" style="color:var(--success)"></i> Sincronizado às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        if (sincronizado) {
+            if (statusEl) {
+                statusEl.innerHTML = `<i class="fas fa-check-circle" style="color:var(--success)"></i> Sincronizado às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+            }
+            localStorage.setItem('gdrive_last_sync', new Date().toISOString());
+        } else {
+            if (statusEl) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i> Falha ao enviar (verifique a conexão)';
+            }
+            showToast('Não foi possível enviar o backup ao Google Drive. Verifique a conexão e tente novamente.', 'error');
         }
-        localStorage.setItem('gdrive_last_sync', new Date().toISOString());
 
     } catch (e) {
         console.error('[GDRIVE] Erro na sincronização:', e);
@@ -365,12 +376,13 @@ async function importarDadosDoDrive(dados) {
         });
     }
 
-    if (dados.registrosManutencao) { registrosManutencao = dados.registrosManutencao; salvarRegistrosManutencao(); }
-    if (dados.planoAquisicao || dados.checklistPecas) {
-        listaNecessidades = dados.planoAquisicao || dados.checklistPecas || [];
+    if (Array.isArray(dados.registrosManutencao)) { registrosManutencao = dados.registrosManutencao; salvarRegistrosManutencao(); }
+    if (Array.isArray(dados.planoAquisicao) || Array.isArray(dados.checklistPecas)) {
+        listaNecessidades = Array.isArray(dados.planoAquisicao) ? dados.planoAquisicao
+            : Array.isArray(dados.checklistPecas) ? dados.checklistPecas : [];
         localStorage.setItem((typeof chaveV === 'function' ? chaveV("lista_necessidades") : "car_lista_necessidades"), JSON.stringify(listaNecessidades));
     }
-    if (dados.abastecimentos) { abastecimentos = dados.abastecimentos; salvarAbastecimentos(); }
+    if (Array.isArray(dados.abastecimentos)) { abastecimentos = dados.abastecimentos; salvarAbastecimentos(); }
 
     sincronizarLegado();
     renderizarDadosGlobais();

@@ -27,6 +27,14 @@ let bleDataCount = 0;
 let _scanNoDataShown = false;
 let _desconexaoManual = false;
 
+// Inicia o modo simulado garantindo UM ÚNICO intervalo. Evita empilhamento
+// quando caminhos de erro/reconexão reatribuem simulationIntervalId sem
+// limpar o anterior (intervalos sobrepostos degradam a UI ao longo do tempo).
+function iniciarSimulacao() {
+    if (simulationIntervalId) clearInterval(simulationIntervalId);
+    simulationIntervalId = setInterval(simularDadosOBD, 3000);
+}
+
 function atualizarBadgeconexao() {
     const el = document.getElementById('stat-conexao');
     const elTipo = document.getElementById('stat-tipo-conexao');
@@ -1044,7 +1052,7 @@ async function conectarVeiculoReal() {
             modoSimulacao = true;
             tipoConexao = null;
             atualizarBadgeconexao();
-            simulationIntervalId = setInterval(simularDadosOBD, 3000);
+            iniciarSimulacao();
             const btnConnect = document.getElementById('btn-conectar-carro');
             if (btnConnect) {
                 btnConnect.innerText = "CONECTAR AO CARRO (ELM327)";
@@ -1176,7 +1184,7 @@ async function conectarVeiculoBluetooth() {
         bleCharacteristic = null;
         bleTxCharacteristic = null;
         atualizarBadgeconexao();
-        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        iniciarSimulacao();
         atualizarUIDesconectado();
     }
 }
@@ -1199,7 +1207,14 @@ function onBleNotification(event) {
 
         if (elmPromptResolve) elmPromptResolve();
         const pidCtx = lastPidSent;
-        parseObdResponse(resposta, pidCtx);
+        // try/catch: um erro de parse não pode escapar do handler de notificação
+        // (evita erros "uncaught" e mantém o laço de leitura sempre vivo).
+        try {
+            parseObdResponse(resposta, pidCtx);
+        } catch (e) {
+            console.error("Erro ao processar resposta BLE:", e);
+            if (typeof AGXLogger !== 'undefined') AGXLogger.log('PARSE_ERROR', `BLE parse falhou: ${e && e.message}`);
+        }
     }
 }
 
@@ -1223,8 +1238,7 @@ function onBleDisconnect() {
     bleDevice = null;
     atualizarBadgeconexao();
     if (pollingTelemetriaId) { clearInterval(pollingTelemetriaId); pollingTelemetriaId = null; }
-    if (simulationIntervalId) clearInterval(simulationIntervalId);
-    simulationIntervalId = setInterval(simularDadosOBD, 3000);
+    iniciarSimulacao();
     atualizarUIDesconectado();
 
     if (estavaConectado && !manual) {
@@ -1508,7 +1522,7 @@ async function readLoop() {
         tipoConexao = null;
         atualizarBadgeconexao();
         if (pollingTelemetriaId) clearInterval(pollingTelemetriaId);
-        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        iniciarSimulacao();
         atualizarUIDesconectado();
     }
 }
@@ -2088,7 +2102,7 @@ function toggleObdMode(isSimulated) {
         modoSimulacao = true;
         tipoConexao = null;
         atualizarBadgeconexao();
-        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        iniciarSimulacao();
         showToast("Modo simulado ativado.", "info");
     } else if (!isSimulated && modoSimulacao) {
         if (!bleCharacteristic && !tipoConexao) {
@@ -3097,14 +3111,15 @@ function calcularPerfilPostos() {
             };
         }
         const p = perfil[a.posto];
+        const snap = a.snapshot || {};
         p.abastecimentos++;
-        p.historico.push(a.snapshot);
-        p.mediaFuelTrim += Math.abs(a.snapshot.fuelTrimLTFT || 0);
-        p.mediaConsumo += a.snapshot.consumo || 0;
-        p.mediaO2 += a.snapshot.nivelO2 || 0;
-        p.mediaMAP += a.snapshot.pressaoMAP || 0;
-        p.mediaEtanol += a.snapshot.etanolPercent || 0;
-        p.mediaOscilacaoO2 += a.snapshot.o2Oscilacao || 0;
+        p.historico.push(snap);
+        p.mediaFuelTrim += Math.abs(snap.fuelTrimLTFT || 0);
+        p.mediaConsumo += snap.consumo || 0;
+        p.mediaO2 += snap.nivelO2 || 0;
+        p.mediaMAP += snap.pressaoMAP || 0;
+        p.mediaEtanol += snap.etanolPercent || 0;
+        p.mediaOscilacaoO2 += snap.o2Oscilacao || 0;
     });
 
     let melhorQualidade = -1;

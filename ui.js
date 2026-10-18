@@ -7,7 +7,8 @@ const API_FIPE_V1 = "https://parallelum.com.br/fipe/api/v1/carros/marcas";
 let marcasCache = [];
 let modelosCache = {};
 let anosPorModeloCache = {};
-let listaNecessidades = JSON.parse(localStorage.getItem(chaveV("lista_necessidades")) || "[]");
+let listaNecessidades = [];
+try { listaNecessidades = JSON.parse(localStorage.getItem(chaveV("lista_necessidades")) || "[]") || []; } catch (e) { listaNecessidades = []; }
 let categoriaAtualCatalogo = "filtros";
 let editandoVeiculoId = null;
 
@@ -254,7 +255,10 @@ function preenchimentoInteligente() {
 
 // Cache em memória: getVeiculos() era chamado a cada amostra OBD e
 // refazia JSON.parse + migrações. Invalida apenas quando os dados mudam.
-let _veiculosCache = null;
+// var (não let): precisa estar disponível já em ui.js:10, que roda durante a
+// avaliação do topo do script — com let ocorria TDZ e chaveV() caía na chave
+// legada, carregando o checklist vazio e sobrescrevendo os dados por veículo.
+var _veiculosCache = null;
 function invalidarCacheVeiculos() { _veiculosCache = null; }
 
 function migrarDadosLegadoSeNecessario() {
@@ -378,7 +382,7 @@ function migrarChavesIsolamento() {
 
 function recarregarDadosVeiculoAtivo() {
     carregarRegistrosManutencao();
-    listaNecessidades = JSON.parse(localStorage.getItem(chaveV("lista_necessidades")) || "[]");
+    try { listaNecessidades = JSON.parse(localStorage.getItem(chaveV("lista_necessidades")) || "[]") || []; } catch (e) { listaNecessidades = []; }
     if (typeof carregarAbastecimentos === 'function') carregarAbastecimentos();
     sincronizarLegado();
 }
@@ -740,7 +744,7 @@ function popularDatalistManutencao() {
 // Inicialização do App e Verificação de Dados Dinâmicos
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-        simulationIntervalId = setInterval(simularDadosOBD, 3000);
+        if (typeof iniciarSimulacao === 'function') iniciarSimulacao(); else { if (simulationIntervalId) clearInterval(simulationIntervalId); simulationIntervalId = setInterval(simularDadosOBD, 3000); }
         carregarRegistrosManutencao();
         if (typeof carregarAbastecimentos === 'function') carregarAbastecimentos();
         popularDatalistManutencao();
@@ -1880,8 +1884,8 @@ function renderizarHistoricoManutencao() {
         const total = custoPeca + custoMao;
         return `
         <tr>
-            <td>${r.item}</td>
-            <td>${r.km.toLocaleString()} KM</td>
+            <td>${r.item || '--'}</td>
+            <td>${(r.km || 0).toLocaleString()} KM</td>
             <td>${formatarDataBR(r.data)}</td>
             <td>${custoPeca > 0 ? 'R$ ' + custoPeca.toFixed(2) : '--'}</td>
             <td>${custoMao > 0 ? 'R$ ' + custoMao.toFixed(2) : '--'}</td>
@@ -2000,10 +2004,11 @@ function coletarDadosCompletos() {
     vehicles.forEach(v => {
         if (!v || !v.id) return;
         const pref = "car_v" + v.id + "_";
+        const lerJSON = (k) => { try { return JSON.parse(localStorage.getItem(k) || "[]") || []; } catch (e) { return []; } };
         dadosPorVeiculo[v.id] = {
-            registrosManutencao: JSON.parse(localStorage.getItem(pref + "maint_records") || "[]"),
-            abastecimentos: JSON.parse(localStorage.getItem(pref + "abastecimentos") || "[]"),
-            listaNecessidades: JSON.parse(localStorage.getItem(pref + "lista_necessidades") || "[]")
+            registrosManutencao: lerJSON(pref + "maint_records"),
+            abastecimentos: lerJSON(pref + "abastecimentos"),
+            listaNecessidades: lerJSON(pref + "lista_necessidades")
         };
     });
     return {
@@ -2141,7 +2146,7 @@ function importarDadosJSON(inputEl) {
                 recarregarDadosVeiculoAtivo();
             }
 
-            registrosManutencao = dados.registrosManutencao || [];
+            registrosManutencao = Array.isArray(dados.registrosManutencao) ? dados.registrosManutencao : [];
             registrosManutencao.forEach(r => {
                 if (r.custo !== undefined && r.custoPeca === undefined) {
                     r.custoPeca = r.custo;
@@ -2151,9 +2156,14 @@ function importarDadosJSON(inputEl) {
             });
             salvarRegistrosManutencao();
 
-            listaNecessidades = dados.checklistPecas || dados.planoAquisicao || [];
+            // Checklist: aceita apenas arrays; em backups legados (sem dadosPorVeiculo) persiste.
+            listaNecessidades = Array.isArray(dados.checklistPecas) ? dados.checklistPecas
+                : Array.isArray(dados.planoAquisicao) ? dados.planoAquisicao : [];
+            if (!dados.dadosPorVeiculo) {
+                localStorage.setItem(chaveV("lista_necessidades"), JSON.stringify(listaNecessidades));
+            }
 
-            if (dados.abastecimentos) {
+            if (Array.isArray(dados.abastecimentos)) {
                 abastecimentos = dados.abastecimentos;
                 salvarAbastecimentos();
             }
@@ -2316,8 +2326,8 @@ function exportarRelatorioPDF() {
             const ct = cp + cm;
             doc.setFontSize(7);
             doc.text(formatarDataBR(r.data), margemEsquerda, y);
-            doc.text(r.item.substring(0, 25), margemEsquerda + 20, y);
-            doc.text(`${r.km.toLocaleString()} KM`, margemEsquerda + 78, y);
+            doc.text(String(r.item || '-').substring(0, 25), margemEsquerda + 20, y);
+            doc.text(`${(r.km || 0).toLocaleString()} KM`, margemEsquerda + 78, y);
             doc.text(cp > 0 ? `R$${cp.toFixed(2)}` : "--", margemEsquerda + 100, y);
             doc.text(cm > 0 ? `R$${cm.toFixed(2)}` : "--", margemEsquerda + 122, y);
             doc.text(ct > 0 ? `R$${ct.toFixed(2)}` : "--", margemEsquerda + 148, y);
@@ -2394,7 +2404,7 @@ function exportarRelatorioPDF() {
         doc.setFont(undefined, 'normal');
         doc.setFontSize(8);
         doc.setTextColor(80);
-        doc.text(`Último registro: ${formatarDataBR(ultimoRegistro.data)} — ${ultimoRegistro.km.toLocaleString()} KM`, margemEsquerda + 4, y);
+        doc.text(`Último registro: ${formatarDataBR(ultimoRegistro.data)} — ${(ultimoRegistro.km || 0).toLocaleString()} KM`, margemEsquerda + 4, y);
         y += 4;
 
         // Linha 2: percentual
@@ -3045,7 +3055,7 @@ function renderizarMapaAbastecimentos() {
                 <div style="font-weight:700; font-size:13px; margin-bottom:4px;">${a.posto || 'Posto não informado'}</div>
                 <div style="font-size:11px; color:#666;">${data} — ${a.litros}L</div>
                 ${a.custoTotal ? `<div style="font-size:11px; color:#666;">R$ ${a.custoTotal.toFixed(2)}</div>` : ''}
-                <div style="font-size:10px; color:#999; margin-top:4px;">${a.km.toLocaleString('pt-BR')} km</div>
+                <div style="font-size:10px; color:#999; margin-top:4px;">${(a.km || 0).toLocaleString('pt-BR')} km</div>
             </div>`;
         marker.bindPopup(popup);
         mapaMarkers.push(marker);
