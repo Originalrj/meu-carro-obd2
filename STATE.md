@@ -246,10 +246,19 @@ ATD -> ATZ -> ATE0 -> ATL0 -> ATS0 -> ATH0 -> ATAT1 -> ATSP0 -> ATST64
 
 ## Proximos passos
 
-1. **Imediato**: Usuario faz hard refresh (ou limpa dados do site) e testa sensores reais
-2. **Proximo**: Isolamento de dados por veiculo (chaves localStorage com prefixo ID)
-3. **Deferido**: Google Drive sync (bloqueado por verificacao Google — `Acesso bloqueado`)
-4. **Deferido**: Expandir `veiculos_db.json` quando Carros na Web voltar
+1. **PENDENTE no aparelho — validar a correcao do DTC** (commit `6c082af`): hard
+   refresh (SW v10), preencher o combustivel do Gol no Perfil e rodar o scanner
+   de novo. Esperado: o `P0B43` **nao** aparece na tela e entra no log como
+   `DTC_INCOMPATIVEL` (com a resposta crua) + `DTC_SCAN`.
+2. **PENDENTE no aparelho — validar o mapa** (commit `ba18604`): abrir a aba
+   Mapa, permitir a localizacao e conferir postos/marcadores/lista. As
+   instancias do Overpass oscilam (429/502/504) — se falhar, tentar de novo.
+2b. **Imediato (antigo)**: Usuario faz hard refresh (ou limpa dados do site) e testa sensores reais
+3. **Proximo**: Isolamento de dados por veiculo (chaves localStorage com prefixo ID)
+4. **Deferido**: Google Drive sync (bloqueado por verificacao Google — `Acesso bloqueado`)
+5. **Deferido**: Expandir `veiculos_db.json` quando Carros na Web voltar
+6. **Ideia**: preco de combustivel por posto no mapa (diferencial; OSM nao tem,
+   precisaria de API de precos)
 
 ---
 
