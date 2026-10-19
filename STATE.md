@@ -200,6 +200,30 @@ ATD -> ATZ -> ATE0 -> ATL0 -> ATS0 -> ATH0 -> ATAT1 -> ATSP0 -> ATST64
 
 ---
 
+## Postos de combustível no mapa (OpenStreetMap / Overpass)
+
+- A aba **Mapa** agora mostra os postos da região do usuário (`amenity=fuel`),
+  além dos marcadores de abastecimento que já existiam.
+- Fonte: **Overpass API** (gratuita, sem chave). Consulta em POST
+  `data=[out:json][timeout:25];(node|way["amenity"="fuel"](around:RAIO,LAT,LNG));out center tags;`
+- Config validada por teste real: as instâncias públicas respondem **200 +
+  `Access-Control-Allow-Origin: *`** (funciona direto do browser), mas vivem
+  sobrecarregadas (429/502/504). Por isso `OVERPASS_ENDPOINTS` tem 3 instâncias
+  (`overpass-api.de`, `maps.mail.ru/.../overpass`, `overpass.kumi.systems`) com
+  **failover**, timeout de 20 s por tentativa (`AbortController`) e cache de
+  **6 h** em localStorage (também usado como fallback offline).
+- Raio selecionável: 2 / 5 (padrão) / 10 / 20 km. Até 60 marcadores no mapa e
+  25 itens na lista (ordenados por distância, haversine).
+- Lista/popup mostram nome, marca, endereço (`addr:*`), horário
+  (`opening_hours`), distância e link "Traçar rota" (Google Maps).
+- Dedupe de node+way do mesmo posto; `escapeHtml` em tudo (dados são
+  editáveis por qualquer um no OSM).
+- Sem preços de combustível: o OSM praticamente não tem esse dado. Fica como
+  próximo passo (API de preços) se quisermos o diferencial "qual posto está
+  mais barato".
+
+---
+
 ## APIs e servicos
 
 ### Funcionando

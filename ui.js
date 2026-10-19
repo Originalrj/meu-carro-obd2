@@ -1511,6 +1511,7 @@ function nav(screenId, element) {
         setTimeout(() => {
             inicializarMapa();
             if (mapa) mapa.invalidateSize();
+            carregarPostosProximos(false);
         }, 100);
     }
 }
@@ -3156,6 +3157,7 @@ function centralizarMapa() {
     if (comGeo.length === 0) {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(pos => {
+                posicionarUsuario(pos.coords.latitude, pos.coords.longitude);
                 mapa.setView([pos.coords.latitude, pos.coords.longitude], 13);
             }, () => mapa.setView([-23.55, -46.63], 12));
         }
@@ -3163,4 +3165,283 @@ function centralizarMapa() {
     }
     const bounds = comGeo.map(a => [a.geo.lat, a.geo.lng]);
     mapa.fitBounds(bounds, { padding: [40, 40] });
+}
+
+// ==========================================
+// POSTOS DE COMBUSTÍVEL PRÓXIMOS (OpenStreetMap / Overpass)
+// ==========================================
+// Fonte gratuita e sem chave de API. Consultamos o Overpass por
+// `amenity=fuel` em volta da posição do usuário; os marcadores entram no
+// mesmo mapa Leaflet dos abastecimentos e a lista traz nome, endereço,
+// horário e distância. Resultado fica em cache por 6 h (e serve de
+// fallback quando a rede cai).
+// As instâncias públicas do Overpass vivem sobrecarregadas e alternam entre
+// 200 e 429/502/504 de forma imprevisível (testado: as três responderam 200 +
+// CORS `*` em algum momento), por isso a lista existe e o loop faz failover.
+const OVERPASS_ENDPOINTS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter'
+];
+const POSTOS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const POSTOS_MAX_MAPA = 60;
+const POSTOS_MAX_LISTA = 25;
+
+let postosProximos = [];
+let postosMarkers = [];
+let postosCarregando = false;
+let postosCarregadoPara = null;
+let marcadorUsuario = null;
+let postosAvisoGeoMostrado = false;
+
+function distanciaMetros(lat1, lng1, lat2, lng2) {
+    const R = 6371000, rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad;
+    const dLng = (lng2 - lng1) * rad;
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function formatarDistancia(m) {
+    return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+}
+
+function enderecoDoPosto(t) {
+    const via = [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(', ');
+    const bairro = t['addr:suburb'] || t['addr:district'] || '';
+    const cidade = t['addr:city'] || '';
+    return [via, bairro, cidade].filter(Boolean).join(' — ');
+}
+
+function normalizarPosto(el, origemLat, origemLng) {
+    const t = el.tags || {};
+    const lat = (el.lat != null) ? el.lat : (el.center && el.center.lat);
+    const lng = (el.lon != null) ? el.lon : (el.center && el.center.lon);
+    if (lat == null || lng == null) return null;
+    const marca = t.brand || t.operator || '';
+    return {
+        id: `${el.type}/${el.id}`,
+        lat, lng,
+        nome: t.name || marca || 'Posto',
+        marca,
+        endereco: enderecoDoPosto(t),
+        horario: t.opening_hours || '',
+        dist: distanciaMetros(origemLat, origemLng, lat, lng)
+    };
+}
+
+function chaveCachePostos(lat, lng, raio) {
+    return `geox_postos_${lat.toFixed(2)}_${lng.toFixed(2)}_${raio}`;
+}
+
+// O OSM às vezes tem node E way para o mesmo posto (mesma coordenada ~11 m).
+function dedupePostos(lista) {
+    const vistos = new Set();
+    return lista.filter(p => {
+        const k = `${p.lat.toFixed(4)}|${p.lng.toFixed(4)}|${(p.nome || '').toLowerCase()}`;
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+    });
+}
+
+async function buscarPostosOverpass(lat, lng, raio) {
+    const query = `[out:json][timeout:25];`
+        + `(node["amenity"="fuel"](around:${raio},${lat},${lng});`
+        + `way["amenity"="fuel"](around:${raio},${lat},${lng}););`
+        + `out center tags;`;
+    let ultimoErro = null;
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 20000);
+        try {
+            const resp = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'data=' + encodeURIComponent(query),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            // Instância cheia/lento responde 429/502/504 (ou HTML): tenta a próxima.
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const json = await resp.json();
+            return dedupePostos((json.elements || [])
+                .map(el => normalizarPosto(el, lat, lng))
+                .filter(Boolean));
+        } catch (e) {
+            clearTimeout(timer);
+            ultimoErro = e;
+        }
+    }
+    throw ultimoErro || new Error('Overpass indisponivel');
+}
+
+function posicionarUsuario(lat, lng) {
+    if (!mapa || typeof L === 'undefined') return;
+    if (marcadorUsuario) mapa.removeLayer(marcadorUsuario);
+    const icon = L.divIcon({
+        className: '',
+        html: '<div style="width:16px; height:16px; border-radius:50%; background:#2196f3; border:3px solid #fff; box-shadow:0 0 0 4px rgba(33,150,243,0.25);"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+    });
+    marcadorUsuario = L.marker([lat, lng], { icon, zIndexOffset: 400 }).addTo(mapa);
+    marcadorUsuario.bindPopup('Você está aqui');
+}
+
+function desenharMarcadorPosto(p) {
+    const icon = L.divIcon({
+        className: '',
+        html: `<div style="background:var(--accent); width:22px; height:22px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.35);">
+            <i class="fas fa-gas-pump" style="color:#062a2e; font-size:9px;"></i>
+        </div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
+    });
+    const m = L.marker([p.lat, p.lng], { icon, zIndexOffset: 200 });
+    m.bindPopup(`<div style="font-family:sans-serif; min-width:150px;">
+        <div style="font-weight:700; font-size:13px; color:#111;">${escapeHtml(p.nome)}</div>
+        ${p.marca ? `<div style="font-size:11px; color:#666;">${escapeHtml(p.marca)}</div>` : ''}
+        ${p.endereco ? `<div style="font-size:10px; color:#777; margin-top:3px;">${escapeHtml(p.endereco)}</div>` : ''}
+        ${p.horario ? `<div style="font-size:10px; color:#777;">${escapeHtml(p.horario)}</div>` : ''}
+        <div style="font-size:10px; color:#999; margin-top:4px;">${formatarDistancia(p.dist)} de você</div>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank" rel="noopener" style="font-size:11px; color:#0a7c8a; font-weight:700;">Traçar rota</a>
+    </div>`);
+    m.addTo(mapa);
+    postosMarkers.push(m);
+}
+
+// Enquadra o mapa no usuário + postos (abastecimentos continuam no mapa,
+// mas não empurram o zoom para longe da região que o usuário quer ver).
+function ajustarVisaoMapa() {
+    if (!mapa) return;
+    const pts = [];
+    if (marcadorUsuario) { const ll = marcadorUsuario.getLatLng(); pts.push([ll.lat, ll.lng]); }
+    postosMarkers.forEach(m => { const ll = m.getLatLng(); pts.push([ll.lat, ll.lng]); });
+    if (pts.length > 1) mapa.fitBounds(pts, { padding: [40, 40], maxZoom: 16 });
+    else if (pts.length === 1) mapa.setView(pts[0], 14);
+}
+
+function focarPosto(i) {
+    const p = postosProximos[i];
+    if (!p || !mapa) return;
+    mapa.setView([p.lat, p.lng], 16);
+    if (postosMarkers[i]) postosMarkers[i].openPopup();
+}
+
+function renderizarListaPostos(postos) {
+    const el = document.getElementById('postos-info');
+    if (!el) return;
+    if (!postos.length) {
+        el.innerHTML = `
+            <div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">
+                <i class="fas fa-gas-pump" style="opacity:0.4;"></i> Nenhum posto mapeado neste raio.
+                <div style="font-size:9px; margin-top:4px;">Dados do OpenStreetMap — tente aumentar o raio.</div>
+            </div>`;
+        return;
+    }
+    const top = postos.slice(0, POSTOS_MAX_LISTA);
+    el.innerHTML = `
+        <div style="font-size:9px; color:#94a3b8; text-transform:uppercase; font-weight:700; letter-spacing:1px; margin-bottom:8px;">
+            <i class="fas fa-gas-pump"></i> Postos próximos (${postos.length})
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+            ${top.map((p, i) => `
+                <div onclick="focarPosto(${i})" style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:8px 10px; cursor:pointer;">
+                    <div style="width:26px; height:26px; flex:0 0 26px; border-radius:50%; background:rgba(0,242,255,0.12); border:1px solid rgba(0,242,255,0.3); display:flex; align-items:center; justify-content:center;">
+                        <i class="fas fa-gas-pump" style="color:var(--accent); font-size:10px;"></i>
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(p.nome)}</div>
+                        <div style="font-size:9px; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(p.endereco || p.marca || 'Endereço não informado')}</div>
+                    </div>
+                    <div style="font-size:10px; font-weight:700; color:var(--accent); flex:0 0 auto;">${formatarDistancia(p.dist)}</div>
+                </div>`).join('')}
+        </div>
+        ${postos.length > top.length ? `<div style="font-size:9px; color:#64748b; text-align:center; margin-top:6px;">+${postos.length - top.length} postos no mapa</div>` : ''}
+        <div style="font-size:8px; color:#475569; text-align:center; margin-top:6px;">Dados © OpenStreetMap (Overpass API)</div>`;
+}
+
+function desenharPostos(lista) {
+    if (!mapa) return;
+    postosMarkers.forEach(m => mapa.removeLayer(m));
+    postosMarkers = [];
+    lista.forEach(p => { try { desenharMarcadorPosto(p); } catch (e) {} });
+    ajustarVisaoMapa();
+}
+
+// `forcar = true` ignora o cache e refaz a consulta (botão/troca de raio).
+function carregarPostosProximos(forcar) {
+    if (postosCarregando) return;
+    const el = document.getElementById('postos-info');
+    const raioSel = document.getElementById('sel-raio-postos');
+    const raio = parseInt(raioSel && raioSel.value, 10) || 5000;
+
+    if (!navigator.geolocation) {
+        if (el) el.innerHTML = `<div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">Este navegador não dá acesso à localização.</div>`;
+        return;
+    }
+
+    postosCarregando = true;
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const chaveArea = `${lat.toFixed(3)},${lng.toFixed(3)},${raio}`;
+
+        posicionarUsuario(lat, lng);
+
+        // Já temos esse raio na tela? Só reenquadra, sem nova consulta.
+        if (!forcar && postosCarregadoPara === chaveArea && postosProximos.length) {
+            postosCarregando = false;
+            ajustarVisaoMapa();
+            return;
+        }
+
+        const chave = chaveCachePostos(lat, lng, raio);
+        const cache = cacheGet(chave);
+        let postos = null;
+
+        if (!forcar && cache && (Date.now() - (cache.ts || 0)) < POSTOS_CACHE_TTL_MS) {
+            postos = cache.postos;
+        }
+        if (!postos) {
+            if (el) el.innerHTML = `<div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;"><i class="fas fa-spinner fa-spin"></i> Buscando postos por perto...</div>`;
+            try {
+                postos = await buscarPostosOverpass(lat, lng, raio);
+                cacheSet(chave, { ts: Date.now(), postos });
+            } catch (e) {
+                postosCarregando = false;
+                if (cache && cache.postos) {
+                    postos = cache.postos;
+                } else {
+                    if (el) el.innerHTML = `
+                        <div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">
+                            <i class="fas fa-triangle-exclamation" style="color:var(--warning);"></i> Não foi possível buscar os postos agora.
+                            <div style="font-size:9px; margin-top:4px;">Verifique a internet e tente de novo.</div>
+                            <button class="btn-main" onclick="carregarPostosProximos(true)" style="font-size:10px; padding:6px 12px; margin-top:8px;">Tentar de novo</button>
+                        </div>`;
+                    return;
+                }
+            }
+        }
+
+        postos.sort((a, b) => a.dist - b.dist);
+        postosProximos = postos.slice(0, POSTOS_MAX_MAPA);
+        postosCarregadoPara = chaveArea;
+        desenharPostos(postosProximos);
+        renderizarListaPostos(postosProximos);
+        postosCarregando = false;
+    }, () => {
+        postosCarregando = false;
+        if (el) el.innerHTML = `
+            <div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">
+                <i class="fas fa-location-dot" style="opacity:0.5;"></i> Permita o acesso à localização para ver os postos próximos.
+                <div style="margin-top:8px;"><button class="btn-main" onclick="carregarPostosProximos(true)" style="font-size:10px; padding:6px 12px;">Tentar de novo</button></div>
+            </div>`;
+        if (!postosAvisoGeoMostrado) {
+            postosAvisoGeoMostrado = true;
+            showToast('Ative a localização para ver os postos próximos.', 'warning');
+        }
+    }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 120000 });
 }
