@@ -24,7 +24,7 @@ Refresh path antes de usar git: `$env:Path = [System.Environment]::GetEnvironmen
 
 - App 100% client-side (HTML/CSS/JS), sem servidor — roda via `index.html`
 - Hospedado no GitHub Pages (branch `main`)
-- CDN: Font Awesome, jsPDF 2.5.1, html2canvas 1.4.1
+- CDN: Font Awesome 6.4.0, Leaflet 1.9.4, jsPDF 2.5.1 — todos com SRI (`integrity` + `crossorigin`) e `defer` nos scripts; `html2canvas` foi removido (não era usado)
 - Scripts: `logger.js` -> `obd2.js` -> `ui.js` -> `drive-sync.js`
 
 ### Arquivos principais

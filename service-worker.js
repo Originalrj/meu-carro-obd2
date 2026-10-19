@@ -1,4 +1,4 @@
-const CACHE_NAME = 'autogestaox-v7';
+const CACHE_NAME = 'autogestaox-v8';
 const ASSETS = [
     './',
     './index.html',
@@ -10,7 +10,14 @@ const ASSETS = [
     './manifest.json',
     './icons/icon-192.png',
     './icons/icon-512.png',
-    './icons/icon-maskable-512.png'
+    './icons/icon-maskable-512.png',
+    // CDN: precacheadas para a 1ª visita já renderizar ícones e mapa sem rede.
+    // Só entram aqui porque index.html agora envia crossorigin="anonymous"
+    // (CORS), sem o qual a resposta seria opaca e recusada pelo fetch/cache.
+    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
 
 self.addEventListener('install', (event) => {

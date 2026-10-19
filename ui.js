@@ -2517,6 +2517,19 @@ function exportarRelatorioPDF() {
     doc.save(nomeArquivo);
 }
 
+// Escapa um campo para CSV: fecha aspas internas e neutraliza "CSV injection"
+// (um valor começando por =, +, @, tab ou CR vira fórmula executável no Excel/
+// LibreOffice quando o arquivo é aberto). O '-' só é prefixado quando não for
+// número, para não quebrar valores negativos como -12,50.
+function escapeCsv(valor) {
+    let s = (valor === null || valor === undefined) ? '' : String(valor);
+    s = s.replace(/"/g, '""');
+    if (/^[=+@\t\r]/.test(s) || (/^-/.test(s) && !/^-\d/.test(s))) {
+        s = "'" + s;
+    }
+    return `"${s}"`;
+}
+
 function exportarCSV() {
     if (registrosManutencao.length === 0 && abastecimentos.length === 0) {
         showToast("Nenhum registro para exportar.", "warning");
@@ -2532,28 +2545,28 @@ function exportarCSV() {
     if (v) {
         csvParts.push('--- DADOS DO VEICULO ---');
         csvParts.push('Campo,Valor');
-        csvParts.push(`Marca,"${v.marca || ''}"`);
-        csvParts.push(`Modelo,"${v.modelo || ''}"`);
-        csvParts.push(`Ano,"${v.ano || ''}"`);
-        csvParts.push(`Placa,"${v.placa || ''}"`);
-        csvParts.push(`VIN,"${v.vin || ''}"`);
-        csvParts.push(`Motor,"${v.motor || ''}"`);
-        csvParts.push(`KM Atual,"${v.km || ''}"`);
-        csvParts.push(`Tanque (L),"${v.tanqueCapacidade || ''}"`);
-        csvParts.push(`Km/dia,"${v.mediaDiaria || ''}"`);
+        csvParts.push('Marca,' + escapeCsv(v.marca));
+        csvParts.push('Modelo,' + escapeCsv(v.modelo));
+        csvParts.push('Ano,' + escapeCsv(v.ano));
+        csvParts.push('Placa,' + escapeCsv(v.placa));
+        csvParts.push('VIN,' + escapeCsv(v.vin));
+        csvParts.push('Motor,' + escapeCsv(v.motor));
+        csvParts.push('KM Atual,' + escapeCsv(v.km));
+        csvParts.push('Tanque (L),' + escapeCsv(v.tanqueCapacidade));
+        csvParts.push('Km/dia,' + escapeCsv(v.mediaDiaria));
         csvParts.push('');
     }
 
     if (registrosManutencao.length > 0) {
         csvParts.push('--- MANUTENCAO ---');
         const mHeaders = ["Data", "Sistema", "Item", "Marca/Peça", "Oficina", "KM", "Custo Peça (R$)", "Mão de Obra (R$)", "Total (R$)", "Notas"];
-        csvParts.push(mHeaders.map(h => `"${h}"`).join(','));
+        csvParts.push(mHeaders.map(escapeCsv).join(','));
         registrosManutencao.forEach(r => {
             csvParts.push([
-                r.data || '', r.sistema || '', r.item || '', r.marca || '', r.oficina || '', r.km || '',
+                r.data, r.sistema, r.item, r.marca, r.oficina, r.km,
                 (r.custoPeca || 0).toFixed(2), (r.custoMao || 0).toFixed(2),
-                ((r.custoPeca || 0) + (r.custoMao || 0)).toFixed(2), (r.notas || '').replace(/"/g, '""')
-            ].map(c => `"${c}"`).join(','));
+                ((r.custoPeca || 0) + (r.custoMao || 0)).toFixed(2), r.notas
+            ].map(escapeCsv).join(','));
         });
         csvParts.push('');
     }
@@ -2561,14 +2574,14 @@ function exportarCSV() {
     if (abastecimentos.length > 0) {
         csvParts.push('--- ABASTECIMENTOS ---');
         const aHeaders = ["Data", "KM", "Litros", "Preço/L (R$)", "Custo Total (R$)", "Posto", "Nivel Antes (%)", "Nivel Depois (%)"];
-        csvParts.push(aHeaders.map(h => `"${h}"`).join(','));
+        csvParts.push(aHeaders.map(escapeCsv).join(','));
         const ordenado = [...abastecimentos].sort((a, b) => b.km - a.km);
         ordenado.forEach(a => {
             csvParts.push([
-                a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '', a.km || '', a.litros || '',
+                a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '', a.km, a.litros,
                 a.precoLitro ? a.precoLitro.toFixed(2) : '', a.custoTotal ? a.custoTotal.toFixed(2) : '',
-                a.posto || '', a.nivelAntes || '', a.nivelDepois || ''
-            ].map(c => `"${c}"`).join(','));
+                a.posto, a.nivelAntes, a.nivelDepois
+            ].map(escapeCsv).join(','));
         });
     }
 
@@ -2999,10 +3012,23 @@ let mapa = null;
 let mapaMarkers = [];
 let mapaInicializado = false;
 
+// O Leaflet vem de CDN com `defer`: se a 1ª visita for offline (ou o unpkg
+// cair), `L` não existe e o módulo inteiro lançaria ReferenceError. Aqui
+// degradamos com um aviso em vez de quebrar a navegação.
+let mapaIndisponivelAvisado = false;
+
 function inicializarMapa() {
     if (mapaInicializado) return;
     const container = document.getElementById('mapa-container');
     if (!container) return;
+
+    if (typeof L === 'undefined' || typeof L.map !== 'function') {
+        if (!mapaIndisponivelAvisado) {
+            mapaIndisponivelAvisado = true;
+            showToast('Mapa indisponível: o Leaflet não foi carregado (sem internet na primeira visita).', 'warning');
+        }
+        return;
+    }
 
     mapa = L.map('mapa-container', {
         zoomControl: false,

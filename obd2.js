@@ -1240,6 +1240,7 @@ function onBleDisconnect() {
         return;
     }
     console.log("Dispositivo Bluetooth desconectado.");
+    flushKmPendente();
     const manual = _desconexaoManual;
     _desconexaoManual = false;
     const estavaConectado = (tipoConexao !== null) || !modoSimulacao;
@@ -1874,6 +1875,48 @@ function gerarHtmlErroTorque(codigo) {
     return html;
 }
 
+// Persistência do odômetro — CAMINHO QUENTE.
+// A cada resposta do PID 01 A6 (~1x/s com a leitura rodando) o código antigo
+// fazia localStorage.setItem("car_km") E regravava o JSON completo dos veículos
+// (stringify de tudo + 2 escritas síncronas) sem nenhuma checagem. Aqui só
+// gravamos quando o valor muda, e ainda assim limitado a 1x/15s, porque a
+// leitura continua subindo enquanto o carro anda. O valor que ficou de fora do
+// throttle é mantido em _kmPendente e gravado em flushKmPendente(), chamado
+// quando a conexão cai — assim não se perde odômetro ao sair do carro.
+const KM_GRAVACAO_MIN_MS = 15000;
+let _kmPersistido = null;
+let _kmPendente = null;
+let _kmUltimaGravacao = 0;
+
+function flushKmPendente() {
+    if (_kmPendente === null) return;
+    const km = _kmPendente;
+    _kmPendente = null;
+    _kmPersistido = km;
+    _kmUltimaGravacao = Date.now();
+
+    try { localStorage.setItem("car_km", km); } catch (e) {}
+    if (typeof getVeiculos === 'function' && typeof salvarVeiculos === 'function') {
+        try {
+            const vehicles = getVeiculos();
+            const idx = getIdxAtivo();
+            if (vehicles[idx]) {
+                vehicles[idx].km = km;
+                salvarVeiculos(vehicles);
+            }
+        } catch (e) {}
+    }
+}
+
+function persistirKmLido(kmNovo) {
+    if (!kmNovo) return;
+    if (kmNovo === _kmPersistido) return;
+    _kmPendente = kmNovo;
+    const agora = Date.now();
+    if (_kmPersistido !== null && (agora - _kmUltimaGravacao) < KM_GRAVACAO_MIN_MS) return;
+    flushKmPendente();
+}
+
 function parseObdResponse(response, pidCtx) {
     // Normalize: handle both BLE (\r\r>) and Serial (\r\n>) terminators
     let normalized = response.replace(/\r\r?>/g, '\n').replace(/\r/g, '\n');
@@ -2012,15 +2055,7 @@ function parseObdResponse(response, pidCtx) {
                 let odoReal = ((parseInt(match[1], 16) * 16777216) + (parseInt(match[2], 16) * 65536) + (parseInt(match[3], 16) * 256) + parseInt(match[4], 16)) / 10;
                 const odoEl = document.getElementById('txt-odometro');
                 if (odoEl) odoEl.innerHTML = odoReal.toLocaleString() + ' <span style="font-size: 0.9rem; color: #aaa;">KM</span>';
-                localStorage.setItem("car_km", Math.round(odoReal));
-                if (typeof getVeiculos === 'function') {
-                    const vehicles = getVeiculos();
-                    const idx = getIdxAtivo();
-                    if (vehicles[idx]) {
-                        vehicles[idx].km = Math.round(odoReal);
-                        salvarVeiculos(vehicles);
-                    }
-                }
+                persistirKmLido(Math.round(odoReal));
             }
         }
 
