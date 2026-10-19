@@ -1,4 +1,4 @@
-const CACHE_NAME = 'autogestaox-v6';
+const CACHE_NAME = 'autogestaox-v7';
 const ASSETS = [
     './',
     './index.html',
@@ -7,7 +7,10 @@ const ASSETS = [
     './logger.js',
     './anomaly-db.js',
     './style.css',
-    './manifest.json'
+    './manifest.json',
+    './icons/icon-192.png',
+    './icons/icon-512.png',
+    './icons/icon-maskable-512.png'
 ];
 
 self.addEventListener('install', (event) => {

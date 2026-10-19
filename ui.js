@@ -162,11 +162,11 @@ function renderizarRecentes() {
                 <i class="fas fa-car" style="color:${isActive?'var(--accent)':'#64748b'};font-size:12px;"></i>
             </div>
             <div style="flex:1;min-width:0;">
-                <div style="font-size:11px;font-weight:700;color:${isActive?'var(--accent)':'var(--text)'};text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>
-                <div style="font-size:9px;color:#64748b;">${displayAno} ${displayPlaca}${!v.marca ? ' · <span style="color:var(--accent);">incompleto</span>' : ''}</div>
+                <div style="font-size:11px;font-weight:700;color:${isActive?'var(--accent)':'var(--text)'};text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(displayName)}</div>
+                <div style="font-size:9px;color:#64748b;">${escapeHtml(displayAno)} ${escapeHtml(displayPlaca)}${!v.marca ? ' · <span style="color:var(--accent);">incompleto</span>' : ''}</div>
             </div>
             ${isActive ? '<div style="font-size:8px;color:var(--accent);font-weight:700;">ATIVO</div>' : ''}
-            <button onclick="event.stopPropagation(); excluirVeiculoRecente(${idx})" style="background:none;border:none;color:#64748b;cursor:pointer;padding:4px;border-radius:4px;font-size:10px;opacity:0.6;transition:all 0.2s;" title="Excluir ${displayName}" onmouseenter="this.style.color='var(--danger)';this.style.opacity='1'" onmouseleave="this.style.color='#64748b';this.style.opacity='0.6'">
+            <button onclick="event.stopPropagation(); excluirVeiculoRecente(${idx})" style="background:none;border:none;color:#64748b;cursor:pointer;padding:4px;border-radius:4px;font-size:10px;opacity:0.6;transition:all 0.2s;" title="Excluir ${escapeHtml(displayName)}" onmouseenter="this.style.color='var(--danger)';this.style.opacity='1'" onmouseleave="this.style.color='#64748b';this.style.opacity='0.6'">
                 <i class="fas fa-times"></i>
             </button>
         `;
@@ -536,7 +536,7 @@ function popularSelectorVeiculos() {
         const nome = (v.marca || v.modelo)
             ? `${v.marca || ''} ${v.modelo || ''} ${v.ano || ''}`.trim()
             : (v.placa ? v.placa : `Veículo ${i + 1} (incompleto)`);
-        return `<option value="${v.id}" ${i === idx ? 'selected' : ''}>${nome}</option>`;
+        return `<option value="${escapeHtml(v.id)}" ${i === idx ? 'selected' : ''}>${escapeHtml(nome)}</option>`;
     }).join('');
 }
 
@@ -1058,9 +1058,9 @@ async function onModeloChange() {
         const codigoFipe = dados.CodigoFipe || '';
         fipeInfo.innerHTML = `
             <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                ${valor ? `<span style="font-size:11px; color:var(--success); font-weight:700;"><i class="fas fa-tag"></i> ${valor}</span>` : ''}
-                ${combustivel ? `<span style="font-size:10px; color:#94a3b8;"><i class="fas fa-gas-pump"></i> ${combustivel}</span>` : ''}
-                ${codigoFipe ? `<span style="font-size:9px; color:#64748b;">FIPE: ${codigoFipe}</span>` : ''}
+                ${valor ? `<span style="font-size:11px; color:var(--success); font-weight:700;"><i class="fas fa-tag"></i> ${escapeHtml(valor)}</span>` : ''}
+                ${combustivel ? `<span style="font-size:10px; color:#94a3b8;"><i class="fas fa-gas-pump"></i> ${escapeHtml(combustivel)}</span>` : ''}
+                ${codigoFipe ? `<span style="font-size:9px; color:#64748b;">FIPE: ${escapeHtml(codigoFipe)}</span>` : ''}
             </div>
         `;
         fipeInfo.classList.remove('hidden');
@@ -1380,7 +1380,7 @@ function renderizarSaudeVeiculo() {
             card.onclick = () => registrarTrocaItem(catalogo.nome, catalogo.categoria);
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                    <strong style="font-size:13px; color:#fff;">${catalogo.nome}</strong>
+                    <strong style="font-size:13px; color:#fff;">${escapeHtml(catalogo.nome)}</strong>
                     <span style="color:var(--accent); font-weight:700; font-size:10px; text-transform:uppercase;">Original de fábrica</span>
                 </div>
                 <div style="font-size:9px; color:#64748b;">Nenhum serviço registrado. Clique para registrar troca.</div>
@@ -1421,7 +1421,7 @@ function renderizarSaudeVeiculo() {
         card.onclick = () => registrarTrocaItem(catalogo.nome, catalogo.categoria);
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <strong style="font-size:13px; color:#fff;">${catalogo.nome}</strong>
+                <strong style="font-size:13px; color:#fff;">${escapeHtml(catalogo.nome)}</strong>
                 <span style="color:${cor}; font-weight:900; font-size:12px;">${pct.toFixed(0)}%</span>
             </div>
             <div style="width:100%; background:rgba(255,255,255,0.05); height:6px; border-radius:3px; overflow:hidden;">
@@ -1583,7 +1583,7 @@ function renderizarDashboardGastos() {
             const pct = (valor / totalGasto) * 100;
             html += `
                 <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                    <span style="font-size:9px; color:#94a3b8; width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sistema}</span>
+                    <span style="font-size:9px; color:#94a3b8; width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(sistema)}</span>
                     <div style="flex:1; background:rgba(255,255,255,0.05); height:12px; border-radius:6px; overflow:hidden;">
                         <div style="width:${pct}%; background:var(--warning); height:100%; transition:0.5s;"></div>
                     </div>
@@ -1655,7 +1655,7 @@ function renderizarAbastecimentos() {
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; margin-bottom:6px; background:rgba(255,255,255,0.03); border-radius:8px; border-left:3px solid var(--accent);">
                             <div>
                                 <div style="font-size:11px; font-weight:700; color:#fff;">${dataFmt} — ${a.litros || '?'}L${a.precoLitro ? ' — R$ ' + a.precoLitro.toFixed(2) + '/L' : ''}${a.custoTotal ? ' (R$ ' + a.custoTotal.toFixed(2) + ')' : ''}</div>
-                                <div style="font-size:9px; color:#94a3b8;">${a.km?.toLocaleString()} KM${a.posto ? ' — ' + a.posto : ''}</div>
+                                <div style="font-size:9px; color:#94a3b8;">${a.km?.toLocaleString()} KM${a.posto ? ' — ' + escapeHtml(a.posto) : ''}</div>
                                 ${kmLitroAbast ? `<div style="font-size:9px; color:var(--success);">${kmLitroAbast} km/L</div>` : ''}
                             </div>
                             <div style="display:flex; gap:6px;">
@@ -1680,7 +1680,7 @@ function renderizarAbastecimentos() {
                     <div style="padding:12px; margin-bottom:8px; background:rgba(255,255,255,0.03); border-radius:8px; border-left:4px solid ${cor};">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <div>
-                                <div style="font-size:12px; font-weight:700; color:#fff;">${p.nome}${badge}</div>
+                                <div style="font-size:12px; font-weight:700; color:#fff;">${escapeHtml(p.nome)}${badge}</div>
                                 <div style="font-size:9px; color:#94a3b8;">${p.abastecimentos} abast. — LTFT: ±${p.mediaFuelTrim}% — O₂ osc: ${p.mediaOscilacaoO2 || 0} — MAP: ${p.mediaMAP || 0} kPa</div>
                             </div>
                             <div style="text-align:center;">
@@ -1768,8 +1768,8 @@ function renderizarAlertasManutencao() {
         html += `
             <div class="glass-card" style="padding:10px 14px; margin-bottom:8px; border-left:4px solid ${a.cor};">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:12px; font-weight:700; color:#fff;">${a.nome}</span>
-                    <span style="font-size:10px; font-weight:800; color:${a.cor};">${a.msg}</span>
+                    <span style="font-size:12px; font-weight:700; color:#fff;">${escapeHtml(a.nome)}</span>
+                    <span style="font-size:10px; font-weight:800; color:${a.cor};">${escapeHtml(a.msg)}</span>
                 </div>
             </div>
         `;
@@ -1884,7 +1884,7 @@ function renderizarHistoricoManutencao() {
         const total = custoPeca + custoMao;
         return `
         <tr>
-            <td>${r.item || '--'}</td>
+            <td>${escapeHtml(r.item) || '--'}</td>
             <td>${(r.km || 0).toLocaleString()} KM</td>
             <td>${formatarDataBR(r.data)}</td>
             <td>${custoPeca > 0 ? 'R$ ' + custoPeca.toFixed(2) : '--'}</td>
@@ -2764,7 +2764,7 @@ function renderizarCatalogoInteligente() {
 
     let html = `
         <div style="font-size:11px; color:#94a3b8; margin-bottom:5px; text-transform:uppercase;">
-            PEÇAS COMPATÍVEIS${marca ? `: <strong style="color:var(--accent);">${marca} ${modelo}</strong>` : ''}
+            PEÇAS COMPATÍVEIS${marca ? `: <strong style="color:var(--accent);">${escapeHtml(marca)} ${escapeHtml(modelo)}</strong>` : ''}
         </div>
         <div style="display:flex; gap:6px; margin-bottom:12px; overflow-x:auto; padding-bottom:8px; flex-wrap:nowrap;">
             ${Object.entries(BANCO_PECAS).map(([key, cat]) => `<button class="tab-btn ${categoria === key ? 'active' : ''}" onclick="mudarCategoriaCatalogo('${key}')" style="font-size:9px; padding:6px 10px; min-width:70px; white-space:nowrap;">${cat.label}</button>`).join('')}
@@ -2825,12 +2825,12 @@ function renderizarCatalogoInteligente() {
                         <span style="font-size:9px; color:var(--accent); text-transform:uppercase;">Vida útil: ${peca.vidaUtilKm > 0 ? peca.vidaUtilKm.toLocaleString() + ' km' : (peca.vidaUtilMeses ? peca.vidaUtilMeses + ' meses' : '--')}</span>
                         ${badgeUrgencia}
                     </div>
-                    <strong style="font-size:13px; color:#fff;">${peca.nome}</strong>
+                    <strong style="font-size:13px; color:#fff;">${escapeHtml(peca.nome)}</strong>
                     <span style="display:block; font-size:10px; color:${status.vencida ? 'var(--danger)' : status.proxima ? 'var(--warning)' : '#94a3b8'}; margin-top:2px;">${kmLabel}</span>
                 </div>
                 <div style="display:flex; gap:8px; align-items:center;">
                     <a href="${urlML}" target="_blank" class="btn-main" style="width:auto; padding:8px 10px; font-size:9px; text-decoration:none; display:inline-block;">VER PREÇO</a>
-                    <button class="btn-main" ${jaNaLista ? 'disabled style="width:32px;height:32px;padding:0;font-size:14px;background:rgba(34,197,94,0.1);color:var(--success);border:1px solid var(--success);opacity:0.5;cursor:default;"' : 'style="width:32px;height:32px;padding:0;font-size:14px;background:rgba(0,242,255,0.1);color:var(--accent);border:1px solid var(--accent);" onclick="adicionarPecaComPreco(\'' + peca.nome.replace(/'/g, "\\'") + '\', \'' + (peca.prioridade || 'Média') + '\')"'}>
+                    <button class="btn-main" data-peca="${escapeHtml(peca.nome)}" data-prioridade="${escapeHtml(peca.prioridade || 'Média')}" ${jaNaLista ? 'disabled style="width:32px;height:32px;padding:0;font-size:14px;background:rgba(34,197,94,0.1);color:var(--success);border:1px solid var(--success);opacity:0.5;cursor:default;"' : 'style="width:32px;height:32px;padding:0;font-size:14px;background:rgba(0,242,255,0.1);color:var(--accent);border:1px solid var(--accent);" onclick="adicionarPecaComPreco(this.dataset.peca, this.dataset.prioridade)"'}>
                         ${jaNaLista ? '<i class="fas fa-check"></i>' : '+'}
                     </button>
                 </div>
@@ -2899,9 +2899,9 @@ function renderizarPlanoNecessidades() {
             <div class="glass-card" style="border-left: 4px solid ${corAlerta}; padding: 14px; margin-bottom: 10px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
                     <div>
-                        <span style="background: ${corAlerta}; color: #000; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 3px; text-transform: uppercase;">${item.prioridade}</span>
-                        <strong style="font-size: 14px; color: #fff; display: block; margin-top: 4px;">${item.nome}</strong>
-                        <span style="font-size: 10px; color: #94a3b8; display: block; margin-top: 2px;">${item.motivo}</span>
+                        <span style="background: ${corAlerta}; color: #000; font-size: 8px; font-weight: 900; padding: 2px 6px; border-radius: 3px; text-transform: uppercase;">${escapeHtml(item.prioridade)}</span>
+                        <strong style="font-size: 14px; color: #fff; display: block; margin-top: 4px;">${escapeHtml(item.nome)}</strong>
+                        <span style="font-size: 10px; color: #94a3b8; display: block; margin-top: 2px;">${escapeHtml(item.motivo)}</span>
                     </div>
                     <div style="display:flex; gap:6px; align-items:center;">
                         <button style="background:none; border:none; color:#475569; cursor:pointer; font-size:12px;" onclick="editarPrecoPeca(${index})" title="Editar preço"><i class="fas fa-tag"></i></button>
@@ -3052,7 +3052,7 @@ function renderizarMapaAbastecimentos() {
         const data = new Date(a.data).toLocaleDateString('pt-BR');
         const popup = `
             <div style="font-family:sans-serif; min-width:150px;">
-                <div style="font-weight:700; font-size:13px; margin-bottom:4px;">${a.posto || 'Posto não informado'}</div>
+                <div style="font-weight:700; font-size:13px; margin-bottom:4px;">${escapeHtml(a.posto) || 'Posto não informado'}</div>
                 <div style="font-size:11px; color:#666;">${data} — ${a.litros}L</div>
                 ${a.custoTotal ? `<div style="font-size:11px; color:#666;">R$ ${a.custoTotal.toFixed(2)}</div>` : ''}
                 <div style="font-size:10px; color:#999; margin-top:4px;">${(a.km || 0).toLocaleString('pt-BR')} km</div>
