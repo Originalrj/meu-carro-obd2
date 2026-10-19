@@ -1636,6 +1636,10 @@ const obterSubsistemaDTC = (codigo) => {
     if (char === '5') return 'Controle de Velocidade e Marcha Lenta';
     if (char === '6') return 'Módulo de Controle do Computador (ECU/PCM)';
     if (['7', '8', '9'].includes(char)) return 'Transmissão / Caixa de Câmbio';
+    // Na SAE J2012 a 3ª posição também pode ser uma LETRA (A-F). A faixa
+    // P0Axx-P0Fxx é reservada à tração elétrica, então não existe em carro
+    // só a combustão. Antes isto caía em "Subsistema não identificado".
+    if (/[A-F]/.test(char)) return 'Tração elétrica / Bateria de alta tensão (híbrido ou elétrico)';
     return 'Subsistema não identificado';
 };
 
@@ -1643,6 +1647,102 @@ function decodeDTC(hexPair) {
     const firstDigit = hexPair[0];
     const prefixes = ["P0", "P1", "P2", "P3", "C0", "C1", "C2", "C3", "B0", "B1", "B2", "B3", "U0", "U1", "U2", "U3"];
     return prefixes[parseInt(firstDigit, 16)] + hexPair.substring(1);
+}
+
+// ---------------------------------------------------------------------------
+// Leitura de DTCs do modo 03 (SAE J1979)
+//
+// O formato é "43" seguido de pares de bytes (1 alto + 1 baixo por código).
+// Dois detalhes fazem adaptadores baratos entregarem lixo:
+//   1. alguns ECUs mandam um byte de CONTAGEM antes dos pares;
+//   2. a resposta vem preenchida com padding 0x00 no fim.
+// A versão anterior usava `line.includes("43")` (casava com qualquer frame
+// contendo "43", ex.: 41 43) e um chute `line.includes("43 01")` que fazia
+// P0133 virar P3300. Agora o alinhamento é decidido por auto-consistência
+// entre o byte de contagem e o número de pares.
+// ---------------------------------------------------------------------------
+function extrairDTCsDaLinha(line) {
+    const tokens = String(line).trim().split(/\s+/).filter(t => /^[0-9A-Fa-f]{2}$/.test(t));
+    if (!tokens.length || tokens[0].toUpperCase() !== '43') return [];
+
+    const bytes = tokens.slice(1);
+
+    // Alguns ECUs mandam 1 byte de CONTAGEM antes dos pares. Só aceitamos essa
+    // leitura quando ela é auto-consistente: o nº de bytes restantes é par e o
+    // 1º byte diz exatamente quantos códigos vêm depois. Assim nunca
+    // confundimos padding (ou um DTC terminado em 00, ex.: P0300) com contagem.
+    let offset = 0;
+    if (bytes.length >= 3 && (bytes.length - 1) % 2 === 0) {
+        const contagem = parseInt(bytes[0], 16);
+        if (contagem === (bytes.length - 1) / 2) offset = 1;
+    }
+
+    const codigos = [];
+    for (let i = offset; i + 1 < bytes.length; i += 2) {
+        const codigo = decodeDTC(bytes[i] + bytes[i + 1]);
+        if (/^[PCBU][0-3]0{3}$/.test(codigo)) continue;   // P0000/B0000/... = "sem falha"
+        if (codigos.indexOf(codigo) >= 0) continue;        // dedupe
+        codigos.push(codigo);
+    }
+    return codigos;
+}
+
+// ---------------------------------------------------------------------------
+// Compatibilidade DTC x veículo
+// ---------------------------------------------------------------------------
+const COMBUSTIVEIS_VALIDOS = ['Gasolina', 'Etanol', 'Flex', 'Diesel', 'GNV', 'Híbrido', 'Elétrico'];
+
+// Normaliza o que a FIPE devolve ("Flex", "Álcool/Gasolina", "Híbrido"...) e o
+// que o usuário escolhe no formulário para um dos valores canônicos.
+function normalizarCombustivel(txt) {
+    // Sem acento antes de comparar: "Híbrido"/"híbrido"/"Alcool"/"Álcool".
+    const s = String(txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (!s) return '';
+    const temAlcool = s.includes('lcool') || s.includes('etanol');
+    const temGasolina = s.includes('gasolina');
+    if (s.includes('hibr')) return 'Híbrido';
+    if (s.includes('eletr')) return 'Elétrico';
+    if (s.includes('flex') || (temAlcool && temGasolina)) return 'Flex';
+    if (s.includes('diesel')) return 'Diesel';
+    if (s.includes('gnv')) return 'GNV';
+    if (temAlcool) return 'Etanol';
+    if (temGasolina) return 'Gasolina';
+    return '';
+}
+
+// Faixas de DTC fisicamente impossíveis em veículos sem tração elétrica.
+// SAE J2012: P0Axx = "Hybrid Propulsion"; P0Bxx–P0Fxx = "Reserved by Document".
+// Um código desses num carro a combustão é leitura inválida do adaptador —
+// é o caso do falso P0B43 que apareceu num VW Gol 1.6 flex. A tabela é
+// data-driven para receber novas regras (ex.: faixas exclusivas de diesel).
+const DTC_REGRAS_COMBUSTIVEL = [
+    {
+        teste: /^P0[A-F]/,
+        permitido: ['Híbrido', 'Elétrico'],
+        sistema: 'Tração elétrica / Bateria de alta tensão',
+        motivo: 'faixa reservada a híbridos/elétricos na SAE J2012 (P0Axx–P0Fxx)'
+    }
+];
+
+function dtcCompativelComVeiculo(codigo) {
+    const v = (typeof getVeiculoAtivo === 'function') ? getVeiculoAtivo() : null;
+    const comb = normalizarCombustivel(v && v.combustivel);
+    if (!comb) return { ok: true, semCombustivel: true };
+    for (const regra of DTC_REGRAS_COMBUSTIVEL) {
+        if (!regra.teste.test(codigo)) continue;
+        if (regra.permitido.indexOf(comb) >= 0) return { ok: true };
+        return { ok: false, combustivel: comb, sistema: regra.sistema, motivo: regra.motivo };
+    }
+    return { ok: true };
+}
+
+// Identificação do veículo para o log (sem placa/VIN: privacidade).
+function descreverVeiculoParaLog() {
+    try {
+        const v = (typeof getVeiculoAtivo === 'function') ? getVeiculoAtivo() : null;
+        if (!v) return null;
+        return { marca: v.marca || '', modelo: v.modelo || '', ano: v.ano || '', motor: v.motor || '', combustivel: v.combustivel || '' };
+    } catch (e) { return null; }
 }
 
 // ---------------------------------------------------------------------------
@@ -2020,28 +2120,59 @@ function parseObdResponse(response, pidCtx) {
             }
         }
 
-        if (line.includes("43")) {
+        if (line.startsWith("43")) {
+            // Resposta do modo 03: só aqui existem DTCs de verdade.
+            const codigosDetectados = extrairDTCsDaLinha(line);
+            const compativeis = [];
+            const ocultos = [];
+
+            codigosDetectados.forEach(codigo => {
+                const compat = dtcCompativelComVeiculo(codigo);
+                if (compat.ok) { compativeis.push(codigo); return; }
+                // Código impossível para este veículo: esconde do usuário e
+                // grava no log para avaliação posterior (futuro: enviar ao
+                // nosso banco e melhorar a validação).
+                ocultos.push(codigo);
+                if (typeof AGXLogger !== 'undefined') {
+                    AGXLogger.dtcIncompativel(codigo, {
+                        motivo: compat.motivo,
+                        combustivel: compat.combustivel,
+                        sistema: compat.sistema,
+                        veiculo: descreverVeiculoParaLog(),
+                        respostaCrua: line
+                    });
+                }
+            });
+
+            if (typeof AGXLogger !== 'undefined') {
+                AGXLogger.dtcScan({
+                    respostaCrua: line,
+                    detectados: codigosDetectados,
+                    exibidos: compativeis,
+                    ocultos,
+                    veiculo: descreverVeiculoParaLog()
+                });
+            }
+
             document.getElementById('scan-active').classList.add('hidden');
             const res = document.getElementById('scan-result');
             res.classList.remove('hidden');
             const resContent = document.getElementById('scan-result-content');
 
-            const parts = line.split(" ").filter(p => p.length === 2);
+            if (compativeis.length === 0) {
+                resContent.innerHTML = `<div style="color:var(--success); font-weight:800; font-size:10px; text-transform:uppercase;"><i class="fas fa-check-circle"></i> Nenhum código de falha encontrado na ECU.</div>`;
+                continue;
+            }
+
             let html = `<div style="color:var(--danger); font-weight:800; font-size:10px; margin-bottom:8px; text-transform:uppercase;"><i class="fas fa-exclamation-triangle"></i> Erros Identificados na ECU:</div>`;
-            let startIdx = line.includes("43 01") ? 2 : 1;
 
-            for (let i = startIdx; i < parts.length; i += 2) {
-                const hexPair = parts[i] + (parts[i + 1] || "00");
-                if (hexPair === "0000") continue;
-
-                const codigoDTC = decodeDTC(hexPair);
+            compativeis.forEach(codigoDTC => {
                 html += gerarHtmlErroTorque(codigoDTC);
-
                 if (codigoDTC.startsWith("P030")) {
                     adicionarAosNecessarios('Bobina de Ignição', `Falha ${codigoDTC} Detectada`, 0, 'Crítica', 15);
                     if (codigoDTC === "P0300") adicionarAosNecessarios('Jogo de Velas de Ignição', 'Falha P0300 Detectada', 0, 'Crítica', 15);
                 }
-            }
+            });
 
             html += `<button class="btn-main" style="background:var(--warning); color:#000; font-size:10px; padding:8px 12px; margin-top:8px;" onclick="nav('shop', document.querySelectorAll('.dock-item')[3]); alternarSubAbaPecas('sacola');">Buscar Peças</button>`;
             html += `<button class="btn-main" style="background:var(--danger); color:#fff; font-size:10px; padding:8px 12px; margin-top:8px; margin-left:5px;" onclick="limparDTCs()">🗑 Limpar DTCs</button>`;

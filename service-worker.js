@@ -1,4 +1,4 @@
-const CACHE_NAME = 'autogestaox-v8';
+const CACHE_NAME = 'autogestaox-v9';
 const ASSETS = [
     './',
     './index.html',

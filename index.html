@@ -317,9 +317,24 @@
                         </div>
                     </div>
 
-                    <div style="margin-bottom:12px;">
-                        <label>Motor</label>
-                        <input type="text" id="inp-prof-motor" placeholder="Ex: EA111 1.6 8V, Fire 1.0 8V">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label>Combustível <span id="lbl-combustivel-hint" style="font-weight:400; text-transform:none; letter-spacing:0; color:#64748b;"></span></label>
+                            <select id="inp-prof-combustivel" onchange="confirmarCombustivelManual()">
+                                <option value="">Selecione...</option>
+                                <option>Gasolina</option>
+                                <option>Etanol</option>
+                                <option>Flex</option>
+                                <option>Diesel</option>
+                                <option>GNV</option>
+                                <option>Híbrido</option>
+                                <option>Elétrico</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Motor</label>
+                            <input type="text" id="inp-prof-motor" placeholder="Ex: EA111 1.6 8V, Fire 1.0 8V">
+                        </div>
                     </div>
 
                     <!-- OPERACIONAL -->
@@ -444,6 +459,19 @@
             <div style="margin-bottom:15px;">
                 <label>Código do Motor (Opcional)</label>
                 <input type="text" id="onb-motor" placeholder="Ex: EA111 1.6 8V, Fire 1.0 8V">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label>Combustível (Opcional)</label>
+                <select id="onb-combustivel">
+                    <option value="">Selecione...</option>
+                    <option>Gasolina</option>
+                    <option>Etanol</option>
+                    <option>Flex</option>
+                    <option>Diesel</option>
+                    <option>GNV</option>
+                    <option>Híbrido</option>
+                    <option>Elétrico</option>
+                </select>
             </div>
 
             <button class="btn-main" onclick="concluirOnboarding()">Salvar e Continuar</button>

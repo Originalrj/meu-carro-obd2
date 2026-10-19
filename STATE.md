@@ -182,6 +182,24 @@ ATD -> ATZ -> ATE0 -> ATL0 -> ATS0 -> ATH0 -> ATAT1 -> ATSP0 -> ATST64
 
 ---
 
+## Validacao de DTC por tipo de veiculo
+
+### Parser do modo 03 (`obd2.js` -> `extrairDTCsDaLinha`)
+- Antes: `line.includes("43")` casava com qualquer frame contendo "43" (ex.: `41 43` = carga absoluta) e um chute `line.includes("43 01")` fazia **P0133 virar P3300**.
+- Agora: exige o 1o token exatamente `43`; aceita o byte de contagem so quando ele e auto-consistente com o numero de pares; descarta padding `00` e codigos `P0000`; faz dedupe.
+
+### Combustivel no perfil
+- Campo `combustivel` no veiculo (Gasolina/Etanol/Flex/Diesel/GNV/Hibrido/Eletrico).
+- Preenchido automaticamente pela FIPE em `onModeloChange` e **editavel** no formulario (o usuario pode corrigir a FIPE).
+- Select tambem no onboarding (`onb-combustivel`).
+
+### Compatibilidade DTC x veiculo
+- Tabela `DTC_REGRAS_COMBUSTIVEL`: a faixa `P0Axx`-`P0Fxx` (SAE J2012) so existe em hibrido/eletrico.
+- Codigo impossivel para o veiculo e **ocultado do usuario** e gravado no log (`AGXLogger.dtcIncompativel` + `AGXLogger.dtcScan`) para avaliacao posterior (futuro: enviar ao banco do time).
+- Sem combustivel informado => nao esconde (fail-open), para nao perder codigo real.
+
+---
+
 ## APIs e servicos
 
 ### Funcionando

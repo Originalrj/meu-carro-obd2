@@ -141,6 +141,8 @@ const AGXLogger = {
     elmError(cmd, error) { this.log('ELM_ERROR', `${cmd} falhou: ${error}`, { cmd, error }); },
     sensorReadings(data) { this.log('SENSOR', 'Leitura de sensores', data); },
     userAction(action, detail) { this.log('USER', action, detail); },
+    dtcScan(detail) { this.log('DTC_SCAN', 'Varredura de DTCs (modo 03)', detail); },
+    dtcIncompativel(codigo, detail) { this.log('DTC_INCOMPATIVEL', `DTC ${codigo} ocultado (incompativel com o veiculo)`, detail); },
     funcCall(funcName, result) { this.log('FUNC', funcName, result); },
     error(funcName, errorMsg, stack) { this.log('ERROR', `${funcName}: ${errorMsg}`, { stack }); }
 };

@@ -11,6 +11,10 @@ let listaNecessidades = [];
 try { listaNecessidades = JSON.parse(localStorage.getItem(chaveV("lista_necessidades")) || "[]") || []; } catch (e) { listaNecessidades = []; }
 let categoriaAtualCatalogo = "filtros";
 let editandoVeiculoId = null;
+// Combustível: vem automático da FIPE, mas o usuário pode corrigir no
+// formulário. `_combustivelManual` evita que trocar o modelo depois
+// apague a escolha manual dele.
+let _combustivelManual = false;
 
 function cacheGet(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
 function cacheSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
@@ -290,6 +294,7 @@ function migrarDadosLegadoSeNecessario() {
         vin: localStorage.getItem("car_vin") || "",
         tanqueCapacidade: localStorage.getItem("car_tanque_capacidade") || "",
         motor: localStorage.getItem("car_motor") || "",
+        combustivel: localStorage.getItem("car_combustivel") || "",
         mediaDiaria: localStorage.getItem("car_media_diaria") || "40"
     };
 
@@ -450,6 +455,11 @@ function editarVeiculoAtivo() {
     if (kmDiaInp) kmDiaInp.value = v.mediaDiaria || "40";
     const motorInp = document.getElementById("inp-prof-motor");
     if (motorInp) motorInp.value = v.motor || "";
+    const combInp = document.getElementById("inp-prof-combustivel");
+    if (combInp) combInp.value = normalizarCombustivel(v.combustivel) || "";
+    _combustivelManual = !!normalizarCombustivel(v.combustivel);
+    const combHint = document.getElementById("lbl-combustivel-hint");
+    if (combHint) combHint.textContent = "";
 
     const form = document.getElementById("card-form-veiculo");
     const txt = document.getElementById("btn-toggle-text");
@@ -466,7 +476,31 @@ function editarVeiculoAtivo() {
     preencherPerfil(v.marca || "", v.modelo || "", v.ano || "");
 }
 
+// Combustível automático pela FIPE (o usuário pode corrigir depois — ver
+// confirmarCombustivelManual). Não sobrescreve uma escolha manual.
+function aplicarCombustivelFipe(valorFipe) {
+    const sel = document.getElementById('inp-prof-combustivel');
+    const hint = document.getElementById('lbl-combustivel-hint');
+    if (!sel) return;
+    const norm = normalizarCombustivel(valorFipe);
+    if (!norm) return;
+    if (_combustivelManual && sel.value) return;
+    sel.value = norm;
+    if (hint) hint.textContent = '(auto pela FIPE)';
+}
+
+function confirmarCombustivelManual() {
+    _combustivelManual = true;
+    const hint = document.getElementById('lbl-combustivel-hint');
+    if (hint) hint.textContent = '';
+}
+
 function limparFormularioVeiculo() {
+    _combustivelManual = false;
+    const combSel = document.getElementById('inp-prof-combustivel');
+    if (combSel) combSel.value = "";
+    const combHint = document.getElementById('lbl-combustivel-hint');
+    if (combHint) combHint.textContent = "";
     document.getElementById("inp-prof-km").value = "";
     document.getElementById("inp-prof-marca").value = "";
     const placaInp = document.getElementById("inp-prof-placa");
@@ -554,6 +588,7 @@ function sincronizarLegado() {
     localStorage.setItem("car_media_diaria", v.mediaDiaria || "40");
     localStorage.setItem("car_ultima_data", new Date().toISOString());
     localStorage.setItem("car_motor", v.motor || "");
+    localStorage.setItem("car_combustivel", v.combustivel || "");
 }
 
 // ==========================================
@@ -1052,6 +1087,8 @@ async function onModeloChange() {
         } catch { continue; }
     }
 
+    if (dados && dados.Combustivel) aplicarCombustivelFipe(dados.Combustivel);
+
     if (fipeInfo && dados && dados.Valor) {
         const combustivel = dados.Combustivel || '';
         const valor = dados.Valor || '';
@@ -1142,7 +1179,8 @@ function concluirOnboarding() {
         vin: vinInput.toUpperCase(),
         tanqueCapacidade: document.getElementById("onb-tanque")?.value || "",
         mediaDiaria: "40",
-        motor: document.getElementById("onb-motor")?.value?.trim() || ""
+        motor: document.getElementById("onb-motor")?.value?.trim() || "",
+        combustivel: normalizarCombustivel(document.getElementById("onb-combustivel")?.value || "") || ""
     };
 
     const vehicles = getVeiculos();
@@ -1940,6 +1978,8 @@ function salvarPerfil() {
     const tanqueInput = document.getElementById("inp-prof-tanque")?.value || "";
     const kmDiaInput = document.getElementById("inp-prof-km-dia")?.value || "40";
     const motorInput = document.getElementById("inp-prof-motor")?.value?.trim() || "";
+    const combSelect = document.getElementById("inp-prof-combustivel");
+    const combustivelInput = combSelect ? combSelect.value : "";
 
     if (!kmInput || kmInput <= 0) {
         showToast("Insira uma quilometragem válida.", "error");
@@ -1965,7 +2005,8 @@ function salvarPerfil() {
         vin: vinInput.toUpperCase(),
         tanqueCapacidade: tanqueInput,
         mediaDiaria: kmDiaInput || "40",
-        motor: motorInput
+        motor: motorInput,
+        combustivel: combustivelInput || ""
     };
 
     const vehicles = getVeiculos();
@@ -1983,6 +2024,7 @@ function salvarPerfil() {
     salvarVeiculos(vehicles);
     sincronizarLegado();
     editandoVeiculoId = null;
+    _combustivelManual = false;
 
     document.getElementById("card-form-veiculo").classList.add("hidden");
     const txtToggle = document.getElementById("btn-toggle-text");
@@ -2119,6 +2161,7 @@ function importarDadosJSON(inputEl) {
                     vin: v.vin || "",
                     tanqueCapacidade: v.tanqueCapacidade || "",
                     motor: v.motor || "",
+                    combustivel: v.combustivel || "",
                     mediaDiaria: v.mediaDiaria || "40"
                 };
                 const vehicles = getVeiculos();
