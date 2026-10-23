@@ -1509,10 +1509,14 @@ function nav(screenId, element) {
 
     if (screenId === 'mapa') {
         setTimeout(() => {
-            inicializarMapa();
-            if (mapa) mapa.invalidateSize();
-            carregarPostosProximos(false);
-        }, 100);
+            if (typeof inicializarMapa === 'function') inicializarMapa();
+            if (mapa) { try { mapa.invalidateSize(); } catch(e){} }
+            // Garante que o Leaflet carregou (defer pode demorar)
+            if (!mapa && typeof L !== 'undefined') {
+                try { inicializarMapa(); if (mapa) mapa.invalidateSize(); } catch(e){}
+            }
+            if (typeof carregarPostosProximos === 'function') carregarPostosProximos(false);
+        }, 150);
     }
 }
 
@@ -3364,84 +3368,162 @@ function renderizarListaPostos(postos) {
 }
 
 function desenharPostos(lista) {
-    if (!mapa) return;
-    postosMarkers.forEach(m => mapa.removeLayer(m));
+    if (!mapa) {
+        // Tenta inicializar o mapa se ainda não foi criado
+        if (typeof inicializarMapa === 'function') {
+            try { inicializarMapa(); } catch(e){}
+        }
+        if (!mapa) {
+            // Se ainda não tem mapa, agenda para desenhar assim que ele ficar pronto
+            if (lista && lista.length) {
+                setTimeout(() => { try { desenharPostos(lista); } catch(e){} }, 800);
+            }
+            return;
+        }
+    }
+    postosMarkers.forEach(m => { try { mapa.removeLayer(m); } catch(e){} });
     postosMarkers = [];
     lista.forEach(p => { try { desenharMarcadorPosto(p); } catch (e) {} });
     ajustarVisaoMapa();
 }
 
-// `forcar = true` ignora o cache e refaz a consulta (botão/troca de raio).
+function carregarPostosEmLocal(lat, lng, raio, el, forcar) {
+    const chaveArea = `${lat.toFixed(3)},${lng.toFixed(3)},${raio}`;
+
+    if (!mapa) {
+        if (typeof inicializarMapa === 'function') {
+            try { inicializarMapa(); } catch(e){}
+        }
+        if (!mapa && typeof L !== 'undefined') {
+            // Leaflet pode estar carregando
+            setTimeout(() => {
+                if (typeof inicializarMapa === 'function') { try { inicializarMapa(); } catch(e){} }
+                if (mapa) { try { mapa.invalidateSize(); } catch(e){} }
+                if (typeof carregarPostosEmLocal === 'function') carregarPostosEmLocal(lat, lng, raio, el, forcar);
+            }, 400);
+            if (el && (!el.innerHTML || !el.innerHTML.includes('Inicializando'))) el.innerHTML = `<div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;"><i class="fas fa-spinner fa-spin"></i> Inicializando mapa...</div>`;
+            return;
+        }
+        if (!mapa) {
+            if (el) el.innerHTML = `<div style="text-align:center; padding:14px; color:var(--warning); font-size:11px;">
+                <i class="fas fa-triangle-exclamation"></i> Mapa indisponível. Buscando postos mesmo assim...
+            </div>`;
+        }
+    }
+
+    if (mapa) {
+        try { posicionarUsuario(lat, lng); } catch(e){}
+    } else {
+        // Sem mapa mas mesmo assim vamos buscar e mostrar na lista
+        if (marcadorUsuario && typeof mapa !== 'undefined' && mapa) { try { mapa.removeLayer(marcadorUsuario); } catch(e){} }
+        marcadorUsuario = null;
+    }
+
+    // Já temos esse raio na tela? Só reenquadra, sem nova consulta.
+    if (!forcar && postosCarregadoPara === chaveArea && postosProximos.length) {
+        postosCarregando = false;
+        ajustarVisaoMapa();
+        return;
+    }
+
+    const chave = chaveCachePostos(lat, lng, raio);
+    const cache = cacheGet(chave);
+    let postos = null;
+
+    if (!forcar && cache && (Date.now() - (cache.ts || 0)) < POSTOS_CACHE_TTL_MS) {
+        postos = cache.postos;
+    }
+
+    if (postos) {
+        finalizarCarregamentoPostos(postos, chaveArea, el);
+        return;
+    }
+
+    if (el) el.innerHTML = `<div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;"><i class="fas fa-spinner fa-spin"></i> Buscando postos por perto...</div>`;
+
+    buscarPostosOverpass(lat, lng, raio).then(lista => {
+        try {
+            cacheSet(chave, { ts: Date.now(), postos: lista });
+            finalizarCarregamentoPostos(lista, chaveArea, el);
+        } catch (e) {
+            postosCarregando = false;
+            if (typeof AGXLogger !== 'undefined') AGXLogger.error('carregarPostosEmLocal.render', e.message, { stack: e.stack });
+        }
+    }).catch(e => {
+        // Falhou na rede: usa cache vencido se existir; senão mostra erro (sem travar o flag).
+        if (typeof AGXLogger !== 'undefined') AGXLogger.error('carregarPostosEmLocal.fetch', e.message || String(e));
+        if (cache && Array.isArray(cache.postos) && cache.postos.length) {
+            finalizarCarregamentoPostos(cache.postos, chaveArea, el);
+            if (el) el.innerHTML = `<div style="text-align:center; padding:8px; color:#94a3b8; font-size:9px;"><i class="fas fa-clock"></i> Sem internet — mostrando postos salvos ${formatarIdadeCache(cache.ts)}.</div>`;
+            return;
+        }
+        postosCarregando = false;
+        if (el) el.innerHTML = `
+            <div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">
+                <i class="fas fa-triangle-exclamation" style="color:var(--warning);"></i> Não foi possível buscar os postos agora.
+                <div style="font-size:9px; margin-top:4px;">As instâncias do OpenStreetMap podem estar sobrecarregadas. Tente de novo em alguns segundos.</div>
+                <button class="btn-main" onclick="carregarPostosProximos(true)" style="font-size:10px; padding:6px 12px; margin-top:8px;">Tentar de novo</button>
+            </div>`;
+    });
+}
+
+function formatarIdadeCache(ts) {
+    if (!ts) return '';
+    const min = Math.round((Date.now() - ts) / 60000);
+    if (min < 60) return `de ${min} min atrás`;
+    const h = Math.round(min / 60);
+    if (h < 48) return `de ${h} h atrás`;
+    return `de ${Math.round(h / 24)} dias atrás`;
+}
+
+function finalizarCarregamentoPostos(postos, chaveArea, el) {
+    if (!Array.isArray(postos)) postos = [];
+    postos.sort((a, b) => a.dist - b.dist);
+    postosProximos = postos.slice(0, POSTOS_MAX_MAPA);
+    postosCarregadoPara = chaveArea;
+    desenharPostos(postosProximos);
+    renderizarListaPostos(postosProximos);
+    postosCarregando = false;
+    if (typeof AGXLogger !== 'undefined') {
+        AGXLogger.log('POSTOS_OK', `${postosProximos.length} postos`, {
+            area: chaveArea,
+            mapa: !!mapa,
+            marcadores: postosMarkers.length,
+            lista: !!document.getElementById('postos-info')
+        });
+    }
+}
+
+// `forcar = true` ignora cache e refaz a consulta (botão / troca de raio).
 function carregarPostosProximos(forcar) {
-    if (postosCarregando) return;
+    if (postosCarregando && !forcar) return;
     const el = document.getElementById('postos-info');
     const raioSel = document.getElementById('sel-raio-postos');
     const raio = parseInt(raioSel && raioSel.value, 10) || 5000;
 
     if (!navigator.geolocation) {
-        if (el) el.innerHTML = `<div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">Este navegador não dá acesso à localização.</div>`;
+        if (el) el.innerHTML = `<div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">Este navegador não dá acesso à localização. Usando São Paulo como referência.</div>`;
+        carregarPostosEmLocal(-23.55, -46.63, raio, el, true);
         return;
     }
 
     postosCarregando = true;
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const chaveArea = `${lat.toFixed(3)},${lng.toFixed(3)},${raio}`;
-
-        posicionarUsuario(lat, lng);
-
-        // Já temos esse raio na tela? Só reenquadra, sem nova consulta.
-        if (!forcar && postosCarregadoPara === chaveArea && postosProximos.length) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+        try {
+            if (typeof AGXLogger !== 'undefined') AGXLogger.log('POSTOS_GEO', 'localizacao obtida', { lat: pos.coords.latitude, lng: pos.coords.longitude, raio: raio });
+            carregarPostosEmLocal(pos.coords.latitude, pos.coords.longitude, raio, el, forcar);
+        } catch (e) {
             postosCarregando = false;
-            ajustarVisaoMapa();
-            return;
+            if (typeof AGXLogger !== 'undefined') AGXLogger.error('carregarPostosProximos.geo', e.message, { stack: e.stack });
         }
-
-        const chave = chaveCachePostos(lat, lng, raio);
-        const cache = cacheGet(chave);
-        let postos = null;
-
-        if (!forcar && cache && (Date.now() - (cache.ts || 0)) < POSTOS_CACHE_TTL_MS) {
-            postos = cache.postos;
-        }
-        if (!postos) {
-            if (el) el.innerHTML = `<div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;"><i class="fas fa-spinner fa-spin"></i> Buscando postos por perto...</div>`;
-            try {
-                postos = await buscarPostosOverpass(lat, lng, raio);
-                cacheSet(chave, { ts: Date.now(), postos });
-            } catch (e) {
-                postosCarregando = false;
-                if (cache && cache.postos) {
-                    postos = cache.postos;
-                } else {
-                    if (el) el.innerHTML = `
-                        <div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">
-                            <i class="fas fa-triangle-exclamation" style="color:var(--warning);"></i> Não foi possível buscar os postos agora.
-                            <div style="font-size:9px; margin-top:4px;">Verifique a internet e tente de novo.</div>
-                            <button class="btn-main" onclick="carregarPostosProximos(true)" style="font-size:10px; padding:6px 12px; margin-top:8px;">Tentar de novo</button>
-                        </div>`;
-                    return;
-                }
-            }
-        }
-
-        postos.sort((a, b) => a.dist - b.dist);
-        postosProximos = postos.slice(0, POSTOS_MAX_MAPA);
-        postosCarregadoPara = chaveArea;
-        desenharPostos(postosProximos);
-        renderizarListaPostos(postosProximos);
-        postosCarregando = false;
     }, () => {
         postosCarregando = false;
-        if (el) el.innerHTML = `
-            <div style="text-align:center; padding:14px; color:#94a3b8; font-size:11px;">
-                <i class="fas fa-location-dot" style="opacity:0.5;"></i> Permita o acesso à localização para ver os postos próximos.
-                <div style="margin-top:8px;"><button class="btn-main" onclick="carregarPostosProximos(true)" style="font-size:10px; padding:6px 12px;">Tentar de novo</button></div>
-            </div>`;
+        if (typeof AGXLogger !== 'undefined') AGXLogger.log('POSTOS_GEO', 'localizacao negada/indisponivel — usando Sao Paulo');
+        if (el) el.innerHTML = `<div style="text-align:center; padding:10px; color:#94a3b8; font-size:11px;"><i class="fas fa-location-dot" style="opacity:0.5;"></i> Sem localização — mostrando postos em São Paulo.</div>`;
         if (!postosAvisoGeoMostrado) {
             postosAvisoGeoMostrado = true;
-            showToast('Ative a localização para ver os postos próximos.', 'warning');
+            showToast('Sem localização. Exibindo postos em São Paulo.', 'warning');
         }
+        carregarPostosEmLocal(-23.55, -46.63, raio, el, true);
     }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 120000 });
 }
